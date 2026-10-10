@@ -1,0 +1,236 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, Navigate, NavLink, useLocation } from 'react-router-dom';
+import type { Account } from '../api/auth';
+import { AuthLayout, ClubMark, ErrorNotice, Icon, SessionStatus } from '../auth/components';
+import { useSession } from '../auth/session';
+import { useRequest } from '../auth/useRequest';
+import { AdminPage } from '../admin/AdminPage';
+import { ProfilePage } from './ProfilePage';
+import { ClubProvider } from '../club/context';
+import { HomePage } from '../club/HomePage';
+import { PlanningPage } from '../club/PlanningPage';
+import { GymnasiumsPage } from '../club/GymnasiumsPage';
+import { MessagingPage } from '../club/MessagingPage';
+import { MyPlanningPage } from '../club/MyPlanningPage';
+import { MySectionsPage } from '../club/MySectionsPage';
+
+const clubSections = [
+  'Accueil',
+  'Planning',
+  'Gymnases',
+  'Messagerie',
+  'Mon planning',
+  'Mes sections',
+];
+
+const applications = [
+  { path: '/app/planning', title: 'Planning', icon: 'calendar' },
+  { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
+  { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
+  { path: '/app/administration', title: 'Administration', icon: 'shield' },
+] as const;
+const sectionTitles: Record<string, string> = {
+  '/app': 'Accueil',
+  ...Object.fromEntries(applications.map((item) => [item.path, item.title])),
+  '/app/mon-planning': 'Mon planning',
+  '/app/sections': 'Mes sections',
+  '/app/profil': 'Mon profil',
+};
+
+export function AppShell() {
+  const session = useSession();
+  const location = useLocation();
+  const section = sectionTitles[location.pathname];
+  if (session.state === 'idle' || session.state === 'loading')
+    return (
+      <AuthLayout>
+        <SessionStatus />
+      </AuthLayout>
+    );
+  if (session.state === 'error')
+    return (
+      <AuthLayout>
+        <SessionStatus error={session.error} retry={session.retry} />
+      </AuthLayout>
+    );
+  if (!session.account) return <Navigate to="/login" replace />;
+  const admin = session.account.roles.includes('admin');
+  if (!section || (location.pathname === '/app/administration' && !admin))
+    return <Navigate to="/app" replace />;
+  return (
+    <Workspace
+      key={`${session.account.id}:${location.pathname}`}
+      account={session.account}
+      section={section}
+    />
+  );
+}
+
+function Workspace({ account, section }: { account: Account; section: string }) {
+  const session = useSession();
+  const request = useRequest();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const profile = useRef<HTMLDivElement>(null);
+  const profileButton = useRef<HTMLButtonElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  const admin = account.roles.includes('admin');
+  useEffect(() => {
+    document.title = `${section} · LSO Colombes Volley`;
+    title.current?.focus();
+  }, [section]);
+  useEffect(() => {
+    if (!profileOpen) return;
+    function outside(event: PointerEvent) {
+      if (event.target instanceof Node && !profile.current?.contains(event.target))
+        setProfileOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setProfileOpen(false);
+        profileButton.current?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [profileOpen]);
+  return (
+    <div className="app-shell">
+      <a className="skip-link" href="#section-content">
+        Aller au contenu
+      </a>
+      <aside className={`app-sidebar${navigationOpen ? ' expanded' : ''}`}>
+        <Link to="/app" className="sidebar-brand" aria-label="LSO Colombes Volley — accueil">
+          <ClubMark compact />
+        </Link>
+        <nav aria-label="Applications">
+          {applications
+            .filter((item) => item.title !== 'Administration' || admin)
+            .map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end
+                className={({ isActive }) => `app-nav-link${isActive ? ' active' : ''}`}
+              >
+                <Icon name={item.icon} />
+                <span>{item.title}</span>
+              </NavLink>
+            ))}
+        </nav>
+        <span className="sidebar-bottom">
+          LSOC<span>ESPACE CLUB</span>
+        </span>
+      </aside>
+      <div className="app-body">
+        <header className="app-header">
+          <button
+            className="mobile-menu"
+            type="button"
+            aria-label={navigationOpen ? 'Fermer les applications' : 'Ouvrir les applications'}
+            aria-expanded={navigationOpen}
+            onClick={() => setNavigationOpen(!navigationOpen)}
+          >
+            <Icon name="menu" />
+          </button>
+          <div className="app-title">
+            <span className="eyebrow">ESPACE CLUB</span>
+            <h1 ref={title} tabIndex={-1}>
+              {section}
+            </h1>
+          </div>
+          <div className="account-tools">
+            <NavLink to="/app/mon-planning" className="header-link" aria-label="Mon planning">
+              <Icon name="calendar" />
+              <span>Mon planning</span>
+            </NavLink>
+            <NavLink to="/app/sections" className="header-link" aria-label="Mes sections">
+              <Icon name="layers" />
+              <span>Mes sections</span>
+            </NavLink>
+            <span className="header-separator" />
+            <div className="profile-control" ref={profile}>
+              <button
+                ref={profileButton}
+                className="profile-button"
+                type="button"
+                aria-label={`Options du profil de ${account.first_name}`}
+                aria-expanded={profileOpen}
+                aria-controls="profile-options"
+                onClick={() => setProfileOpen(!profileOpen)}
+              >
+                <span className="avatar">{account.first_name.slice(0, 2).toUpperCase()}</span>
+                <span className="profile-name">{account.first_name}</span>
+                <Icon name="chevron" />
+              </button>
+              {profileOpen && (
+                <div className="profile-popover" id="profile-options">
+                  <span className="profile-caption">MON COMPTE</span>
+                  <Link to="/app/profil">
+                    <Icon name="profile" />
+                    Mon profil
+                  </Link>
+                  <Link to="/app/sections">
+                    <Icon name="layers" />
+                    Mes sections
+                  </Link>
+                  <Link to="/app/mon-planning">
+                    <Icon name="calendar" />
+                    Mon planning
+                  </Link>
+                  <div className="popover-divider" />
+                  <button
+                    type="button"
+                    disabled={request.pending}
+                    onClick={() => {
+                      void request.run(session.logout);
+                    }}
+                  >
+                    <Icon name="exit" />
+                    {request.pending ? 'Déconnexion en cours…' : 'Se déconnecter'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+        {request.error && (
+          <div className="shell-error">
+            <ErrorNotice message={request.error} />
+          </div>
+        )}
+        <main
+          id="section-content"
+          className="section-content"
+          aria-label={`Contenu de la section ${section}`}
+          tabIndex={-1}
+        >
+          {section === 'Administration' && <AdminPage />}
+          {section === 'Mon profil' && <ProfilePage account={account} />}
+          {clubSections.includes(section) && (
+            <ClubProvider account={account}>
+              <ClubPage section={section} />
+            </ClubProvider>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ClubPage({ section }: { section: string }) {
+  return (
+    <>
+      {section === 'Accueil' && <HomePage />}
+      {section === 'Planning' && <PlanningPage />}
+      {section === 'Gymnases' && <GymnasiumsPage />}
+      {section === 'Messagerie' && <MessagingPage />}
+      {section === 'Mon planning' && <MyPlanningPage />}
+      {section === 'Mes sections' && <MySectionsPage />}
+    </>
+  );
+}
