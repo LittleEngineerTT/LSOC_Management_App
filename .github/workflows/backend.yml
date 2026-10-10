@@ -1,0 +1,34 @@
+name: Backend
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lsoc_test
+          POSTGRES_USER: lsoc
+          POSTGRES_PASSWORD: lsoc
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lsoc -d lsoc_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      LSOC_TEST_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@localhost:5432/lsoc_test
+      LSOC_TEST_DATABASE_CONFIRMED: "yes"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m venv backend/.venv
+      - run: backend/.venv/bin/pip install -r backend/requirements-dev.lock
+      - run: backend/.venv/bin/pip install --no-deps -e backend
+      - run: backend/.venv/bin/python backend/scripts/verify.py
