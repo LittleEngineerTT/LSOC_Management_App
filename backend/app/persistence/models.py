@@ -12,8 +12,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column
 
 from app.core.security import now
 
@@ -116,13 +118,27 @@ class EventSeries(Identity, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Registration(Identity, Base):
+    __tablename__ = "registrations"
+    __table_args__ = (UniqueConstraint("user_id", "event_id"),)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Event(Identity, Base):
     __tablename__ = "events"
     __table_args__ = (
         CheckConstraint("ends_at > starts_at"),
         CheckConstraint("courts >= 0"),
         CheckConstraint("version > 0"),
+        CheckConstraint(
+            "registration_limit IS NULL OR registration_limit > 0",
+            name="events_registration_limit_check",
+        ),
     )
+    # Redéclaré ici pour que le compteur d’inscrits puisse s’y corréler.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     title: Mapped[str] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(20))
     section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -145,6 +161,15 @@ class Event(Identity, Base):
     after_minutes: Mapped[int] = mapped_column(Integer, default=150)
     match_courts: Mapped[int] = mapped_column(Integer, default=3)
     occupancy_unknown: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Séance ouverte : sections dont les adhérents peuvent s’inscrire ; vide = fermée.
+    registration_section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    registration_limit: Mapped[int | None] = mapped_column(Integer)
+    registration_count: Mapped[int] = column_property(
+        select(func.count(Registration.id))
+        .where(Registration.event_id == id)
+        .correlate_except(Registration)
+        .scalar_subquery()
+    )
 
 
 class EventRevision(Identity, Base):

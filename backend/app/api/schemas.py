@@ -204,6 +204,8 @@ class EventInput(Interval):
     courts: int = Field(ge=0, le=100)
     referent_id: str
     direct_edit: bool = False
+    registration_section_ids: list[str] = Field(default_factory=list)
+    registration_limit: int | None = Field(default=None, gt=0, le=1000)
 
 
 class EventPatch(Input):
@@ -221,11 +223,13 @@ class EventPatch(Input):
     before_minutes: int | None = Field(default=None, ge=0, le=1440)
     after_minutes: int | None = Field(default=None, gt=0, le=1440)
     kickoff_at: AwareDatetime | None = None
+    registration_section_ids: list[str] | None = None
+    registration_limit: int | None = Field(default=None, gt=0, le=1000)
 
     @model_validator(mode="after")
     def no_nulls(self) -> "EventPatch":
         for key in self.model_fields_set:
-            if getattr(self, key) is None and key != "gymnasium_id":
+            if getattr(self, key) is None and key not in {"gymnasium_id", "registration_limit"}:
                 raise ValueError(f"{key} ne peut pas être nul")
         if not self.model_fields_set:
             raise ValueError("Aucune modification")
@@ -261,6 +265,9 @@ class EventView(View):
     after_minutes: int
     occupancy_unknown: bool
     match_courts: int
+    registration_section_ids: list[str]
+    registration_limit: int | None
+    registration_count: int
 
 
 class SeriesInput(Input):
@@ -348,6 +355,29 @@ class ThreadView(View):
     id: str
     user_id: str
     event_id: str
+
+
+class RegistrationView(View):
+    id: str
+    user_id: str
+    event_id: str
+    created_at: datetime
+
+
+class ParticipantView(View):
+    user_id: str
+    first_name: str
+    created_at: datetime
+
+
+class RegistrationSummary(View):
+    event_id: str
+    open: bool
+    limit: int | None
+    count: int
+    registered: bool
+    eligible: bool
+    participants: list[ParticipantView] | None
 
 
 class FollowView(View):

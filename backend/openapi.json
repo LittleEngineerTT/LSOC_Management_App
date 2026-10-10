@@ -45,89 +45,7 @@
           "required": true
         },
         "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Status"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/verify-email": {
-      "post": {
-        "tags": [
-          "Authentification"
-        ],
-        "summary": "Verify Email",
-        "operationId": "verify_email_api_v1_auth_verify_email_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
           "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Status"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/resend-verification": {
-      "post": {
-        "tags": [
-          "Authentification"
-        ],
-        "summary": "Resend Verification",
-        "operationId": "resend_verification_api_v1_auth_resend_verification_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmailInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -234,47 +152,6 @@
             "APIKeyCookie": []
           }
         ]
-      }
-    },
-    "/api/v1/auth/forgot-password": {
-      "post": {
-        "tags": [
-          "Authentification"
-        ],
-        "summary": "Forgot Password",
-        "operationId": "forgot_password_api_v1_auth_forgot_password_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmailInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Status"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/auth/reset-password": {
@@ -853,6 +730,110 @@
         ]
       }
     },
+    "/api/v1/users/{user_id}/username": {
+      "put": {
+        "tags": [
+          "Comptes"
+        ],
+        "summary": "Change Username",
+        "operationId": "change_username_api_v1_users__user_id__username_put",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsernameInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}/password-reset": {
+      "post": {
+        "tags": [
+          "Comptes"
+        ],
+        "summary": "Password Reset",
+        "operationId": "password_reset_api_v1_users__user_id__password_reset_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/profiles/{user_id}": {
       "get": {
         "tags": [
@@ -1224,6 +1205,63 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{identifier}/ffvb-warning": {
+      "put": {
+        "tags": [
+          "Catalogue"
+        ],
+        "summary": "Team Warning",
+        "operationId": "team_warning_api_v1_teams__identifier__ffvb_warning_put",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamWarningInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamView"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2456,6 +2494,252 @@
         }
       }
     },
+    "/api/v1/registrations": {
+      "get": {
+        "tags": [
+          "Inscriptions"
+        ],
+        "summary": "Mine",
+        "operationId": "mine_api_v1_registrations_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistrationView"
+                  },
+                  "title": "Response Mine Api V1 Registrations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{event_id}/registrations": {
+      "get": {
+        "tags": [
+          "Inscriptions"
+        ],
+        "summary": "Summary",
+        "operationId": "summary_api_v1_events__event_id__registrations_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{event_id}/registration": {
+      "post": {
+        "tags": [
+          "Inscriptions"
+        ],
+        "summary": "Register",
+        "operationId": "register_api_v1_events__event_id__registration_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Inscriptions"
+        ],
+        "summary": "Unregister",
+        "operationId": "unregister_api_v1_events__event_id__registration_delete",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{event_id}/registrations/{user_id}": {
+      "delete": {
+        "tags": [
+          "Inscriptions"
+        ],
+        "summary": "Remove",
+        "operationId": "remove_api_v1_events__event_id__registrations__user_id__delete",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/follows": {
       "get": {
         "tags": [
@@ -3207,6 +3491,76 @@
         }
       }
     },
+    "/api/v1/ffvb/club": {
+      "get": {
+        "tags": [
+          "FFVB"
+        ],
+        "summary": "Club",
+        "operationId": "club_api_v1_ffvb_club_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFVBClubView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "FFVB"
+        ],
+        "summary": "Configure Club",
+        "operationId": "configure_club_api_v1_ffvb_club_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FFVBClubInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFVBClubView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/ffvb/sources": {
       "get": {
         "tags": [
@@ -3259,6 +3613,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FFVBSourceView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ffvb/sources/preview": {
+      "post": {
+        "tags": [
+          "FFVB"
+        ],
+        "summary": "Preview Source",
+        "operationId": "preview_source_api_v1_ffvb_sources_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceURLInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePreview"
                 }
               }
             }
@@ -3866,6 +4266,13 @@
     "schemas": {
       "ActivateInput": {
         "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9._+-]*(@[a-z0-9][a-z0-9.-]*)?$",
+            "title": "Username"
+          },
           "password": {
             "type": "string",
             "maxLength": 128,
@@ -3877,19 +4284,14 @@
             "maxLength": 200,
             "minLength": 20,
             "title": "Token"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "username",
           "password",
-          "token",
-          "email"
+          "token"
         ],
         "title": "ActivateInput"
       },
@@ -4350,21 +4752,6 @@
         ],
         "title": "DecisionInput"
       },
-      "EmailInput": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "email"
-        ],
-        "title": "EmailInput"
-      },
       "EmailJobView": {
         "properties": {
           "id": {
@@ -4474,6 +4861,26 @@
             "type": "boolean",
             "title": "Direct Edit",
             "default": false
+          },
+          "registration_section_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Section Ids"
+          },
+          "registration_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Limit"
           }
         },
         "additionalProperties": false,
@@ -4661,6 +5068,33 @@
               }
             ],
             "title": "Kickoff At"
+          },
+          "registration_section_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Section Ids"
+          },
+          "registration_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Limit"
           }
         },
         "additionalProperties": false,
@@ -4793,6 +5227,28 @@
           "match_courts": {
             "type": "integer",
             "title": "Match Courts"
+          },
+          "registration_section_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Section Ids"
+          },
+          "registration_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Limit"
+          },
+          "registration_count": {
+            "type": "integer",
+            "title": "Registration Count"
           }
         },
         "type": "object",
@@ -4817,9 +5273,48 @@
           "before_minutes",
           "after_minutes",
           "occupancy_unknown",
-          "match_courts"
+          "match_courts",
+          "registration_section_ids",
+          "registration_limit",
+          "registration_count"
         ],
         "title": "EventView"
+      },
+      "FFVBClubInput": {
+        "properties": {
+          "club_code": {
+            "type": "string",
+            "maxLength": 30,
+            "pattern": "^\\d+$",
+            "title": "Club Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "club_code"
+        ],
+        "title": "FFVBClubInput"
+      },
+      "FFVBClubView": {
+        "properties": {
+          "club_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Club Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "club_code"
+        ],
+        "title": "FFVBClubView"
       },
       "FFVBSourceInput": {
         "properties": {
@@ -4869,10 +5364,24 @@
           },
           "interval_minutes": {
             "type": "integer",
-            "maximum": 1440.0,
+            "maximum": 525600.0,
             "minimum": 5.0,
             "title": "Interval Minutes",
-            "default": 15
+            "default": 1440,
+            "deprecated": true
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 365.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
           }
         },
         "additionalProperties": false,
@@ -4930,6 +5439,10 @@
             "type": "integer",
             "title": "Interval Minutes"
           },
+          "interval_days": {
+            "type": "number",
+            "title": "Interval Days"
+          },
           "next_check_at": {
             "type": "string",
             "format": "date-time",
@@ -4971,6 +5484,7 @@
           "club_code",
           "enabled",
           "interval_minutes",
+          "interval_days",
           "next_check_at",
           "last_success_at",
           "last_error"
@@ -5102,10 +5616,12 @@
       },
       "LoginInput": {
         "properties": {
-          "email": {
+          "username": {
             "type": "string",
-            "format": "email",
-            "title": "Email"
+            "maxLength": 80,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9._+-]*(@[a-z0-9][a-z0-9.-]*)?$",
+            "title": "Username"
           },
           "password": {
             "type": "string",
@@ -5117,7 +5633,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "email",
+          "username",
           "password"
         ],
         "title": "LoginInput"
@@ -5343,6 +5859,17 @@
             "type": "boolean",
             "title": "Messaging Allowed"
           },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
           "email": {
             "anyOf": [
               {
@@ -5375,6 +5902,7 @@
           "roles",
           "active",
           "messaging_allowed",
+          "username",
           "email",
           "followed_email",
           "referent_email",
@@ -5515,8 +6043,68 @@
         ],
         "title": "NotificationView"
       },
+      "ParticipantView": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "first_name",
+          "created_at"
+        ],
+        "title": "ParticipantView"
+      },
+      "PasswordResetView": {
+        "properties": {
+          "reset_token": {
+            "type": "string",
+            "title": "Reset Token"
+          },
+          "reset_url": {
+            "type": "string",
+            "title": "Reset Url"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reset_token",
+          "reset_url",
+          "expires_at"
+        ],
+        "title": "PasswordResetView"
+      },
       "Preferences": {
         "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
           "followed_email": {
             "type": "boolean",
             "title": "Followed Email",
@@ -5559,6 +6147,95 @@
           "category"
         ],
         "title": "PublicProfileView"
+      },
+      "RegistrationSummary": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "registered": {
+            "type": "boolean",
+            "title": "Registered"
+          },
+          "eligible": {
+            "type": "boolean",
+            "title": "Eligible"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ParticipantView"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "open",
+          "limit",
+          "count",
+          "registered",
+          "eligible",
+          "participants"
+        ],
+        "title": "RegistrationSummary"
+      },
+      "RegistrationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "event_id",
+          "created_at"
+        ],
+        "title": "RegistrationView"
       },
       "ResetInput": {
         "properties": {
@@ -5790,6 +6467,105 @@
         ],
         "title": "SeriesInput"
       },
+      "SourceCandidate": {
+        "properties": {
+          "team_number": {
+            "type": "string",
+            "title": "Team Number"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_number",
+          "team_name"
+        ],
+        "title": "SourceCandidate"
+      },
+      "SourcePreview": {
+        "properties": {
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "entity": {
+            "type": "string",
+            "title": "Entity"
+          },
+          "pool": {
+            "type": "string",
+            "title": "Pool"
+          },
+          "club_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Club Code"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/SourceCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "entity",
+          "pool",
+          "club_code",
+          "candidates"
+        ],
+        "title": "SourcePreview"
+      },
+      "SourceURLInput": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "SourceURLInput"
+      },
       "Status": {
         "properties": {
           "message": {
@@ -5859,6 +6635,10 @@
               }
             ],
             "title": "Referent Id"
+          },
+          "ffvb_source_warning_ignored": {
+            "type": "boolean",
+            "title": "Ffvb Source Warning Ignored"
           }
         },
         "type": "object",
@@ -5866,9 +6646,24 @@
           "id",
           "name",
           "section_id",
-          "referent_id"
+          "referent_id",
+          "ffvb_source_warning_ignored"
         ],
         "title": "TeamView"
+      },
+      "TeamWarningInput": {
+        "properties": {
+          "ignored": {
+            "type": "boolean",
+            "title": "Ignored"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ignored"
+        ],
+        "title": "TeamWarningInput"
       },
       "ThreadView": {
         "properties": {
@@ -5892,22 +6687,6 @@
           "event_id"
         ],
         "title": "ThreadView"
-      },
-      "TokenInput": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 20,
-            "title": "Token"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "title": "TokenInput"
       },
       "UserInput": {
         "properties": {
@@ -5986,6 +6765,17 @@
           "messaging_allowed": {
             "type": "boolean",
             "title": "Messaging Allowed"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           }
         },
         "type": "object",
@@ -5995,9 +6785,27 @@
           "category",
           "roles",
           "active",
-          "messaging_allowed"
+          "messaging_allowed",
+          "username"
         ],
         "title": "UserView"
+      },
+      "UsernameInput": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 3,
+            "pattern": "^[a-z0-9][a-z0-9._+-]*(@[a-z0-9][a-z0-9.-]*)?$",
+            "title": "Username"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "UsernameInput"
       },
       "ValidationError": {
         "properties": {

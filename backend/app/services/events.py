@@ -3,7 +3,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -16,6 +16,7 @@ from app.persistence.models import (
     EventRevision,
     FFVBMatchState,
     Gymnasium,
+    Registration,
     Section,
     User,
 )
@@ -112,10 +113,23 @@ def validate_event(db: Session, event: Event) -> None:
         get(db, Gymnasium, event.gymnasium_id)
         if event.courts <= 0:
             raise HTTPException(422, "Une réservation locale doit occuper au moins un terrain")
+    if len(set(event.registration_section_ids)) != len(event.registration_section_ids):
+        raise HTTPException(422, "Section d’inscription en double")
+    for identifier in event.registration_section_ids:
+        get(db, Section, identifier)
+    if event.registration_section_ids and event.registration_limit is None:
+        raise HTTPException(422, "Une séance ouverte exige une limite d’inscrits")
+    if event.registration_limit is not None:
+        registered = db.scalar(
+            select(func.count(Registration.id)).where(Registration.event_id == event.id)
+        )
+        if (registered or 0) > event.registration_limit:
+            raise HTTPException(422, "La limite ne peut pas être inférieure au nombre d’inscrits")
 
 
 def snapshot(event: Event) -> dict[str, Any]:
-    return EventView.model_validate(event).model_dump(mode="json")
+    # Le nombre d’inscrits n’est pas un champ modifiable : il reste hors de l’historique.
+    return EventView.model_validate(event).model_dump(mode="json", exclude={"registration_count"})
 
 
 def revision(
@@ -170,6 +184,8 @@ def permission(
             "section_ids",
             "before_minutes",
             "after_minutes",
+            "registration_section_ids",
+            "registration_limit",
         }:
             raise HTTPException(403, "Champ réservé aux administrateurs")
     official_fields = {"gymnasium_id", "location", "kickoff_at", "starts_at", "ends_at"}

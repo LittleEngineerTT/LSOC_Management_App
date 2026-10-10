@@ -4,7 +4,7 @@ from sqlalchemy import false, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.security import cipher
-from app.persistence.models import EmailJob, Event, Follow, Notification, User
+from app.persistence.models import EmailJob, Event, Follow, Notification, Registration, User
 
 
 def email(db: Session, user: User, key: str, subject: str, body: str) -> None:
@@ -58,6 +58,10 @@ def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
                 )
             )
         )
+    )
+    # Un inscrit est prévenu comme s’il suivait l’événement.
+    followed |= set(
+        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
     )
     for user in db.scalars(select(User).where(User.active.is_(True))):
         is_ref = user.id == event.referent_id
