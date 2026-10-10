@@ -2,30 +2,42 @@ import { useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLoad } from '../admin/data';
 import { dateLabel } from '../admin/time';
-import type { ChangeRequest, Event } from '../admin/types';
+import type { ChangeRequest, Event, Registration } from '../admin/types';
 import { Badge, Empty, LoadState, PanelHeading } from '../admin/ui';
-import { rangeQuery, today } from './calendar';
+import { daysBetween, horizonEnd, horizonLabel, rangeQuery, today } from './calendar';
 import { isFollowed, useClub, useMySections } from './context';
 import { DetailHost } from './EventDetail';
 import { Agenda } from './events';
 
-export type Reason = 'followed' | 'referent' | 'section';
-export const UPCOMING_DAYS = 56;
-
-/** Événements des huit prochaines semaines qui concernent le compte connecté. */
+export type Reason = 'registered' | 'open' | 'followed' | 'referent' | 'section';
+/** Événements jusqu’au 31 août de l’année suivante qui concernent le compte connecté. */
 export function useMyEvents() {
   const { api, account, follows } = useClub();
   const mySections = useMySections();
   const loader = useCallback(
-    (signal: AbortSignal) =>
-      api.list<Event>(`/events?${rangeQuery(today(), UPCOMING_DAYS)}`, true, signal),
+    (signal: AbortSignal) => {
+      const first = today();
+      return Promise.all([
+        api.list<Event>(
+          `/events?${rangeQuery(first, daysBetween(first, horizonEnd(first)))}`,
+          true,
+          signal,
+        ),
+        api.list<Registration>('/registrations', true, signal),
+      ]);
+    },
     [api],
   );
   const result = useLoad(loader);
   const sectionIds = new Set(mySections.map((section) => section.id));
-  const events = (result.data ?? [])
+  const [list, registrations] = result.data ?? [[], []];
+  const registered = new Set(registrations.map((item) => item.event_id));
+  const events = list
     .map((event) => {
       const reasons: Reason[] = [];
+      if (registered.has(event.id)) reasons.push('registered');
+      else if (event.registration_section_ids.some((id) => sectionIds.has(id)))
+        reasons.push('open');
       if (isFollowed(follows, event)) reasons.push('followed');
       if (event.referent_id === account.id) reasons.push('referent');
       if (event.section_ids.some((id) => sectionIds.has(id))) reasons.push('section');
@@ -37,6 +49,8 @@ export function useMyEvents() {
 
 const filters: { id: '' | Reason; label: string }[] = [
   { id: '', label: 'Tout' },
+  { id: 'registered', label: 'Inscrit' },
+  { id: 'open', label: 'Ouvertes à mes sections' },
   { id: 'followed', label: 'Suivis' },
   { id: 'referent', label: 'Dont je suis référent' },
   { id: 'section', label: 'Mes sections' },
@@ -53,7 +67,7 @@ export function MyPlanningPage() {
     <>
       <PanelHeading
         title="Mon planning"
-        description="Les huit prochaines semaines : événements suivis, dont vous êtes référent ou concernant vos sections."
+        description={`Jusqu’au ${horizonLabel()} : séances où vous êtes inscrit ou ouvertes à vos sections, événements suivis, dont vous êtes référent ou concernant vos sections.`}
       />
       <div className="admin-subtabs" role="group" aria-label="Filtrer mon planning">
         {filters.map((item) => (

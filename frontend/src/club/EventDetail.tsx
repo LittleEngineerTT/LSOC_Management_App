@@ -5,7 +5,7 @@ import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
 import { fieldLabels } from '../admin/changes';
 import { dateLabel } from '../admin/time';
-import type { Event, Match, Revision } from '../admin/types';
+import type { Event, Match, RegistrationSummary, Revision } from '../admin/types';
 import { Badge, Confirm, Empty, LoadState, Notice } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
 import { PersonName, useClub, type Follow, type Thread } from './context';
@@ -28,6 +28,8 @@ const restorable = [
   'before_minutes',
   'after_minutes',
   'kickoff_at',
+  'registration_section_ids',
+  'registration_limit',
 ];
 
 /** Fenêtre de détail d’un événement, ouverte par le paramètre « event » de l’URL. */
@@ -127,6 +129,9 @@ function EventBody({
         {event.exception && <Badge>Occurrence modifiée</Badge>}
         {event.ffvb_match_id && <Badge>Match FFVB</Badge>}
         {event.occupancy_unknown && <Badge tone="warning">Occupation locale indéterminée</Badge>}
+        {event.registration_section_ids.length > 0 && (
+          <Badge tone="good">Ouvert aux inscriptions</Badge>
+        )}
       </div>
       <dl className="admin-changes club-facts">
         <div>
@@ -164,6 +169,9 @@ function EventBody({
         </div>
       </dl>
       {event.ffvb_match_id && <MatchState event={event} />}
+      {(event.registration_section_ids.length > 0 || event.registration_count > 0) && (
+        <Registrations event={event} onChanged={onChanged} />
+      )}
       <div className="admin-actions club-detail-actions">
         <FollowButtons event={event} />
         {(admin || referent) && (
@@ -223,6 +231,139 @@ function FollowButtons({ event }: { event: Event }) {
       )}
       {request.error && <ErrorNotice message={request.error} />}
     </>
+  );
+}
+
+function Registrations({ event, onChanged }: { event: Event; onChanged: () => void }) {
+  const { api, admin } = useClub();
+  const sectionNames = useSectionNames();
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      api.request<RegistrationSummary>(
+        `/events/${event.id}/registrations`,
+        'GET',
+        undefined,
+        signal,
+      ),
+    [api, event.id],
+  );
+  const result = useLoad(loader);
+  const request = useRequest();
+  const [removing, setRemoving] = useState<{ user_id: string; first_name: string } | null>(null);
+  const summary = result.data;
+  const started = Date.parse(event.starts_at) <= Date.now();
+  const full = !!summary && summary.limit !== null && summary.count >= summary.limit;
+  function refresh() {
+    result.reload();
+    onChanged();
+  }
+  function toggle(registered: boolean) {
+    void request.run(async (signal) => {
+      await api.request(
+        `/events/${event.id}/registration`,
+        registered ? 'DELETE' : 'POST',
+        registered ? undefined : {},
+        signal,
+      );
+      refresh();
+    });
+  }
+  return (
+    <section className="admin-card club-registrations">
+      <h3>Inscriptions</h3>
+      <LoadState result={result} />
+      {summary && (
+        <>
+          <p>
+            {summary.open
+              ? `Ouvert aux sections : ${sectionNames(event.registration_section_ids).join(', ')}.`
+              : 'Séance fermée aux nouvelles inscriptions.'}{' '}
+            <strong>
+              {summary.count} inscrit{summary.count > 1 ? 's' : ''}
+              {summary.limit !== null && ` sur ${summary.limit}`}
+            </strong>
+            {full && ' · complet'}
+          </p>
+          {summary.registered ? (
+            <div className="admin-actions club-detail-actions">
+              <Badge tone="good">Vous êtes inscrit</Badge>
+              {!started && (
+                <button
+                  type="button"
+                  className="admin-button"
+                  disabled={request.pending}
+                  onClick={() => toggle(true)}
+                >
+                  Se désinscrire
+                </button>
+              )}
+            </div>
+          ) : summary.open && summary.eligible && !event.cancelled && !started ? (
+            <div className="admin-actions club-detail-actions">
+              <button
+                type="button"
+                className="admin-button primary"
+                disabled={request.pending || full}
+                onClick={() => toggle(false)}
+              >
+                {full ? 'Séance complète' : 'S’inscrire'}
+              </button>
+            </div>
+          ) : (
+            summary.open &&
+            !summary.eligible && (
+              <p className="admin-hint">
+                Les inscriptions sont réservées aux adhérents des sections indiquées.
+              </p>
+            )
+          )}
+          {request.error && <ErrorNotice message={request.error} />}
+          {summary.participants &&
+            (summary.participants.length ? (
+              <ul className="club-plain-list club-participants">
+                {summary.participants.map((participant) => (
+                  <li key={participant.user_id}>
+                    <span>
+                      {participant.first_name} · inscrit le {dateLabel(participant.created_at)}
+                    </span>
+                    {admin && (
+                      <button
+                        type="button"
+                        className="admin-button danger"
+                        onClick={() => setRemoving(participant)}
+                      >
+                        Retirer
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty>Aucun inscrit pour le moment.</Empty>
+            ))}
+        </>
+      )}
+      {removing && (
+        <Confirm
+          title="Retirer l’inscription"
+          label="Retirer"
+          onClose={() => setRemoving(null)}
+          onConfirm={async (signal) => {
+            await api.request(
+              `/events/${event.id}/registrations/${removing.user_id}`,
+              'DELETE',
+              undefined,
+              signal,
+            );
+            refresh();
+          }}
+        >
+          <p>
+            {removing.first_name} ne sera plus inscrit à « {event.title} » et en sera notifié.
+          </p>
+        </Confirm>
+      )}
+    </section>
   );
 }
 

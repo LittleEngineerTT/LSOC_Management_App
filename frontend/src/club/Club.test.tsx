@@ -9,7 +9,7 @@ const member = { id: 'm1', username: 'camille', first_name: 'Camille', category:
 const admin = { ...member, id: 'a1', username: 'admin', first_name: 'Alix', roles: ['admin'] };
 const day = addDays(mondayOf(today()), 2);
 function at(time: string) { return new Date(`${day}T${time}:00+02:00`).toISOString(); }
-const training = { id: 'e1', title: 'Entraînement loisir', kind: 'training', section_ids: ['s1'], gymnasium_id: 'g1', location: '', starts_at: at('18:00'), ends_at: at('20:00'), courts: 2, referent_id: 'm1', direct_edit: false, cancelled: false, version: 3, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false };
+const training = { id: 'e1', title: 'Entraînement loisir', kind: 'training', section_ids: ['s1'], gymnasium_id: 'g1', location: '', starts_at: at('18:00'), ends_at: at('20:00'), courts: 2, referent_id: 'm1', direct_edit: false, cancelled: false, version: 3, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [] as string[], registration_limit: null as number | null, registration_count: 0 };
 let account: typeof member;
 let routes: Record<string, unknown>;
 let mutations: { path: string; method: string; body: unknown }[];
@@ -93,7 +93,7 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   open('/app/planning');
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement compétition');
-  await userEvent.click(screen.getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
   await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
   await userEvent.type(screen.getByLabelText(/Répéter chaque semaine/), addDays(day, 7));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
@@ -129,4 +129,54 @@ it('les gymnases signalent un dépassement et mes sections présentent mon rôle
   expect(within(card).getByText('Joueur')).toBeInTheDocument();
   expect(await within(card).findByText(/Référent de l’équipe : Alix/)).toBeInTheDocument();
   expect(await within(card).findByRole('link', { name: 'Entraînement loisir' })).toBeInTheDocument();
+});
+
+it('un adhérent s’inscrit à une séance ouverte à sa section tant que la limite n’est pas atteinte', async () => {
+  const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const openSession = { ...training, id: 'e2', title: 'Séance ouverte', referent_id: 'a1', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 1 };
+  routes['/events/e2'] = openSession;
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 1, registered: false, eligible: true, participants: null };
+  mutation = (path) => {
+    routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 2, registered: true, eligible: true, participants: null };
+    return reply({ id: 'r1', user_id: 'm1', event_id: 'e2', created_at: later }, path.endsWith('/registration') ? 201 : 404);
+  };
+  open('/app/planning?event=e2');
+  const dialog = await screen.findByRole('dialog', { name: 'Séance ouverte' });
+  expect(await within(dialog).findByText('1 inscrit sur 2')).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'S’inscrire' }));
+  expect(await within(dialog).findByText('Vous êtes inscrit')).toBeInTheDocument();
+  expect(within(dialog).getByText('2 inscrits sur 2')).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/events/e2/registration', method: 'POST', body: {} }]);
+});
+
+it('une séance complète ou réservée à une autre section n’accepte pas d’inscription', async () => {
+  const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance ouverte', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 1, registration_count: 1 };
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 1, count: 1, registered: false, eligible: true, participants: [] };
+  open('/app/planning?event=e2');
+  const dialog = await screen.findByRole('dialog', { name: 'Séance ouverte' });
+  expect(await within(dialog).findByRole('button', { name: 'Séance complète' })).toBeDisabled();
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 1, count: 0, registered: false, eligible: false, participants: null };
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Fermer' }));
+  open('/app/planning?event=e2');
+  const other = (await screen.findAllByRole('dialog', { name: 'Séance ouverte' })).at(-1)!;
+  expect(await within(other).findByText(/réservées aux adhérents des sections indiquées/)).toBeInTheDocument();
+  expect(within(other).queryByRole('button', { name: 'S’inscrire' })).not.toBeInTheDocument();
+});
+
+it('un administrateur ouvre une séance en fixant obligatoirement une limite', async () => {
+  account = admin;
+  mutation = () => reply(training, 201);
+  open('/app/planning');
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Séance découverte');
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des sections' })).getByLabelText('Loisir'));
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  expect(await screen.findByText(/Indiquez le nombre maximal d’inscrits/)).toBeInTheDocument();
+  expect(mutations).toEqual([]);
+  await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '12');
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0]).toMatchObject({ path: '/events', body: { registration_section_ids: ['s1'], registration_limit: 12 } });
 });

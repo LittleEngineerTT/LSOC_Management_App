@@ -125,6 +125,25 @@ export interface Event {
   after_minutes: number;
   match_courts: number;
   occupancy_unknown: boolean;
+  /** Sections dont les adhérents peuvent s’inscrire ; vide = séance fermée. */
+  registration_section_ids: string[];
+  registration_limit: number | null;
+  registration_count: number;
+}
+export interface RegistrationSummary {
+  event_id: string;
+  open: boolean;
+  limit: number | null;
+  count: number;
+  registered: boolean;
+  eligible: boolean;
+  participants: { user_id: string; first_name: string; created_at: string }[] | null;
+}
+export interface Registration {
+  id: string;
+  user_id: string;
+  event_id: string;
+  created_at: string;
 }
 export interface ChangeRequest {
   id: string;

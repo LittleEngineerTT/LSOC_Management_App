@@ -34,6 +34,10 @@ export function useEventLink() {
   };
 }
 
+function atLimit(event: Event) {
+  return event.registration_limit !== null && event.registration_count >= event.registration_limit;
+}
+
 export function EventRow({ event }: { event: Event }) {
   const { follows, account } = useClub();
   const place = usePlace();
@@ -58,6 +62,12 @@ export function EventRow({ event }: { event: Event }) {
           {event.referent_id === account.id && <Badge tone="good">Référent</Badge>}
           {!event.referent_id && <Badge tone="warning">Sans référent</Badge>}
           {isFollowed(follows, event) && <Badge>Suivi</Badge>}
+          {event.registration_section_ids.length > 0 && (
+            <Badge tone={atLimit(event) ? 'warning' : 'good'}>
+              {atLimit(event) ? 'Complet' : 'Ouvert'} · {event.registration_count}/
+              {event.registration_limit}
+            </Badge>
+          )}
         </span>
       </Link>
     </li>

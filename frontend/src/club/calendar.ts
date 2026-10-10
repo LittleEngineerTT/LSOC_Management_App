@@ -26,6 +26,18 @@ export function dayStart(day: string): string {
 export function range(firstDay: string, days: number) {
   return { starts_at: dayStart(firstDay), ends_at: dayStart(addDays(firstDay, days)) };
 }
+/** Lendemain du 31 août de l’année suivante : borne exclusive de « Mon planning ». */
+export function horizonEnd(day: string): string {
+  return `${Number(day.slice(0, 4)) + 1}-09-01`;
+}
+export function horizonLabel(): string {
+  return `31 août ${horizonEnd(today()).slice(0, 4)}`;
+}
+export function daysBetween(first: string, last: string): number {
+  return Math.round(
+    (Date.parse(`${last}T12:00:00Z`) - Date.parse(`${first}T12:00:00Z`)) / 86_400_000,
+  );
+}
 export function rangeQuery(firstDay: string, days: number): string {
   const { starts_at, ends_at } = range(firstDay, days);
   return `starts_at=${encodeURIComponent(starts_at)}&ends_at=${encodeURIComponent(ends_at)}`;

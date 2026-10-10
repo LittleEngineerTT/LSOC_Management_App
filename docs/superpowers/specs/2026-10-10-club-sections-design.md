@@ -8,7 +8,8 @@ Directive utilisateur du 10 octobre : implémenter tous les menus de l’applica
 - **Modification** : l’administrateur modifie tout, y compris une série à partir d’une occurrence ; le référent avec droit direct modifie les champs autorisés ; sinon il envoie une demande de validation. Seuls les champs changés sont transmis avec `base_version`. Un dépassement de capacité affiche les créneaux ; seul un administrateur peut cocher le forçage. Les dates et lieux FFVB exigent une confirmation explicite.
 - **Gymnases** : occupation par créneau, terrains libres ou en excès, indisponibilités et événements de la semaine.
 - **Messagerie** : fils de questions privés ; l’adhérent voit les siens, les administrateurs tous. Lecture marquée à l’ouverture ; un droit d’écrire retiré laisse lire les échanges.
-- **Mon planning** : huit semaines d’événements suivis, dont le compte est référent ou concernant ses sections, avec ses demandes de modification.
+- **Mon planning** : du jour au 31 août de l’année suivante (directive du 10 octobre), séances où le compte est inscrit ou ouvertes à ses sections, événements suivis, dont il est référent ou concernant ses sections, avec ses demandes de modification. L’accueil n’affiche pas comme rendez-vous une séance seulement ouverte.
+- **Séances ouvertes** : voir [inscriptions](2026-10-10-event-registrations-design.md).
 - **Mes sections** : équipes du compte, rôle joueur ou coach, référent d’équipe et prochains événements de chaque section.
 
 Les permissions restent vérifiées par le backend ; l’interface n’affiche que les actions correspondant aux droits effectifs. Les prénoms des autres comptes viennent de `/profiles/{id}`.

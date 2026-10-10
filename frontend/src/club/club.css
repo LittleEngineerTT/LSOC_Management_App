@@ -440,3 +440,17 @@
     flex-wrap: wrap;
   }
 }
+.club-registrations p {
+  margin: 0 0 12px;
+}
+.club-registrations .club-detail-actions {
+  align-items: center;
+  margin: 0 0 12px;
+}
+.club-participants li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}

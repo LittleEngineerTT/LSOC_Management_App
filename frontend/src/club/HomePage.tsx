@@ -15,7 +15,11 @@ export function HomePage() {
   const { account, admin } = useClub();
   const { result, events } = useMyEvents();
   const link = useEventLink();
-  const next = events.slice(0, 6).map((item) => item.event);
+  // Une séance seulement ouverte n’est pas un rendez-vous tant qu’on n’y est pas inscrit.
+  const next = events
+    .filter((item) => item.reasons.some((reason) => reason !== 'open'))
+    .slice(0, 6)
+    .map((item) => item.event);
   return (
     <>
       <div className="club-welcome">

@@ -29,6 +29,9 @@ function capacityProblem(error: unknown): CapacityProblem | null {
   if (detail?.code !== 'capacity_exceeded') return null;
   return { segments: detail.segments ?? detail.events?.flatMap((item) => item.segments) ?? [] };
 }
+function registrationLimit(values: FormValues): number | null {
+  return str(values, 'registration_limit') ? num(values, 'registration_limit') : null;
+}
 function sameList(left: string[], right: string[]) {
   return [...left].sort().join() === [...right].sort().join();
 }
@@ -157,6 +160,21 @@ export function EventEditor({
             type: 'checkbox' as const,
             hint: 'Ce droit est retiré automatiquement lors d’un changement de référent, sauf s’il est coché à nouveau.',
           },
+          {
+            name: 'registration_section_ids',
+            label: 'Ouvert aux inscriptions des sections',
+            type: 'choices' as const,
+            options: sections.map((section) => ({ value: section.id, label: section.name })),
+            hint: 'Aucune section cochée : séance fermée aux inscriptions.',
+          },
+          {
+            name: 'registration_limit',
+            label: 'Nombre maximal d’inscrits',
+            type: 'number' as const,
+            min: 1,
+            max: 1000,
+            hint: 'Obligatoire pour une séance ouverte ; les inscriptions s’arrêtent une fois la limite atteinte.',
+          },
         ]
       : []),
     ...(event ? [{ name: 'cancelled', label: 'Événement annulé', type: 'checkbox' as const }] : []),
@@ -187,6 +205,9 @@ export function EventEditor({
         referent_id: event.referent_id ?? '',
         direct_edit: event.direct_edit,
         cancelled: event.cancelled,
+        registration_section_ids: event.registration_section_ids,
+        registration_limit:
+          event.registration_limit === null ? '' : String(event.registration_limit),
       }
     : {
         title: '',
@@ -199,6 +220,8 @@ export function EventEditor({
         courts: '1',
         referent_id: account.id,
         direct_edit: false,
+        registration_section_ids: [],
+        registration_limit: '',
         until: '',
       };
 
@@ -230,6 +253,10 @@ export function EventEditor({
         result.referent_id = str(values, 'referent_id');
       if (checked(values, 'direct_edit') !== original.direct_edit)
         result.direct_edit = checked(values, 'direct_edit');
+      if (!sameList(choices(values, 'registration_section_ids'), original.registration_section_ids))
+        result.registration_section_ids = choices(values, 'registration_section_ids');
+      const limit = registrationLimit(values);
+      if (limit !== original.registration_limit) result.registration_limit = limit;
     }
     if (checked(values, 'cancelled') !== original.cancelled)
       result.cancelled = checked(values, 'cancelled');
@@ -239,6 +266,12 @@ export function EventEditor({
 
   async function save(values: FormValues, signal: AbortSignal) {
     try {
+      if (
+        admin &&
+        choices(values, 'registration_section_ids').length &&
+        registrationLimit(values) === null
+      )
+        throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
       if (!event) {
         const gym = str(values, 'gymnasium_id') || null;
         if (!choices(values, 'section_ids').length)
@@ -254,6 +287,8 @@ export function EventEditor({
           courts: gym ? num(values, 'courts') : 0,
           referent_id: str(values, 'referent_id'),
           direct_edit: checked(values, 'direct_edit'),
+          registration_section_ids: choices(values, 'registration_section_ids'),
+          registration_limit: registrationLimit(values),
         };
         if (body.ends_at <= body.starts_at) throw new Error('La fin doit suivre le début.');
         if (str(values, 'until')) {

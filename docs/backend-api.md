@@ -104,6 +104,20 @@ Annuler un événement avec `changes.cancelled=true` libère sa réservation et 
 
 Un blocage comporte `gymnasium_id`, `title`, `starts_at`, `ends_at`, `courts`. Il peut créer un dépassement sur des événements existants ; les admins sont alors alertés. Une baisse de capacité d’un gymnase déclenche également ces alertes. Les disponibilités exposent toujours une valeur au moins nulle et une quantité excédentaire distincte.
 
+## Séances ouvertes et inscriptions
+
+Un événement porte `registration_section_ids` (sections dont les adhérents peuvent s’inscrire ; liste vide = séance fermée), `registration_limit` (obligatoire dès qu’une section est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces deux champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes.
+
+| Routes | Usage |
+| --- | --- |
+| `GET /events/{id}/registrations` | `{open, limit, count, registered, eligible, participants}` ; `participants` (prénoms) seulement pour un admin ou le référent, sinon `null` |
+| `POST /events/{id}/registration` | S’inscrire ; idempotent |
+| `DELETE /events/{id}/registration` | Se désinscrire avant le début |
+| `DELETE /events/{id}/registrations/{user_id}` | Admin : retirer une inscription ; l’adhérent est notifié |
+| `GET /registrations` | Inscriptions du compte connecté |
+
+L’inscription exige le rôle `member`, un rattachement (joueur ou coach) à une équipe d’une section ouverte, une séance ni annulée ni commencée, et une place libre. Erreurs : `403` hors section, `409 {code: "registration_closed"}` (fermée, annulée ou commencée) et `409 {code: "registration_full"}` (limite atteinte). Les inscriptions sont sérialisées par le verrou du planning, si bien que des demandes simultanées ne dépassent jamais la limite. Un inscrit reçoit les notifications de modification de la séance comme s’il la suivait. La suppression d’un compte efface ses inscriptions.
+
 ## Suivis, questions et notifications
 
 | Routes | Usage |

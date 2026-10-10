@@ -57,7 +57,7 @@ cd backend
 
 Pour utiliser le `.env` de la racine lors d’un lancement depuis `backend/`, copier sa configuration dans `backend/.env`, ou exporter les variables `LSOC_*` nécessaires. La configuration utilise le `.env` du répertoire de lancement. Lancer le worker dans un autre terminal avec `.venv/bin/lsoc-worker` et la même configuration. L’API n’exécute aucune tâche périodique elle-même.
 
-La V1 couvre comptes/invitations, rôles cumulables, rattachements joueur/coach, catalogue, événements, récurrences, capacité, blocages, demandes, historique, suivis, questions privées, notifications et FFVB. Les inscriptions aux séances sont prévues pour la V2.
+La V1 couvre comptes/invitations, rôles cumulables, rattachements joueur/coach, catalogue, événements, récurrences, capacité, blocages, demandes, historique, suivis, questions privées, notifications et FFVB. Les séances peuvent être ouvertes à certaines sections : leurs adhérents s’y inscrivent jusqu’à la limite fixée par un administrateur.
 
 ## Contrat et intégration du frontend
 

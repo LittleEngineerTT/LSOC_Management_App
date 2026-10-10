@@ -14,9 +14,9 @@ function at(offset: number, time: string) {
   date.setUTCDate(date.getUTCDate() + offset);
   return new Date(`${date.toISOString().slice(0, 10)}T${time}:00+01:00`).toISOString();
 }
-const base = { section_ids: ['section-1'], location: '', referent_id: 'member-1', direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false };
+const base = { section_ids: ['section-1'], location: '', referent_id: 'member-1', direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
 const events: Row[] = [
-  { ...base, id: 'event-1', title: 'Entraînement loisir du mercredi soir', kind: 'training', gymnasium_id: 'gym-1', starts_at: at(2, '19:00'), ends_at: at(2, '21:00'), courts: 2, series_id: 'series-1' },
+  { ...base, id: 'event-1', title: 'Entraînement loisir du mercredi soir', kind: 'training', gymnasium_id: 'gym-1', starts_at: at(2, '19:00'), ends_at: at(2, '21:00'), courts: 2, series_id: 'series-1', registration_section_ids: ['section-1'], registration_limit: 12, registration_count: 5 },
   { ...base, id: 'event-2', title: 'LSO COLOMBES / AS SP BOURG LA REINE 2', kind: 'match', gymnasium_id: 'gym-1', starts_at: at(4, '19:15'), ends_at: at(4, '23:00'), courts: 3, ffvb_match_id: 'match-1', kickoff_at: at(4, '20:30'), referent_id: 'admin-1' },
 ];
 
@@ -52,6 +52,8 @@ async function prepare(page: Page) {
         { id: 'message-1', thread_id: 'thread-1', author_id: 'member-1', body: 'Bonjour, faut-il apporter un ballon ?', created_at: at(0, '09:00'), read_at: at(0, '10:00') },
         { id: 'message-2', thread_id: 'thread-1', author_id: 'admin-1', body: 'Non, le club en fournit. À mercredi !', created_at: at(0, '10:00'), read_at: null },
       ],
+      '/events/event-1/registrations': { event_id: 'event-1', open: true, limit: 12, count: 5, registered: false, eligible: true, participants: null },
+      '/events/event-2/registrations': { event_id: 'event-2', open: false, limit: null, count: 0, registered: false, eligible: false, participants: null },
       '/notifications': [{ id: 'notification-1', kind: 'event_changed', title: 'Modification : Entraînement loisir du mercredi soir', event_id: 'event-1', read_at: null, created_at: at(0, '11:00') }],
       '/gymnasiums/gym-1/availability': { gymnasium_id: 'gym-1', capacity: 3, segments: [
         { starts_at: at(2, '19:00'), ends_at: at(2, '21:00'), occupied: 2, available: 1, excess: 0 },
@@ -97,6 +99,7 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
     ['/app', 'Bonjour Camille'],
     ['/app/planning', 'Planning du club'],
     ['/app/planning?event=event-2', 'LSO COLOMBES / AS SP BOURG LA REINE 2'],
+    ['/app/planning?event=event-1', 'Inscriptions'],
     ['/app/gymnases', 'Gymnases'],
     ['/app/messagerie?thread=thread-1', 'Entraînement loisir du mercredi soir'],
     ['/app/mon-planning', 'Mon planning'],
@@ -110,7 +113,7 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
       await noOverflow(page);
     }
   }
-  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lue'], ['planning', '/app/planning', 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['gyms', '/app/gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['sections', '/app/sections', 'Joueur']];
+  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lue'], ['planning', '/app/planning', 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['sections', '/app/sections', 'Joueur']];
   for (const [name, path, text] of previews) {
     for (const [device, size] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]] as const) {
       await page.setViewportSize(size);

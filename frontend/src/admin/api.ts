@@ -16,6 +16,10 @@ function errorMessage(status: number, detail: unknown): string {
       return 'Cet événement a été modifié entre-temps. Rechargez-le avant de réexaminer votre modification.';
     if (detail.code === 'capacity_exceeded')
       return 'La capacité du gymnase serait dépassée. Vérifiez les disponibilités ou confirmez explicitement le forçage.';
+    if (detail.code === 'registration_full')
+      return 'La séance est complète : la limite d’inscrits est atteinte.';
+    if (detail.code === 'registration_closed' && 'message' in detail)
+      return `Inscriptions fermées : ${String(detail.message).toLowerCase()}.`;
   }
   if (status === 401) return 'Votre session a expiré. Connectez-vous à nouveau.';
   if (status === 403) return 'Action refusée. Vérifiez vos droits ou rechargez votre session.';

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Badge, Empty, LoadState, PanelHeading } from '../admin/ui';
-import { dayLabel, parisDay, timeRange } from './calendar';
+import { dayLabel, horizonLabel, parisDay, timeRange } from './calendar';
 import { PersonName, useClub, useMySections } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
@@ -70,7 +70,7 @@ export function MySectionsPage() {
                 </ul>
               ) : (
                 result.loaded && (
-                  <p className="club-day-empty">Rien de prévu dans les huit prochaines semaines.</p>
+                  <p className="club-day-empty">Rien de prévu d’ici au {horizonLabel()}.</p>
                 )
               )}
               <Link className="admin-button" to={`/app/planning?section=${section.id}`}>

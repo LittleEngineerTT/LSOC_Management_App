@@ -22,13 +22,15 @@ export const fieldLabels: Record<string, string> = {
   ffvb_disabled: 'Synchronisation désactivée',
   ffvb_suspended_until: 'Suspension jusqu’au',
   occupancy_unknown: 'Occupation inconnue',
+  registration_section_ids: 'Ouvert aux sections',
+  registration_limit: 'Limite d’inscrits',
 };
 export function Changes({ values }: { values: Record<string, unknown> }) {
   const { catalog } = useAdmin();
   function label(key: string, value: unknown): string {
     if (value === null || value === '') return 'Aucun';
     if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
-    if (key === 'section_ids' && Array.isArray(value))
+    if ((key === 'section_ids' || key === 'registration_section_ids') && Array.isArray(value))
       return value
         .map((id) => catalog.sections.find((section) => section.id === id)?.name ?? String(id))
         .join(', ');
