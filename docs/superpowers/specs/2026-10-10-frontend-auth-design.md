@@ -27,3 +27,9 @@ Serveur Vite `localhost:5173`, proxy `/api` vers `127.0.0.1:8000`. Les liens des
 ## Vérification
 
 Nouveaux tests frontend des parcours, cookies/CSRF, erreurs réseau/validation, liens invalides et session restaurée. Conserver tous les tests backend existants. Vérifier TypeScript, build, navigateur desktop/mobile et une connexion au backend Docker réel. Caches npm et navigateur dans le projet ; aucune installation système. Les métadonnées Git protégées restent intactes.
+
+## Directives complémentaires
+
+Suivre le [guide React sur les effets](https://react.dev/learn/you-might-not-need-an-effect) : valeurs dérivées calculées pendant le rendu, mutations dans les handlers, remise à zéro par clés React ; effets uniquement pour serveur, focus/titre DOM, annulation et abonnements navigateur. Ajouter les contrôles ESLint des hooks. La navigation après connexion et la coque demandée ont nécessité une adaptation des nouveaux tests avant livraison, autorisée par ce changement de directives.
+
+Vérifier la réactivité de tous les écrans aux largeurs 320, 360, 375, 390, 412, 430, 768, 820, 1024, 1280, 1366, 1440, 1920 et 2560 pixels, y compris le menu de profil. Sur téléphone, menu latéral repliable ; accès hauts sous forme d'icônes nommées accessibles.

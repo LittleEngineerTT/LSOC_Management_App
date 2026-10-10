@@ -14,13 +14,13 @@ docker compose up --build -d
 Les migrations s’exécutent avant le démarrage de l’API et du worker. La base commence vide. Créer le premier administrateur avec un mot de passe saisi de façon masquée :
 
 ```sh
-docker compose exec api lsoc create-admin --email votre-adresse@example.org --first-name VotrePrénom
+docker compose exec api lsoc create-admin --username votre-identifiant --first-name VotrePrénom
 ```
 
 Pour ajouter les données facultatives destinées au développement du front :
 
 ```sh
-docker compose exec api lsoc seed-demo --admin-email votre-adresse@example.org
+docker compose exec api lsoc seed-demo --admin-username votre-identifiant
 ```
 
 Cette commande ajoute une section, un gymnase de trois terrains, une équipe, un entraînement et la configuration FFVB fournie. Les données portent le préfixe « Démonstration ». La source FFVB reste désactivée jusqu’à configuration explicite afin d’éviter un import automatique dans un gymnase fictif. La commande peut être relancée sans dupliquer ces données.
@@ -51,7 +51,7 @@ backend/.venv/bin/pip install -r backend/requirements-dev.lock
 backend/.venv/bin/pip install --no-deps -e backend
 cd backend
 .venv/bin/alembic upgrade head
-.venv/bin/lsoc create-admin --email votre-adresse@example.org --first-name VotrePrénom
+.venv/bin/lsoc create-admin --username votre-identifiant --first-name VotrePrénom
 .venv/bin/uvicorn app.main:app --reload
 ```
 
@@ -69,7 +69,41 @@ Réexporter les types après une modification des routes :
 backend/.venv/bin/lsoc export-openapi --output backend/openapi.json
 ```
 
-Aucun frontend n’a encore été créé. `backend/openapi.json` permet de générer ses types et son client TypeScript.
+Le frontend React/TypeScript dans `frontend/` couvre maintenant les parcours d’authentification et la coque de l’application. `backend/openapi.json` reste le contrat du backend.
+
+## Frontend : authentification et accueil
+
+Avec le backend Compose démarré, lancer le frontend depuis un autre terminal :
+
+```sh
+cd frontend
+nvm install
+nvm use
+npm ci
+npm run dev
+```
+
+Si Node est déjà installé, utiliser une version compatible avec `.nvmrc` (Node 22, au moins 22.13). Aucune installation de nvm n’est effectuée par le projet. Ouvrir http://localhost:5173. Le serveur Vite transmet `/api` au backend local sur le port 8000 ; les cookies restent sur le même hôte, sans configuration supplémentaire. Pour tester sur un téléphone du même réseau local, utiliser `npm run dev -- --host 0.0.0.0` et l’adresse IP de la machine sur le port 5173. Les liens envoyés par e-mail utilisent `LSOC_FRONTEND_URL`.
+
+Parcours livrés : connexion par identifiant (qui peut être une adresse e-mail, sans vérification), activation par invitation avec choix de l’identifiant, réinitialisation par un lien généré par l’administrateur et transmis par lui. Aucun e-mail d’authentification n’est envoyé ; l’adresse de notification, facultative, se règle dans Mon profil. Les e-mails de notification de développement sont consultables dans Mailpit : http://localhost:8025. Les mots de passe et jetons ne sont pas conservés dans localStorage/sessionStorage ; la session utilise les cookies du backend, et la déconnexion transmet le jeton CSRF.
+
+Après connexion, l’utilisateur arrive sur `/app`, section Accueil : prochains rendez-vous et notifications. Le menu vertical propose Planning (semaine du club, détail, suivi, questions, modifications et demandes, création d’événements et de séries par les administrateurs), Gymnases (occupation et disponibilités), Messagerie (questions privées) et Administration pour les administrateurs. En haut à droite : Mon planning, Mes sections et options du profil avec déconnexion. Détail dans la [spécification des sections](docs/superpowers/specs/2026-10-10-club-sections-design.md). Sur téléphone, le menu vertical s’ouvre par le bouton en haut à gauche ; les accès du haut gardent leurs noms accessibles quand seuls leurs pictogrammes sont visibles.
+
+Les formulaires, confirmations et menus sont conçus pour 320 px et plus. Les mutations sont dans les handlers ; les effets servent à synchroniser avec le serveur ou le navigateur, selon le [guide React fourni](https://react.dev/learn/you-might-not-need-an-effect). Les formulaires et menus sont réinitialisés par clés React quand on change de parcours/section.
+
+Vérifications du frontend depuis `frontend/` :
+
+```sh
+npm run lint
+npm run format:check
+npm test
+npm run build
+mkdir -p .cache/tmp
+PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright npm exec -- playwright install chromium --only-shell
+npm run test:e2e
+```
+
+Les tests navigateur utilisent des réponses API contrôlées et ne modifient pas la base du club. Ils couvrent ordinateur/téléphone et 14 résolutions de 320 à 2560 px ; les traces d’échec sont dans `frontend/test-results/`. Le build est généré dans `frontend/dist/`. Le futur serveur de production devra servir `index.html` pour les routes du frontend (`/app`, `/reset-password`, etc.) et transmettre `/api` à FastAPI. `npm run preview` sert seulement les fichiers construits ; il ne remplace pas ce serveur de production et son proxy API.
 
 ## Vérifications
 
@@ -97,4 +131,4 @@ Pour une installation de production, définir `LSOC_ENVIRONMENT=production`, un 
 
 ## État de livraison
 
-Le backend a été vérifié sur PostgreSQL, y compris en HTTP et SMTP réels. La configuration Compose a été validée avec `docker compose config --quiet`. Les images Docker n’ont pas été construites ni les conteneurs lancés dans cette session ; ces opérations écrivent dans le stockage Docker hors du projet. Aucun déploiement, commit ou envoi GitHub n’a été effectué.
+Le backend a été vérifié sur PostgreSQL, y compris en HTTP et SMTP réels. Les conteneurs démarrés par l’utilisateur ont ensuite servi à vérifier les parcours réels du frontend avec l’API, le worker et Mailpit. Le frontend dispose de 23 tests unitaires, de 10 scénarios Chromium et d’une matrice de 14 résolutions ; lint, formatage, TypeScript strict et build sont vérifiés. Aucun déploiement, commit ou envoi GitHub n’a été effectué.
