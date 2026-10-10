@@ -1,19 +1,24 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import delete, select, text
 
-from app.api.auth import issue_token
+from app.api.auth import issue_token, lock_auth
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
     AssignmentInput,
     AssignmentView,
     InvitationView,
     MeView,
+    PasswordResetView,
     Preferences,
     PublicProfileView,
     UserInput,
+    UsernameInput,
     UserView,
 )
 from app.core.config import settings
+from app.core.security import now
 from app.persistence.models import (
     Assignment,
     AuthToken,
@@ -48,7 +53,7 @@ def invitation(db: DB, user: User) -> InvitationView:
         raise HTTPException(409, "Compte déjà actif")
     db.execute(delete(AuthToken).where(AuthToken.user_id == user.id))
     db.execute(delete(EmailJob).where(EmailJob.user_id == user.id))
-    user.email, user.password_hash = None, None
+    user.username, user.password_hash = None, None
     value = issue_token(db, user, "invitation", 168)
     return InvitationView(
         user=UserView.model_validate(user),
@@ -190,9 +195,39 @@ def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> None:
 
 @router.put("/preferences", response_model=MeView)
 def preferences(body: Preferences, db: DB, actor: Actor) -> User:
-    for key, value in body.model_dump().items():
+    for key, value in body.model_dump(exclude_unset=True).items():
+        if key == "email" and value is not None:
+            value = str(value).lower()
         setattr(actor, key, value)
     return actor
+
+
+@router.put("/users/{user_id}/username", response_model=UserView)
+def change_username(user_id: str, body: UsernameInput, db: DB, actor: Admin) -> User:
+    lock_auth(db)
+    user = get(db, User, user_id)
+    if not user.active:
+        raise HTTPException(409, "L’utilisateur choisira son identifiant à l’activation")
+    if db.scalar(select(User.id).where(User.username == body.username, User.id != user.id)):
+        raise HTTPException(409, "Cet identifiant est déjà utilisé")
+    if user.username != body.username:
+        user.username = body.username
+        db.execute(delete(LoginSession).where(LoginSession.user_id == user.id))
+    return user
+
+
+@router.post("/users/{user_id}/password-reset", response_model=PasswordResetView)
+def password_reset(user_id: str, db: DB, actor: Admin) -> PasswordResetView:
+    lock_auth(db)
+    user = get(db, User, user_id)
+    if not user.active:
+        raise HTTPException(409, "Utilisez l’invitation pour un compte qui n’est pas encore actif")
+    value = issue_token(db, user, "recovery", 1)
+    return PasswordResetView(
+        reset_token=value,
+        reset_url=f"{settings.frontend_url}/reset-password?token={value}",
+        expires_at=now() + timedelta(hours=1),
+    )
 
 
 @router.get("/profiles/{user_id}", response_model=PublicProfileView)

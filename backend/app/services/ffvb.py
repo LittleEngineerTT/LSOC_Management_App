@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get
@@ -25,6 +25,7 @@ from app.services.notifications import admins, email, event_changed
 
 
 def defaults(db: Session) -> ClubSettings:
+    db.execute(text("SELECT pg_advisory_xact_lock(781012)"))
     value = db.get(ClubSettings, 1)
     if value is None:
         value = ClubSettings(

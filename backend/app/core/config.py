@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     smtp_starttls: bool = False
     smtp_from: str = "LSOC <noreply@lsoc.local>"
     worker_poll_seconds: int = 10
-    ffvb_interval_minutes: int = 15
+    ffvb_interval_minutes: int = 1440
     match_before_minutes: int = 75
     match_after_minutes: int = 150
     match_courts: int = 3

@@ -52,9 +52,9 @@ def test_invitation_concurrent_single_use(admin: TestClient) -> None:
     created=admin.post('/api/v1/users',json={'first_name':'Invited','category':'M18','roles':['member']}).json()
     def activate(_: int) -> int:
         with TestClient(admin.app) as c:
-            return c.post('/api/v1/auth/activate',json={'token':created['invitation_token'],'email':'invited@example.org','password':PASSWORD}).status_code
+            return c.post('/api/v1/auth/activate',json={'token':created['invitation_token'],'username':'invited','password':PASSWORD}).status_code
     with ThreadPoolExecutor(max_workers=2) as pool:
-        assert sorted(pool.map(activate,range(2)))==[202,400]
+        assert sorted(pool.map(activate,range(2)))==[200,400]
 
 
 def test_cumulative_roles_multi_team_and_input_limits(admin: TestClient) -> None:

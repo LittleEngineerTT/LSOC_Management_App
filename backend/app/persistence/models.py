@@ -35,7 +35,8 @@ class User(Identity, Base):
     first_name: Mapped[str] = mapped_column(String(80))
     category: Mapped[str] = mapped_column(String(30), default="adult")
     roles: Mapped[list[str]] = mapped_column(JSON, default=list)
-    email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    username: Mapped[str | None] = mapped_column(String(80), unique=True)
+    email: Mapped[str | None] = mapped_column(String(254))
     password_hash: Mapped[str | None] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(Boolean, default=False)
     messaging_allowed: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -77,6 +78,9 @@ class Team(Identity, Base):
     name: Mapped[str] = mapped_column(String(120))
     section_id: Mapped[str] = mapped_column(ForeignKey("sections.id"))
     referent_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    ffvb_source_warning_ignored: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
 
 
 class Assignment(Identity, Base):
@@ -236,12 +240,16 @@ class FFVBSource(Identity, Base):
     team_name: Mapped[str] = mapped_column(String(200))
     club_code: Mapped[str] = mapped_column(String(30))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=1440)
     next_check_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, index=True
     )
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(200))
+
+    @property
+    def interval_days(self) -> float:
+        return self.interval_minutes / 1440
 
 
 class GymMapping(Identity, Base):
@@ -287,3 +295,4 @@ class ClubSettings(Base):
     before_minutes: Mapped[int] = mapped_column(Integer, default=75)
     after_minutes: Mapped[int] = mapped_column(Integer, default=150)
     courts: Mapped[int] = mapped_column(Integer, default=3)
+    club_code: Mapped[str | None] = mapped_column(String(30))

@@ -1,7 +1,15 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 Role = Literal["member", "coach", "admin"]
 Category = Literal["M18", "M21", "adult", "M15", "M13", "M11", "M9"]
@@ -27,8 +35,21 @@ class PasswordInput(Input):
     password: str = Field(min_length=12, max_length=128)
 
 
-class ActivateInput(TokenInput, PasswordInput):
-    email: EmailStr
+# Identifiant libre ou adresse e-mail, sans vérification de l’adresse.
+USERNAME_PATTERN = r"^[a-z0-9][a-z0-9._+-]*(@[a-z0-9][a-z0-9.-]*)?$"
+
+
+class UsernameInput(Input):
+    username: str = Field(min_length=3, max_length=80, pattern=USERNAME_PATTERN)
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class ActivateInput(TokenInput, PasswordInput, UsernameInput):
+    pass
 
 
 class ResetInput(TokenInput, PasswordInput):
@@ -39,7 +60,7 @@ class EmailInput(Input):
     email: EmailStr
 
 
-class LoginInput(EmailInput):
+class LoginInput(UsernameInput):
     password: str = Field(min_length=1, max_length=128)
 
 
@@ -70,6 +91,7 @@ class UserView(View):
     roles: list[str]
     active: bool
     messaging_allowed: bool
+    username: str | None
 
 
 class MeView(UserView):
@@ -90,7 +112,14 @@ class InvitationView(View):
     invitation_url: str
 
 
+class PasswordResetView(View):
+    reset_token: str
+    reset_url: str
+    expires_at: datetime
+
+
 class Preferences(Input):
+    email: EmailStr | None = None
     followed_email: bool = True
     referent_email: bool = True
     admin_email: bool = True
@@ -121,6 +150,11 @@ class TeamInput(NameInput):
 class TeamView(SectionView):
     section_id: str
     referent_id: str | None
+    ffvb_source_warning_ignored: bool
+
+
+class TeamWarningInput(Input):
+    ignored: bool
 
 
 class AssignmentInput(Input):
@@ -341,7 +375,19 @@ class FFVBSourceInput(Input):
     team_name: str = Field(min_length=1, max_length=200)
     club_code: str = Field(pattern=r"^\d+$", max_length=30)
     enabled: bool = True
-    interval_minutes: int = Field(default=15, ge=5, le=1440)
+    interval_minutes: int = Field(default=1440, ge=5, le=525600, deprecated=True)
+    interval_days: int | None = Field(default=None, ge=1, le=365, exclude=True)
+
+    @model_validator(mode="after")
+    def days(self) -> "FFVBSourceInput":
+        if self.interval_days is not None:
+            if (
+                "interval_minutes" in self.model_fields_set
+                and self.interval_minutes != self.interval_days * 1440
+            ):
+                raise ValueError("Fréquences en jours et minutes incompatibles")
+            self.interval_minutes = self.interval_days * 1440
+        return self
 
 
 class FFVBSourceView(View):
@@ -355,9 +401,37 @@ class FFVBSourceView(View):
     club_code: str
     enabled: bool
     interval_minutes: int
+    interval_days: float
     next_check_at: datetime
     last_success_at: datetime | None
     last_error: str | None
+
+
+class FFVBClubInput(Input):
+    club_code: str = Field(pattern=r"^\d+$", max_length=30)
+
+
+class FFVBClubView(View):
+    club_code: str | None
+
+
+class SourceURLInput(Input):
+    url: str = Field(min_length=1, max_length=2048)
+
+
+class SourceCandidate(View):
+    team_number: str
+    team_name: str
+    team_id: str | None = None
+
+
+class SourcePreview(View):
+    season: str
+    entity: str
+    pool: str
+    club_code: str | None
+    candidates: list[SourceCandidate]
+    warning: str | None = None
 
 
 class MappingInput(Input):

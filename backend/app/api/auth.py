@@ -9,19 +9,16 @@ from sqlalchemy.orm import Session
 from app.api.common import DB, Actor, session_cookie
 from app.api.schemas import (
     ActivateInput,
-    EmailInput,
     LoginInput,
     LoginView,
     MeView,
     ResetInput,
     Status,
-    TokenInput,
 )
 from app.core.config import settings
 from app.core.security import digest, hash_password, now, token, verify_password
 from app.persistence.database import SessionFactory
 from app.persistence.models import AuthToken, LoginSession, RateBucket, User
-from app.services.notifications import email
 
 router = APIRouter(prefix="/auth", tags=["Authentification"])
 
@@ -90,60 +87,23 @@ def consume(db: Session, raw: str, purpose: str) -> User:
     return user
 
 
-@router.post(
-    "/activate", response_model=Status, status_code=202, dependencies=[Depends(rate_limit)]
-)
+@router.post("/activate", response_model=Status, dependencies=[Depends(rate_limit)])
 def activate(body: ActivateInput, db: DB) -> Status:
     user = consume(db, body.token, "invitation")
     if user.active:
         raise HTTPException(400, "Compte déjà actif")
-    user.email = str(body.email).lower()
+    if db.scalar(select(User.id).where(User.username == body.username, User.id != user.id)):
+        raise HTTPException(409, "Cet identifiant est déjà utilisé")
+    user.username = body.username
     user.password_hash = hash_password(body.password)
-    value = issue_token(db, user, "verify", 24)
-    email(
-        db,
-        user,
-        f"verify:{digest(value)}",
-        "Vérification de votre adresse",
-        f"{settings.frontend_url}/verify-email?token={value}",
-    )
-    return Status(message="Vérifiez votre adresse e-mail pour activer votre compte")
-
-
-@router.post("/verify-email", response_model=Status, dependencies=[Depends(rate_limit)])
-def verify_email(body: TokenInput, db: DB) -> Status:
-    user = consume(db, body.token, "verify")
-    if not user.email or not user.password_hash:
-        raise HTTPException(400, "Activation incomplète")
     user.active = True
     return Status(message="Compte activé")
 
 
-@router.post(
-    "/resend-verification",
-    response_model=Status,
-    status_code=202,
-    dependencies=[Depends(rate_limit)],
-)
-def resend_verification(body: EmailInput, db: DB) -> Status:
-    user = db.scalar(
-        select(User).where(User.email == str(body.email).lower(), User.active.is_(False))
-    )
-    if user:
-        value = issue_token(db, user, "verify", 24)
-        email(
-            db,
-            user,
-            f"verify:{digest(value)}",
-            "Vérification de votre adresse",
-            f"{settings.frontend_url}/verify-email?token={value}",
-        )
-    return Status(message="Si le compte existe, un lien a été envoyé")
-
-
 @router.post("/login", response_model=LoginView, dependencies=[Depends(rate_limit)])
 def login(body: LoginInput, response: Response, db: DB) -> LoginView:
-    user = db.scalar(select(User).where(User.email == str(body.email).lower()))
+    lock_auth(db)
+    user = db.scalar(select(User).where(User.username == body.username))
     valid = verify_password(body.password, user.password_hash if user else None)
     if not valid or user is None or not user.active:
         raise HTTPException(401, "Identifiants invalides")
@@ -190,25 +150,6 @@ def logout(
         db.execute(delete(LoginSession).where(LoginSession.hash == digest(cookie)))
     response.delete_cookie("lsoc_session", path="/")
     response.delete_cookie("lsoc_csrf", path="/")
-
-
-@router.post(
-    "/forgot-password", response_model=Status, status_code=202, dependencies=[Depends(rate_limit)]
-)
-def forgot_password(body: EmailInput, db: DB) -> Status:
-    user = db.scalar(
-        select(User).where(User.email == str(body.email).lower(), User.active.is_(True))
-    )
-    if user:
-        value = issue_token(db, user, "recovery", 1)
-        email(
-            db,
-            user,
-            f"recovery:{digest(value)}",
-            "Réinitialisation du mot de passe",
-            f"{settings.frontend_url}/reset-password?token={value}",
-        )
-    return Status(message="Si le compte existe, un lien a été envoyé")
 
 
 @router.post("/reset-password", response_model=Status, dependencies=[Depends(rate_limit)])

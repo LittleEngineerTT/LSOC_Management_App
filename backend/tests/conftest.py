@@ -23,7 +23,7 @@ def database() -> Iterator[None]:
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionFactory.begin() as db:
-        db.add(User(id='admin', first_name='Admin', roles=['admin'], category='adult', email='admin@example.org', password_hash=hash_password(PASSWORD), active=True))
+        db.add(User(id='admin', username='admin', first_name='Admin', roles=['admin'], category='adult', email='admin@example.org', password_hash=hash_password(PASSWORD), active=True))
     yield
 
 
@@ -35,7 +35,7 @@ def client() -> Iterator[TestClient]:
 
 @pytest.fixture
 def admin(client: TestClient) -> TestClient:
-    response = client.post('/api/v1/auth/login', json={'email': 'admin@example.org', 'password': PASSWORD})
+    response = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': PASSWORD})
     assert response.status_code == 200, response.text
     client.headers['X-CSRF-Token'] = response.json()['csrf_token']
     return client
@@ -43,12 +43,12 @@ def admin(client: TestClient) -> TestClient:
 
 def add_user(identifier: str = 'member', roles: list[str] | None = None) -> None:
     with SessionFactory.begin() as db:
-        db.add(User(id=identifier, first_name=identifier, roles=roles or ['member'], category='M18', email=f'{identifier}@example.org', password_hash=hash_password(PASSWORD), active=True))
+        db.add(User(id=identifier, username=identifier, first_name=identifier, roles=roles or ['member'], category='M18', email=f'{identifier}@example.org', password_hash=hash_password(PASSWORD), active=True))
 
 
 def login(identifier: str = 'member') -> TestClient:
     c = TestClient(app)
-    response = c.post('/api/v1/auth/login', json={'email': f'{identifier}@example.org', 'password': PASSWORD})
+    response = c.post('/api/v1/auth/login', json={'username': identifier, 'password': PASSWORD})
     assert response.status_code == 200, response.text
     c.headers['X-CSRF-Token'] = response.json()['csrf_token']
     return c

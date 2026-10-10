@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sqlalchemy import select, text
 
-from app.api.schemas import EmailInput, EventInput, PasswordInput
+from app.api.schemas import EmailInput, EventInput, PasswordInput, UsernameInput
 from app.core.config import settings
 from app.core.security import hash_password
 from app.persistence.database import SessionFactory
@@ -19,7 +19,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Administration locale du backend LSOC")
     commands = parser.add_subparsers(dest="command", required=True)
     create = commands.add_parser("create-admin", help="Créer un administrateur actif")
-    create.add_argument("--email", required=True)
+    create.add_argument("--username", required=True)
+    create.add_argument("--email", help="Adresse facultative pour les notifications")
     create.add_argument("--first-name", required=True)
     create.add_argument(
         "--password-env",
@@ -29,7 +30,7 @@ def main() -> None:
     demo = commands.add_parser(
         "seed-demo", help="Ajouter des données facultatives de démonstration"
     )
-    demo.add_argument("--admin-email", required=True)
+    demo.add_argument("--admin-username", required=True)
     export = commands.add_parser("export-openapi", help="Exporter les contrats pour le frontend")
     export.add_argument("--output", default="openapi.json")
     args = parser.parse_args()
@@ -39,14 +40,15 @@ def main() -> None:
         Path(args.output).write_text(json.dumps(app.openapi(), ensure_ascii=False, indent=2) + "\n")
         print("Contrats OpenAPI exportés")
         return
-    email_address = str(
-        EmailInput(email=args.email if args.command == "create-admin" else args.admin_email).email
-    ).lower()
+    username = UsernameInput(
+        username=args.username if args.command == "create-admin" else args.admin_username
+    ).username
     with SessionFactory.begin() as db:
         db.execute(text("SELECT pg_advisory_xact_lock(781010)"))
+        db.execute(text("SELECT pg_advisory_xact_lock(781013)"))
         if args.command == "create-admin":
-            if db.scalar(select(User.id).where(User.email == email_address)):
-                parser.error("Cette adresse est déjà utilisée")
+            if db.scalar(select(User.id).where(User.username == username)):
+                parser.error("Cet identifiant est déjà utilisé")
             password = os.environ.get(args.password_env) or getpass.getpass(
                 "Mot de passe (12 caractères minimum) : "
             )
@@ -57,7 +59,8 @@ def main() -> None:
                 first_name=args.first_name.strip(),
                 category="adult",
                 roles=["admin"],
-                email=email_address,
+                username=username,
+                email=str(EmailInput(email=args.email).email).lower() if args.email else None,
                 password_hash=hash_password(validated.password),
                 active=True,
             )
@@ -65,7 +68,7 @@ def main() -> None:
             db.flush()
             print(f"Administrateur créé : {user.id}")
             return
-        admin = db.scalar(select(User).where(User.email == email_address, User.active.is_(True)))
+        admin = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
         if admin is None or "admin" not in admin.roles:
             parser.error("Un administrateur actif est requis")
         if db.scalar(select(Section.id).where(Section.name == "Démonstration — Loisir")):

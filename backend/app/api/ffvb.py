@@ -1,10 +1,12 @@
 import httpx
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
     ConflictView,
+    FFVBClubInput,
+    FFVBClubView,
     FFVBSourceInput,
     FFVBSourceView,
     MappingInput,
@@ -12,10 +14,15 @@ from app.api.schemas import (
     MatchDefaults,
     MatchView,
     ResolutionInput,
+    SourceCandidate,
+    SourcePreview,
+    SourceURLInput,
 )
 from app.core.security import now
-from app.integrations.ffvb import normalize
+from app.integrations.ffvb import fetch, normalize
+from app.integrations.ffvb_source import club_candidates, url_parameters
 from app.persistence.models import (
+    ClubSettings,
     Event,
     FFVBConflict,
     FFVBMatchState,
@@ -31,13 +38,53 @@ from app.services.ffvb import defaults, resolve, sync_source
 router = APIRouter(prefix="/ffvb", tags=["FFVB"])
 
 
-def validate_source(body: FFVBSourceInput, db: DB) -> None:
+def validate_source(
+    body: FFVBSourceInput, db: DB, existing_source: FFVBSource | None = None
+) -> None:
+    db.execute(text("SELECT pg_advisory_xact_lock(781012)"))
+    config = defaults(db)
+    if existing_source is not None:
+        if body.club_code != existing_source.club_code:
+            raise HTTPException(409, "Le code du club d’une source existante est immuable")
+    elif config.club_code is None:
+        existing = set(db.scalars(select(FFVBSource.club_code)))
+        if existing and existing != {body.club_code}:
+            raise HTTPException(
+                409, "Le code du club doit correspondre aux sources déjà configurées"
+            )
+        config.club_code = body.club_code
+    elif body.club_code != config.club_code:
+        raise HTTPException(409, "Le code du club est déjà configuré et ne peut pas être modifié")
     team = get(db, Team, body.team_id)
     if body.enabled and (team.referent_id is None or not get(db, User, team.referent_id).active):
         raise HTTPException(422, "Configurer un référent actif sur cette équipe")
     left, right = body.season.split("/")
     if int(right) != int(left) + 1:
         raise HTTPException(422, "La saison doit couvrir deux années consécutives")
+
+
+@router.get("/club", response_model=FFVBClubView)
+def club(db: DB, actor: Admin) -> FFVBClubView:
+    db.execute(text("SELECT pg_advisory_xact_lock(781012)"))
+    config = defaults(db)
+    if config.club_code is None:
+        codes = set(db.scalars(select(FFVBSource.club_code)))
+        if len(codes) == 1:
+            config.club_code = codes.pop()
+    return FFVBClubView(club_code=config.club_code)
+
+
+@router.put("/club", response_model=FFVBClubView)
+def configure_club(body: FFVBClubInput, db: DB, actor: Admin) -> FFVBClubView:
+    db.execute(text("SELECT pg_advisory_xact_lock(781012)"))
+    config = defaults(db)
+    existing = set(db.scalars(select(FFVBSource.club_code)))
+    if len(existing) == 1 and existing != {body.club_code}:
+        raise HTTPException(409, "Le code du club doit correspondre aux sources déjà configurées")
+    if config.club_code is not None and config.club_code != body.club_code:
+        raise HTTPException(409, "Le code du club est déjà configuré et ne peut pas être modifié")
+    config.club_code = body.club_code
+    return FFVBClubView(club_code=config.club_code)
 
 
 @router.get("/sources", response_model=list[FFVBSourceView])
@@ -54,11 +101,59 @@ def create_source(body: FFVBSourceInput, db: DB, actor: Admin) -> FFVBSource:
     return value
 
 
+@router.post("/sources/preview", response_model=SourcePreview)
+def preview_source(body: SourceURLInput, db: DB, actor: Admin) -> SourcePreview:
+    try:
+        season, entity, pool, selected = url_parameters(body.url)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    config = db.get(ClubSettings, 1)
+    code = config.club_code if config else None
+    if code is None:
+        existing = set(db.scalars(select(FFVBSource.club_code)))
+        if len(existing) == 1:
+            code = existing.pop()
+    result = SourcePreview(season=season, entity=entity, pool=pool, club_code=code, candidates=[])
+    if code is None:
+        result.warning = "Configurez d’abord le code du club pour identifier son équipe"
+        return result
+    try:
+        with httpx.Client() as client:
+            html = fetch(client, season, entity, pool)
+        candidates = club_candidates(html, season, entity, pool, code, selected)
+    except (httpx.HTTPError, ValueError):
+        result.warning = (
+            "La page FFVB ne peut pas être analysée ; complétez le formulaire manuellement"
+        )
+        return result
+    teams = list(db.scalars(select(Team)))
+    for number, name in candidates:
+        matching = [
+            team
+            for team in teams
+            if normalize(team.name) in {normalize(name), normalize(f"{name} {number}")}
+        ]
+        result.candidates.append(
+            SourceCandidate(
+                team_number=number,
+                team_name=name,
+                team_id=matching[0].id if len(matching) == 1 else None,
+            )
+        )
+    if not candidates:
+        result.warning = (
+            "Aucune équipe de ce club identifiée ; complétez le formulaire manuellement"
+        )
+    elif len(candidates) > 1:
+        result.warning = "Plusieurs équipes du club sont présentes dans cette poule ; choisissez celle à importer"
+    return result
+
+
 @router.put("/sources/{source_id}", response_model=FFVBSourceView)
 def update_source(source_id: str, body: FFVBSourceInput, db: DB, actor: Admin) -> FFVBSource:
     lock_planning(db)
-    validate_source(body, db)
     value = get(db, FFVBSource, source_id)
+    validate_source(body, db, value)
     identity = {"team_id", "season", "entity", "pool", "team_number", "team_name", "club_code"}
     if any(getattr(value, key) != getattr(body, key) for key in identity) and db.scalar(
         select(FFVBMatchState.id).where(FFVBMatchState.source_id == source_id)

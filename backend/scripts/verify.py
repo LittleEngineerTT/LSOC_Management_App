@@ -38,8 +38,8 @@ for command in [
 bootstrap_password = secrets.token_urlsafe(24)
 bootstrap_env = os.environ.copy()
 bootstrap_env['LSOC_ADMIN_PASSWORD'] = bootstrap_password
-subprocess.run([sys.executable, '-m', 'app.cli', 'create-admin', '--email', 'bootstrap@example.org', '--first-name', 'Bootstrap'], cwd=BACKEND, env=bootstrap_env, check=True)
-subprocess.run([sys.executable, '-m', 'app.cli', 'seed-demo', '--admin-email', 'admin@example.org'], cwd=BACKEND, check=True)
+subprocess.run([sys.executable, '-m', 'app.cli', 'create-admin', '--username', 'bootstrap', '--first-name', 'Bootstrap'], cwd=BACKEND, env=bootstrap_env, check=True)
+subprocess.run([sys.executable, '-m', 'app.cli', 'seed-demo', '--admin-username', 'admin'], cwd=BACKEND, check=True)
 log_path = BACKEND / '.tmp' / 'api-smoke.log'
 with log_path.open('w') as log:
     server = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '18000'], cwd=BACKEND, stdout=log, stderr=log)
@@ -57,9 +57,9 @@ with log_path.open('w') as log:
                 time.sleep(0.1)
             else:
                 raise RuntimeError('Le serveur HTTP ne répond pas')
-            bootstrap = client.post('/api/v1/auth/login', json={'email': 'bootstrap@example.org', 'password': bootstrap_password})
+            bootstrap = client.post('/api/v1/auth/login', json={'username': 'bootstrap', 'password': bootstrap_password})
             assert bootstrap.status_code == 200, bootstrap.text
-            login = client.post('/api/v1/auth/login', json={'email': 'admin@example.org', 'password': 'valid-password-12345'})
+            login = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': 'valid-password-12345'})
             assert login.status_code == 200, login.text
             assert client.get('/api/v1/events').status_code == 200
             assert client.get('/openapi.json').json()['info']['version'] == '1.0.0'

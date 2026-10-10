@@ -2,7 +2,15 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.api.common import DB, Actor, Admin, get
-from app.api.schemas import GymInput, GymView, NameInput, SectionView, TeamInput, TeamView
+from app.api.schemas import (
+    GymInput,
+    GymView,
+    NameInput,
+    SectionView,
+    TeamInput,
+    TeamView,
+    TeamWarningInput,
+)
 from app.persistence.models import Gymnasium, Section, Team, User
 
 router = APIRouter(tags=["Catalogue"])
@@ -70,6 +78,13 @@ def update_team(identifier: str, body: TeamInput, db: DB, actor: Admin) -> Team:
 @router.delete("/teams/{identifier}", status_code=204)
 def delete_team(identifier: str, db: DB, actor: Admin) -> None:
     db.delete(get(db, Team, identifier))
+
+
+@router.put("/teams/{identifier}/ffvb-warning", response_model=TeamView)
+def team_warning(identifier: str, body: TeamWarningInput, db: DB, actor: Admin) -> Team:
+    value = get(db, Team, identifier)
+    value.ffvb_source_warning_ignored = body.ignored
+    return value
 
 
 @router.get("/gymnasiums", response_model=list[GymView])
