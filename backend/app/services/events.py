@@ -1,0 +1,266 @@
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from fastapi import HTTPException
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session
+
+from app.api.common import get, require_admin
+from app.api.schemas import CapacityView, EventInput, EventPatch, EventView
+from app.core.security import token
+from app.domain.capacity import capacity_segments
+from app.persistence.models import (
+    AvailabilityBlock,
+    Event,
+    EventRevision,
+    FFVBMatchState,
+    Gymnasium,
+    Section,
+    User,
+)
+from app.services.notifications import admins, event_changed
+
+PARIS = ZoneInfo("Europe/Paris")
+
+
+def lock_planning(db: Session) -> None:
+    # Club-level lock keeps series/import/move lock acquisition ordered in V1.
+    db.execute(text("SELECT pg_advisory_xact_lock(781011)"))
+
+
+def lock_gyms(db: Session, identifiers: list[str | None]) -> None:
+    lock_planning(db)
+    for identifier in sorted({item for item in identifiers if item is not None}):
+        value = db.scalar(select(Gymnasium).where(Gymnasium.id == identifier).with_for_update())
+        if value is None:
+            raise HTTPException(404, "Gymnase introuvable")
+
+
+def availability(db: Session, gym_id: str, start: datetime, end: datetime) -> CapacityView:
+    gym = get(db, Gymnasium, gym_id)
+    events = db.scalars(
+        select(Event).where(
+            Event.gymnasium_id == gym_id,
+            Event.cancelled.is_(False),
+            Event.starts_at < end,
+            Event.ends_at > start,
+        )
+    )
+    blocks = db.scalars(
+        select(AvailabilityBlock).where(
+            AvailabilityBlock.gymnasium_id == gym_id,
+            AvailabilityBlock.starts_at < end,
+            AvailabilityBlock.ends_at > start,
+        )
+    )
+    reservations = [(e.starts_at, e.ends_at, e.courts) for e in events] + [
+        (b.starts_at, b.ends_at, b.courts) for b in blocks
+    ]
+    return CapacityView(
+        gymnasium_id=gym_id,
+        capacity=gym.capacity,
+        segments=capacity_segments(gym.capacity, start, end, reservations),
+    )
+
+
+def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -> bool:
+    if event.cancelled or not event.gymnasium_id:
+        return False
+    db.flush()
+    segments = availability(db, event.gymnasium_id, event.starts_at, event.ends_at).segments
+    conflicts = [s.model_dump(mode="json") for s in segments if s.excess > 0]
+    if conflicts:
+        if not force or (actor is not None and "admin" not in actor.roles):
+            raise HTTPException(409, {"code": "capacity_exceeded", "segments": conflicts})
+        admins(
+            db,
+            f"capacity:{event.id}:{event.version}",
+            "capacity_conflict",
+            f"Capacité dépassée : {event.title}",
+            event.id,
+        )
+    return bool(conflicts)
+
+
+def alert_capacity(db: Session, gym_id: str) -> None:
+    for event in db.scalars(
+        select(Event).where(Event.gymnasium_id == gym_id, Event.cancelled.is_(False))
+    ):
+        if any(s.excess for s in availability(db, gym_id, event.starts_at, event.ends_at).segments):
+            admins(
+                db,
+                f"capacity-block:{event.id}:{token()}",
+                "capacity_conflict",
+                f"Capacité dépassée : {event.title}",
+                event.id,
+            )
+
+
+def validate_event(db: Session, event: Event) -> None:
+    if event.ends_at <= event.starts_at:
+        raise HTTPException(422, "La fin doit suivre le début")
+    if not event.section_ids:
+        raise HTTPException(422, "Au moins une section est requise")
+    for identifier in event.section_ids:
+        get(db, Section, identifier)
+    if event.referent_id is not None and not get(db, User, event.referent_id).active:
+        raise HTTPException(422, "Le référent doit être actif")
+    if event.gymnasium_id is None and event.courts != 0:
+        raise HTTPException(422, "Un événement sans gymnase local doit occuper zéro terrain")
+    if event.gymnasium_id is not None:
+        get(db, Gymnasium, event.gymnasium_id)
+        if event.courts <= 0:
+            raise HTTPException(422, "Une réservation locale doit occuper au moins un terrain")
+
+
+def snapshot(event: Event) -> dict[str, Any]:
+    return EventView.model_validate(event).model_dump(mode="json")
+
+
+def revision(
+    db: Session,
+    event: Event,
+    actor: User | None,
+    before: dict[str, Any],
+    action: str,
+    forced: bool = False,
+    origin: str = "human",
+) -> None:
+    db.add(
+        EventRevision(
+            event_id=event.id,
+            actor_id=actor.id if actor else None,
+            actor_name=actor.first_name if actor else "FFVB",
+            origin=origin,
+            action=action,
+            before=before,
+            after=snapshot(event),
+            forced=forced,
+        )
+    )
+
+
+def create_event(
+    db: Session, body: EventInput, actor: User, force: bool = False, series_id: str | None = None
+) -> Event:
+    require_admin(actor)
+    lock_gyms(db, [body.gymnasium_id])
+    event = Event(**body.model_dump(), series_id=series_id)
+    db.add(event)
+    db.flush()
+    validate_event(db, event)
+    forced = check_capacity(db, event, actor, force)
+    revision(db, event, actor, {}, "create", forced)
+    return event
+
+
+def permission(
+    event: Event, actor: User, patch: EventPatch, direct: bool, acknowledge_ffvb: bool
+) -> None:
+    is_admin = "admin" in actor.roles
+    if not is_admin:
+        if event.referent_id != actor.id or (direct and not event.direct_edit):
+            raise HTTPException(
+                403, "Modification réservée au référent autorisé ou aux administrateurs"
+            )
+        if patch.model_fields_set & {
+            "referent_id",
+            "direct_edit",
+            "section_ids",
+            "before_minutes",
+            "after_minutes",
+        }:
+            raise HTTPException(403, "Champ réservé aux administrateurs")
+    official_fields = {"gymnasium_id", "location", "kickoff_at", "starts_at", "ends_at"}
+    if event.ffvb_match_id and patch.model_fields_set & official_fields:
+        if not is_admin:
+            raise HTTPException(403, "Les horaires et lieux FFVB sont réservés aux administrateurs")
+        if not acknowledge_ffvb:
+            raise HTTPException(
+                409,
+                {
+                    "code": "ffvb_confirmation_required",
+                    "message": "Ces champs sont normalement synchronisés depuis la FFVB",
+                },
+            )
+        if patch.model_fields_set & {"starts_at", "ends_at"}:
+            raise HTTPException(
+                422, "Pour un match FFVB, modifier kickoff_at ou les marges de réservation"
+            )
+
+
+def change_event(
+    db: Session,
+    event: Event,
+    patch: EventPatch,
+    actor: User,
+    base_version: int,
+    force: bool = False,
+    acknowledge_ffvb: bool = False,
+    exception: bool = True,
+    defer_capacity: bool = False,
+) -> Event:
+    lock_gyms(
+        db,
+        [
+            event.gymnasium_id,
+            patch.gymnasium_id if "gymnasium_id" in patch.model_fields_set else None,
+        ],
+    )
+    db.refresh(event)
+    if event.version != base_version:
+        raise HTTPException(409, {"code": "stale_version", "current_version": event.version})
+    permission(event, actor, patch, True, acknowledge_ffvb)
+    if force:
+        require_admin(actor)
+    before = snapshot(event)
+    values = patch.model_dump(exclude_unset=True)
+    if (
+        "referent_id" in values
+        and values["referent_id"] != event.referent_id
+        and "direct_edit" not in values
+    ):
+        values["direct_edit"] = False
+    for key, value in values.items():
+        setattr(event, key, value)
+    if event.ffvb_match_id:
+        if "courts" in values and event.courts > 0:
+            event.match_courts = event.courts
+        if "match_courts" in values:
+            event.courts = event.match_courts if event.gymnasium_id else 0
+        state = get(db, FFVBMatchState, event.ffvb_match_id)
+        protected = dict(state.protected)
+        for key in values.keys() & {"kickoff_at", "gymnasium_id", "location"}:
+            protected[key] = actor.id
+        state.protected = protected
+        if values.keys() & {"kickoff_at", "before_minutes", "after_minutes"} and event.kickoff_at:
+            event.starts_at = event.kickoff_at - timedelta(minutes=event.before_minutes)
+            event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)
+    event.version += 1
+    if event.series_id and exception:
+        event.exception = True
+    validate_event(db, event)
+    db.flush()
+    forced = False if defer_capacity else check_capacity(db, event, actor, force)
+    revision(db, event, actor, before, "update", forced)
+    event_changed(db, event, actor.id)
+    return event
+
+
+def local_datetime(value: datetime) -> datetime:
+    local = value.astimezone(PARIS)
+    # Reject nonexistent local times instead of silently shifting a recurring occurrence.
+    if local.replace(tzinfo=UTC).replace(tzinfo=PARIS).astimezone(UTC).astimezone(PARIS).replace(
+        tzinfo=None
+    ) != local.replace(tzinfo=None):
+        raise HTTPException(422, "Heure locale inexistante au changement d’heure")
+    return local
+
+
+def wall_time(value: datetime, target_date: datetime) -> datetime:
+    source = value.astimezone(PARIS)
+    result = datetime.combine(target_date.date(), source.timetz(), tzinfo=PARIS)
+    if result.astimezone(UTC).astimezone(PARIS).replace(tzinfo=None) != result.replace(tzinfo=None):
+        raise HTTPException(422, "Heure locale inexistante au changement d’heure")
+    return result.astimezone(UTC)

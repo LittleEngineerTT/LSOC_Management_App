@@ -1,0 +1,61 @@
+name: lsoc
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lsoc
+      POSTGRES_USER: lsoc
+      POSTGRES_PASSWORD: lsoc
+    ports:
+      - "127.0.0.1:${LSOC_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lsoc -d lsoc"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+  migrate:
+    build: ./backend
+    env_file: .env
+    environment:
+      LSOC_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@postgres:5432/lsoc
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      LSOC_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@postgres:5432/lsoc
+      LSOC_SMTP_HOST: mailpit
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  worker:
+    build: ./backend
+    env_file: .env
+    environment:
+      LSOC_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@postgres:5432/lsoc
+      LSOC_SMTP_HOST: mailpit
+    command: ["lsoc-worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+volumes:
+  postgres-data:
