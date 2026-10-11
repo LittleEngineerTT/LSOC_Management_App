@@ -6,7 +6,12 @@ Le backend V1 est implémenté dans `backend/` : FastAPI, PostgreSQL, migrations
 
 Entrées de reprise : [README](../README.md), [guide API frontend](backend-api.md), [contrat OpenAPI](../backend/openapi.json), [plan d'implémentation](superpowers/plans/2026-10-09-backend-v1.md). La configuration de développement est dans `compose.yaml` et `.env.example` ; `lsoc create-admin` crée le premier administrateur sans identifiants prédéfinis. `lsoc seed-demo` ajoute facultativement les données de démonstration.
 
-Frontend : [spécification authentification/accueil](superpowers/specs/2026-10-10-frontend-auth-design.md) et [plan/compte rendu](superpowers/plans/2026-10-10-frontend-auth.md). Suites : [administration](superpowers/specs/2026-10-10-administration-design.md), [identifiant de connexion](superpowers/specs/2026-10-10-username-auth-design.md) (l'identifiant peut être une adresse e-mail, jamais vérifiée), [sections de l'espace club](superpowers/specs/2026-10-10-club-sections-design.md) et [séances ouvertes/inscriptions](superpowers/specs/2026-10-10-event-registrations-design.md). Le compte administrateur local demandé a été créé dans la base Compose ; ses identifiants ont été fournis dans la conversation, jamais ajoutés au code du frontend.
+Frontend : [spécification authentification/accueil](superpowers/specs/2026-10-10-frontend-auth-design.md) et [plan/compte rendu](superpowers/plans/2026-10-10-frontend-auth.md). Suites : [administration](superpowers/specs/2026-10-10-administration-design.md), [identifiant de connexion](superpowers/specs/2026-10-10-username-auth-design.md) (l'identifiant peut être une adresse e-mail, jamais vérifiée), [sections de l'espace club](superpowers/specs/2026-10-10-club-sections-design.md) [séances ouvertes/inscriptions](superpowers/specs/2026-10-10-event-registrations-design.md) et [calendrier/demandes des coachs](superpowers/specs/2026-10-11-calendar-coach-design.md). Le 11 octobre ont aussi été ajoutés :
+
+- les pastilles de non-lus dans le menu (Accueil : notifications ; Messagerie : questions ou réponses non lues) ;
+- des notifications qui disparaissent une fois marquées comme lues ;
+- la description des événements ;
+- une session déconnectée seulement après 7 jours d’inactivité (`LSOC_SESSION_IDLE_DAYS`). Le compte administrateur local demandé a été créé dans la base Compose ; ses identifiants ont été fournis dans la conversation, jamais ajoutés au code du frontend.
 
 Dernière vérification backend : 37 tests passent sur PostgreSQL 14 / Python 3.13, migrations aller-retour et comparaison du schéma, concurrence, HTML FFVB réellement récupéré, SMTP réel de test, Ruff, mypy strict et parcours HTTP réel. L'utilisateur a depuis démarré les conteneurs PostgreSQL 16/API/worker/Mailpit ; l'API et la base sont saines. PostgreSQL est exposé sur `127.0.0.1:5433` pour éviter le conflit avec le PostgreSQL local en 5432. Un avertissement de dépréciation tiers Starlette/httpx subsiste dans les tests. La commande reproductible est `backend/.venv/bin/python backend/scripts/verify.py`, avec une base dédiée uniquement : le script efface son schéma.
 
@@ -22,7 +27,7 @@ Stack demandée : backend Python FastAPI avec typage strict, frontend React Type
 
 ## Prochaine étape
 
-1. Lancer `backend/.venv/bin/python backend/scripts/verify.py` sur la base de test dédiée (port 55433). Les changements de l'identifiant (migration 0005, verrou de connexion, format e-mail accepté) et les inscriptions (migration 0006, `tests/test_registrations.py`) n'ont pas pu être exécutés sur PostgreSQL le 10 octobre, faute de Python et de PostgreSQL dans l'environnement de travail ; Ruff et mypy strict passent.
+1. Les 82 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0008 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
 2. `backend/openapi.json` a été régénéré le 10 octobre. Vérifier les sections contre le backend Docker avec des données temporaires. Sous Node 26, lancer Vitest avec `NODE_OPTIONS=--no-webstorage` (Node 22 recommandé).
 3. Avant un déploiement, cadrer hébergement, HTTPS, SMTP réel et conservation des sauvegardes.
 

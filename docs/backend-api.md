@@ -9,7 +9,7 @@ const loginResponse = await fetch("http://localhost:8000/api/v1/auth/login", {
   method: "POST",
   credentials: "include",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, password }),
+  body: JSON.stringify({ username, password }),
 });
 if (!loginResponse.ok) throw new Error("Connexion refusée");
 const { user, csrf_token } = await loginResponse.json();
@@ -23,13 +23,13 @@ const response = await fetch("http://localhost:8000/api/v1/events/" + eventId, {
 });
 ```
 
-Le cookie `lsoc_session` est HttpOnly. Le jeton CSRF est aussi disponible dans le cookie `lsoc_csrf`, lisible après rechargement sur le même hôte. Connexion : `POST /auth/login`, état courant : `GET /auth/me`, déconnexion : `POST /auth/logout`. Une expiration renvoie 401 ; le frontend revient à la connexion. La protection CSRF renvoie 403 et ne doit pas être contournée. Le `POST /auth/logout` exige également le jeton CSRF.
+Le cookie `lsoc_session` est HttpOnly. Le jeton CSRF est aussi disponible dans le cookie `lsoc_csrf`, lisible après rechargement sur le même hôte. Connexion : `POST /auth/login`, état courant : `GET /auth/me`, déconnexion : `POST /auth/logout`. La session expire après `LSOC_SESSION_IDLE_DAYS` jours sans activité (7 par défaut) : chaque requête authentifiée repousse l’échéance, au plus une fois par heure, et renouvelle alors les deux cookies. `GET /unread`, interrogé automatiquement, ne compte pas comme une activité. Une expiration renvoie 401 ; le frontend revient à la connexion. La protection CSRF renvoie 403 et ne doit pas être contournée. Le `POST /auth/logout` exige également le jeton CSRF.
 
 | Statut | Signification |
 | --- | --- |
 | 200 / 201 / 202 | Lecture ou modification / création / activation ou récupération en attente |
 | 204 | Suppression, retrait de suivi, déconnexion ; aucun corps JSON |
-| 400 | Lien d’activation/vérification/récupération invalide ou expiré |
+| 400 | Lien d’activation/récupération invalide ou expiré |
 | 401 | Connexion nécessaire ou identifiants invalides |
 | 403 | Permission ou jeton CSRF insuffisant |
 | 404 | Ressource inexistante |
@@ -45,20 +45,20 @@ Les erreurs métier utilisent `{"detail": "message"}` ou un objet dans `detail`.
 | --- | --- |
 | `GET/POST /users`, `GET/PUT/DELETE /users/{id}` | Administration des comptes ; aucun e-mail privé exposé par ces réponses |
 | `POST/DELETE /users/{id}/invitation` | Régénérer un lien ou révoquer les liens d’un compte inactif |
-| `POST /auth/activate` | `{token,email,password}` ; programme un e-mail de vérification |
-| `POST /auth/verify-email` | `{token}` ; active le compte après vérification |
-| `POST /auth/resend-verification` | `{email}` ; réponse identique pour adresse connue ou inconnue |
-| `POST /auth/forgot-password` et `/auth/reset-password` | `{email}` puis `{token,password}` ; révoque les sessions |
+| `POST /auth/activate` | `{token,username,password}` ; active immédiatement le compte |
+| `PUT /users/{id}/username` | Admin : changer un identifiant et révoquer les sessions |
+| `POST /users/{id}/password-reset` | Admin : générer un lien de récupération à transmettre à l’utilisateur |
+| `POST /auth/reset-password` | `{token,password}` ; révoque les sessions |
 | `GET /profiles/{id}` | Profil visible : identifiant, prénom, catégorie ; aucun rôle, droit privé ou e-mail |
 | `GET/POST /users/{id}/assignments`, `DELETE /users/{id}/assignments/{assignment}` | Rattachements joueur/coach ; lecture pour le compte concerné ou l’admin |
-| `PUT /preferences` | Préférences d’e-mail `followed_email`, `referent_email`, `admin_email` |
+| `PUT /preferences` | Adresse `email` facultative et préférences `followed_email`, `referent_email`, `admin_email` |
 | `GET/POST /sections`, `PUT/DELETE /sections/{id}` | Groupes de pratique |
 | `GET/POST /teams`, `PUT/DELETE /teams/{id}` | Équipes rattachées à une section et référent par défaut des matchs |
 | `GET/POST /gymnasiums`, `PUT/DELETE /gymnasiums/{id}` | Gymnases et capacité entière positive |
 
-Rôles cumulables : `member`, `coach`, `admin`. Catégories : `M18`, `M21`, `adult`, `M15`, `M13`, `M11`, `M9`. Un compte avec le rôle `member` doit être M18 ou plus ; un coach seul n’a pas cette restriction. Invitation : sept jours, usage unique. Vérification d’e-mail : 24 heures. Récupération : une heure. Mot de passe : 12 à 128 caractères. Le premier admin se crée avec la commande locale `lsoc create-admin`.
+Rôles cumulables : `member`, `coach`, `admin`. Catégories : `M18`, `M21`, `adult`, `M15`, `M13`, `M11`, `M9`. Un compte avec le rôle `member` doit être M18 ou plus ; un coach seul n’a pas cette restriction. Invitation : sept jours, usage unique. Récupération : une heure. Mot de passe : 12 à 128 caractères. Le premier admin se crée avec la commande locale `lsoc create-admin`.
 
-`POST /users` retourne `user`, `invitation_token`, `invitation_url` : le lien est copiable par l’admin. Une invitation n’accorde aucun accès au planning. Régénération et vérification concurrentes sont sérialisées ; un compte actif ne peut plus être réinvité.
+`POST /users` retourne `user`, `invitation_token`, `invitation_url` : le lien est copiable par l’admin. Une invitation n’accorde aucun accès au planning. Régénération et activation concurrentes sont sérialisées ; un compte actif ne peut plus être réinvité.
 
 Les suppressions de sections, équipes et gymnases encore utilisés sont refusées par 409. Les comptes sont supprimés avec purge des données privées, des rattachements, suivis et travaux d’e-mail. Les événements deviennent sans référent et sont signalés aux admins ; les actions historiques conservent seulement le prénom de leur auteur.
 
@@ -104,9 +104,22 @@ Annuler un événement avec `changes.cancelled=true` libère sa réservation et 
 
 Un blocage comporte `gymnasium_id`, `title`, `starts_at`, `ends_at`, `courts`. Il peut créer un dépassement sur des événements existants ; les admins sont alors alertés. Une baisse de capacité d’un gymnase déclenche également ces alertes. Les disponibilités exposent toujours une valeur au moins nulle et une quantité excédentaire distincte.
 
+## Demandes de création des coachs
+
+Un coach actif peut proposer un événement pour l’une de ses équipes (rattachement `kind="coach"`). Le serveur déduit la section et le référent ; la demande ne crée aucun événement ni réservation avant validation.
+
+| Routes | Usage |
+| --- | --- |
+| `POST /event-requests` | `team_id`, `title`, `description`, `kind`, `starts_at`, `ends_at`, `gymnasium_id`, `location`, `courts`, `registration_section_ids`, `registration_team_ids`, `registration_limit`, `note` |
+| `GET /event-requests?status=pending` | Ses demandes ; toutes pour un admin. `status=` retourne tous les états, pagination `limit`/`offset` |
+| `GET /event-requests/{id}` | Auteur ou admin uniquement |
+| `POST /event-requests/{id}/decision` | Admin : `{accept,reason,force,acknowledge_ffvb:false}` |
+
+Un événement porte une `description` libre (2000 caractères, vide par défaut), modifiable comme le titre et reprise de la proposition à l’acceptation ; `note` reste un message aux admins, non publié. Les vues contiennent `proposal`, l’auteur, l’équipe, la note, l’état, le motif et la date de décision et `event_id` après acceptation. Une acceptation vérifie à nouveau le rôle, le rattachement, les références et la capacité. Elle crée exactement un événement, même en cas de décisions concurrentes ; une demande traitée renvoie 409. Seul un admin peut forcer un dépassement, avec historique. Le refus reste possible si le coach a perdu ses droits. L’ouverture à une équipe n’ouvre pas les autres équipes de sa section ; les équipes et sections choisies se cumulent, avec une limite globale d’inscrits.
+
 ## Séances ouvertes et inscriptions
 
-Un événement porte `registration_section_ids` (sections dont les adhérents peuvent s’inscrire ; liste vide = séance fermée), `registration_limit` (obligatoire dès qu’une section est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces deux champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes.
+Un événement porte `registration_section_ids` (sections ouvertes), `registration_team_ids` (équipes ouvertes), `registration_limit` (obligatoire dès qu’une section ou équipe est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes.
 
 | Routes | Usage |
 | --- | --- |
@@ -116,7 +129,7 @@ Un événement porte `registration_section_ids` (sections dont les adhérents pe
 | `DELETE /events/{id}/registrations/{user_id}` | Admin : retirer une inscription ; l’adhérent est notifié |
 | `GET /registrations` | Inscriptions du compte connecté |
 
-L’inscription exige le rôle `member`, un rattachement (joueur ou coach) à une équipe d’une section ouverte, une séance ni annulée ni commencée, et une place libre. Erreurs : `403` hors section, `409 {code: "registration_closed"}` (fermée, annulée ou commencée) et `409 {code: "registration_full"}` (limite atteinte). Les inscriptions sont sérialisées par le verrou du planning, si bien que des demandes simultanées ne dépassent jamais la limite. Un inscrit reçoit les notifications de modification de la séance comme s’il la suivait. La suppression d’un compte efface ses inscriptions.
+L’inscription exige le rôle `member`, un rattachement (joueur ou coach) à une équipe explicitement ouverte ou appartenant à une section ouverte, une séance ni annulée ni commencée, et une place libre. Erreurs : `403` hors équipe/section ouverte, `409 {code: "registration_closed"}` (fermée, annulée ou commencée) et `409 {code: "registration_full"}` (limite atteinte). Les inscriptions sont sérialisées par le verrou du planning, si bien que des demandes simultanées ne dépassent jamais la limite. Un inscrit reçoit les notifications de modification de la séance comme s’il la suivait. La suppression d’un compte efface ses inscriptions.
 
 ## Suivis, questions et notifications
 
@@ -131,13 +144,15 @@ L’inscription exige le rôle `member`, un rattachement (joueur ou coach) à un
 | `GET /admin/email-jobs?status=pending|failed|sent` | État technique des envois ; admin uniquement, aucun corps de message ni jeton exposé |
 | `POST /admin/email-jobs/{id}/retry` | Relancer un envoi non livré après correction de la configuration SMTP |
 
+`GET /unread` renvoie `{messages, notifications, threads}` pour les pastilles du menu. `messages` compte les questions non lues des adhérents pour un admin, et les réponses reçues sur ses propres fils pour un adhérent ; `threads` liste les fils concernés. La boîte des admins est partagée : un fil ouvert par un admin est lu pour tous. Ouvrir un fil marque comme lues les alertes « nouvelle question » correspondantes. Un admin ne marque jamais comme lue, pour l’adhérent, la réponse d’un autre admin.
+
 Les questions sont privées entre l’adhérent auteur et les admins. Être référent ne donne aucun accès aux conversations privées. Révoquer `messaging_allowed` empêche d’écrire et laisse lire les échanges existants. Les réponses apparaissent dans le fil sans nouvelle catégorie d’e-mail adhérent. Les admins reçoivent l’alerte d’une nouvelle question.
 
 Un utilisateur ne reçoit pas d’e-mail pour sa propre modification d’événement. Le référent est informé des modifications externes, selon sa préférence. Un suivi de série retiré ne supprime pas les suivis individuels explicites. Une vérification FFVB sans changement réel ne crée aucune notification de modification.
 
 ## FFVB
 
-Créer d’abord une équipe rattachée à une section avec un référent actif. Configurer une association de gymnase, puis une source :
+Configurer une fois le code du club avec `PUT /ffvb/club` (`{ "club_code": "0926620" }`), puis créer une équipe rattachée à une section avec un référent actif. Configurer une association de gymnase, puis une source :
 
 ```json
 {
@@ -147,9 +162,8 @@ Créer d’abord une équipe rattachée à une section avec un référent actif.
   "pool": "BRC",
   "team_number": "6",
   "team_name": "LSO COLOMBES",
-  "club_code": "0926620",
   "enabled": true,
-  "interval_minutes": 15
+  "interval_days": 1
 }
 ```
 
@@ -157,6 +171,8 @@ Association locale : `POST /ffvb/gym-mappings` avec `{"official_name":"GYMNASE A
 
 | Routes | Usage |
 | --- | --- |
+| `GET/PUT /ffvb/club` | Code du club global ; modification refusée une fois configuré |
+| `POST /ffvb/sources/preview` | Extraire saison, entité, poule et équipes à partir d’une URL ; formulaire manuel si données manquantes |
 | `GET/POST /ffvb/sources`, `PUT /ffvb/sources/{id}` | Administration des sources et de leur fréquence |
 | `POST /ffvb/sources/{id}/sync` | Vérification immédiate ; consulter `last_error` et `last_success_at` dans la réponse |
 | `GET/POST /ffvb/gym-mappings`, `PUT/DELETE /ffvb/gym-mappings/{id}` | Correspondances des noms FFVB avec les gymnases locaux |
