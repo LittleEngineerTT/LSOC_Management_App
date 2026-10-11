@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
+import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { useLoad } from '../admin/data';
 import { fieldLabels } from '../admin/changes';
 import { dateLabel } from '../admin/time';
@@ -10,7 +11,7 @@ import { Badge, Confirm, Empty, LoadState, Notice } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
 import { PersonName, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
-import { kindLabels, usePlace, useSectionNames } from './events';
+import { kindLabels, registrationOpen, usePlace, useSectionNames, useTeamNames } from './events';
 
 // Champs que l’API accepte de restaurer depuis l’historique.
 const restorable = [
@@ -28,7 +29,9 @@ const restorable = [
   'before_minutes',
   'after_minutes',
   'kickoff_at',
+  'description',
   'registration_section_ids',
+  'registration_team_ids',
   'registration_limit',
 ];
 
@@ -43,6 +46,7 @@ export function EventDetail({
   onChanged: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const backdropDismiss = useDialogBackdropDismiss(onClose);
   const titleId = useId();
   const { api } = useClub();
   const loader = useCallback(
@@ -60,6 +64,7 @@ export function EventDetail({
   const event = result.data;
   return (
     <dialog
+      {...backdropDismiss}
       ref={dialog}
       className="admin-dialog club-detail"
       aria-labelledby={titleId}
@@ -127,12 +132,11 @@ function EventBody({
         {event.cancelled && <Badge tone="danger">Annulé</Badge>}
         {event.series_id && <Badge>Série hebdomadaire</Badge>}
         {event.exception && <Badge>Occurrence modifiée</Badge>}
-        {event.ffvb_match_id && <Badge>Match FFVB</Badge>}
+        <Badge>{event.ffvb_match_id ? 'Match FFVB' : 'Événement local'}</Badge>
         {event.occupancy_unknown && <Badge tone="warning">Occupation locale indéterminée</Badge>}
-        {event.registration_section_ids.length > 0 && (
-          <Badge tone="good">Ouvert aux inscriptions</Badge>
-        )}
+        {registrationOpen(event) && <Badge tone="good">Ouvert aux inscriptions</Badge>}
       </div>
+      {event.description && <p className="club-description">{event.description}</p>}
       <dl className="admin-changes club-facts">
         <div>
           <dt>Date</dt>
@@ -169,7 +173,7 @@ function EventBody({
         </div>
       </dl>
       {event.ffvb_match_id && <MatchState event={event} />}
-      {(event.registration_section_ids.length > 0 || event.registration_count > 0) && (
+      {(registrationOpen(event) || event.registration_count > 0) && (
         <Registrations event={event} onChanged={onChanged} />
       )}
       <div className="admin-actions club-detail-actions">
@@ -237,6 +241,7 @@ function FollowButtons({ event }: { event: Event }) {
 function Registrations({ event, onChanged }: { event: Event; onChanged: () => void }) {
   const { api, admin } = useClub();
   const sectionNames = useSectionNames();
+  const teamNames = useTeamNames();
   const loader = useCallback(
     (signal: AbortSignal) =>
       api.request<RegistrationSummary>(
@@ -276,7 +281,14 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
         <>
           <p>
             {summary.open
-              ? `Ouvert aux sections : ${sectionNames(event.registration_section_ids).join(', ')}.`
+              ? [
+                  event.registration_section_ids.length > 0 &&
+                    `Ouvert aux sections : ${sectionNames(event.registration_section_ids).join(', ')}.`,
+                  (event.registration_team_ids?.length ?? 0) > 0 &&
+                    `Ouvert aux équipes : ${teamNames(event.registration_team_ids ?? []).join(', ')}.`,
+                ]
+                  .filter(Boolean)
+                  .join(' ')
               : 'Séance fermée aux nouvelles inscriptions.'}{' '}
             <strong>
               {summary.count} inscrit{summary.count > 1 ? 's' : ''}
@@ -313,7 +325,9 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
             summary.open &&
             !summary.eligible && (
               <p className="admin-hint">
-                Les inscriptions sont réservées aux adhérents des sections indiquées.
+                {event.registration_team_ids?.length
+                  ? 'Les inscriptions sont réservées aux adhérents des sections ou équipes indiquées.'
+                  : 'Les inscriptions sont réservées aux adhérents des sections indiquées.'}
               </p>
             )
           )}

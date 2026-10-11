@@ -10,6 +10,7 @@ import { useClub, type Notification } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
+import { useUnread } from '../app/unread';
 
 export function HomePage() {
   const { account, admin } = useClub();
@@ -58,51 +59,68 @@ export function HomePage() {
   );
 }
 
+/** Notifications non lues ; une notification marquée comme lue disparaît, avec sa pastille. */
 function Notifications() {
   const { api } = useClub();
+  const { notifications: total, refresh } = useUnread();
   const loader = useCallback(
     (signal: AbortSignal) =>
-      api.request<Notification[]>('/notifications?limit=30', 'GET', undefined, signal),
+      api.request<Notification[]>(
+        '/notifications?unread_only=true&limit=30',
+        'GET',
+        undefined,
+        signal,
+      ),
     [api],
   );
   const result = useLoad(loader);
   const request = useRequest();
   const [read, setRead] = useState<Set<string>>(new Set());
   const link = useEventLink();
-  const items = (result.data ?? []).map((item) =>
-    read.has(item.id) ? { ...item, read_at: item.read_at ?? 'now' } : item,
-  );
-  const unread = items.filter((item) => !item.read_at);
+  const items = (result.data ?? []).filter((item) => !item.read_at && !read.has(item.id));
+  const count = Math.max(total, items.length);
+  function markRead(ids: string[]) {
+    void request.run(async (signal) => {
+      for (const id of ids) {
+        await api.request(`/notifications/${id}/read`, 'POST', {}, signal);
+        setRead((previous) => new Set(previous).add(id));
+      }
+      refresh();
+    });
+  }
   return (
     <section className="admin-card">
-      <h3>
-        Notifications {unread.length > 0 && <span className="club-count">{unread.length}</span>}
-      </h3>
+      <h3>Notifications {count > 0 && <span className="club-count">{count}</span>}</h3>
       <LoadState result={result} />
-      {result.loaded && !items.length && <Empty>Aucune notification.</Empty>}
+      {result.loaded && !items.length && <Empty>Aucune nouvelle notification.</Empty>}
       <ErrorNotice message={request.error} />
+      {items.length > 1 && (
+        <div className="admin-actions club-notifications-all">
+          <button
+            type="button"
+            className="admin-button"
+            disabled={request.pending}
+            onClick={() => markRead(items.map((item) => item.id))}
+          >
+            Tout marquer comme lu
+          </button>
+        </div>
+      )}
       <ul className="club-plain-list club-notifications">
         {items.map((item) => (
-          <li key={item.id} className={item.read_at ? '' : 'unread'}>
+          <li key={item.id} className="unread">
             <span>
               {item.event_id ? <Link to={link(item.event_id)}>{item.title}</Link> : item.title}
               <span className="admin-hint"> · {dateLabel(item.created_at)}</span>
             </span>
-            {!item.read_at && (
-              <button
-                type="button"
-                className="admin-button"
-                disabled={request.pending}
-                onClick={() =>
-                  void request.run(async (signal) => {
-                    await api.request(`/notifications/${item.id}/read`, 'POST', {}, signal);
-                    setRead((previous) => new Set(previous).add(item.id));
-                  })
-                }
-              >
-                Marquer comme lue
-              </button>
-            )}
+            <button
+              type="button"
+              className="admin-button"
+              disabled={request.pending}
+              onClick={() => markRead([item.id])}
+            >
+              Marquer comme lu
+            </button>
           </li>
         ))}
       </ul>

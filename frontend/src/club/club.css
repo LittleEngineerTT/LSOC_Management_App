@@ -454,3 +454,24 @@
   align-items: center;
   gap: 8px;
 }
+.club-unread {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #f56761;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  vertical-align: 1px;
+}
+.club-notifications-all {
+  justify-content: flex-end;
+  margin: 0 0 6px;
+}
+.club-description {
+  margin: 0 0 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}

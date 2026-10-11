@@ -7,7 +7,10 @@ import { addDays, mondayOf, rangeQuery, today, validDay, weekLabel } from './cal
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
-import { Agenda } from './events';
+import { CalendarView } from './CalendarView';
+import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
+import { CoachEventRequests } from './CoachEventRequests';
+import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
 
 /** Navigation par semaine, partagée par le planning et les gymnases. */
 export function WeekNavigation({ monday }: { monday: string }) {
@@ -42,24 +45,29 @@ export function useWeek(): string {
 
 export function PlanningPage() {
   const { api, admin, sections, gymnasiums } = useClub();
+  const coached = useCoachedTeams();
   const [search, setSearch] = useSearchParams();
-  const monday = useWeek();
+  const { mode, anchor, days } = useCalendarPeriod();
+  const firstDay = days[0]!;
   const section = search.get('section') ?? '';
   const gym = search.get('gymnase') ?? '';
   const cancelled = search.get('annules') === '1';
+  const origin = search.get('origine') ?? '';
   const [creating, setCreating] = useState(false);
+  const [proposing, setProposing] = useState(false);
+  const [requestRevision, setRequestRevision] = useState(0);
   const [notice, setNotice] = useState('');
   const loader = useCallback(
     (signal: AbortSignal) => {
       const filters = [
-        rangeQuery(monday, 7),
+        rangeQuery(firstDay, days.length),
         section && `section_id=${encodeURIComponent(section)}`,
         gym && `gymnasium_id=${encodeURIComponent(gym)}`,
         cancelled && 'include_cancelled=true',
       ].filter(Boolean);
       return api.list<Event>(`/events?${filters.join('&')}`, true, signal);
     },
-    [api, monday, section, gym, cancelled],
+    [api, firstDay, days.length, section, gym, cancelled],
   );
   const result = useLoad(loader);
   function filter(name: string, value: string) {
@@ -74,7 +82,7 @@ export function PlanningPage() {
     <>
       <PanelHeading
         title="Planning du club"
-        description="Entraînements, matchs et activités de toutes les sections, semaine par semaine. Les horaires sont ceux de Paris."
+        description="Entraînements, matchs et activités des sections en calendrier. Les horaires sont ceux de Paris."
       >
         {admin && (
           <button
@@ -87,10 +95,32 @@ export function PlanningPage() {
             Nouvel événement
           </button>
         )}
+        {!admin && coached.length > 0 && (
+          <button
+            className="admin-button primary"
+            onClick={() => {
+              setNotice('');
+              setProposing(true);
+            }}
+          >
+            Demander un événement
+          </button>
+        )}
       </PanelHeading>
+      {proposing && coached.length > 0 && (
+        <EventProposalForm
+          defaultDay={anchor}
+          onCancel={() => setProposing(false)}
+          onDone={() => {
+            setProposing(false);
+            setNotice('Demande envoyée aux administrateurs pour validation.');
+            setRequestRevision((value) => value + 1);
+          }}
+        />
+      )}
       {creating && (
         <EventEditor
-          defaultDay={monday}
+          defaultDay={anchor}
           onCancel={() => setCreating(false)}
           onDone={(message, created) => {
             setCreating(false);
@@ -101,7 +131,7 @@ export function PlanningPage() {
         />
       )}
       {notice && <Notice>{notice}</Notice>}
-      <WeekNavigation monday={monday} />
+      <CalendarNavigation mode={mode} anchor={anchor} />
       <div className="admin-toolbar">
         <label>
           Section
@@ -133,15 +163,32 @@ export function PlanningPage() {
           />
           Afficher les annulations
         </label>
+        <label>
+          Origine des événements
+          <select value={origin} onChange={(change) => filter('origine', change.target.value)}>
+            <option value="">Toutes les origines</option>
+            <option value="ffvb">FFVB</option>
+            <option value="local">Locale</option>
+          </select>
+        </label>
       </div>
       <LoadState result={result} />
       {result.data && (
-        <Agenda
-          events={result.data}
-          days={Array.from({ length: 7 }, (_, index) => addDays(monday, index))}
-          empty="Aucun événement cette semaine avec ces filtres."
+        <CalendarView
+          events={result.data.filter((event) =>
+            origin === 'ffvb'
+              ? !!event.ffvb_match_id
+              : origin === 'local'
+                ? !event.ffvb_match_id
+                : true,
+          )}
+          days={days}
+          mode={mode}
+          anchor={anchor}
+          empty="Aucun événement sur cette période avec ces filtres."
         />
       )}
+      <CoachEventRequests revision={requestRevision} />
       <DetailHost onChanged={result.reload} />
     </>
   );

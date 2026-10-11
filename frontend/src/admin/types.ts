@@ -106,6 +106,8 @@ export interface EmailJob {
 export interface Event {
   id: string;
   title: string;
+  /** Texte libre ; absent dans les contrats antérieurs à la migration 0008. */
+  description?: string;
   kind: 'training' | 'match' | 'other';
   section_ids: string[];
   gymnasium_id: string | null;
@@ -125,8 +127,10 @@ export interface Event {
   after_minutes: number;
   match_courts: number;
   occupancy_unknown: boolean;
-  /** Sections dont les adhérents peuvent s’inscrire ; vide = séance fermée. */
+  /** Sections dont les adhérents peuvent s’inscrire. */
   registration_section_ids: string[];
+  /** Équipes ouvertes, en union avec les sections ; absent dans les anciens contrats. */
+  registration_team_ids?: string[];
   registration_limit: number | null;
   registration_count: number;
 }
@@ -156,6 +160,35 @@ export interface ChangeRequest {
   decider_name: string | null;
   decided_at: string | null;
   created_at: string;
+}
+export interface EventProposal extends Record<string, unknown> {
+  title: string;
+  kind: Event['kind'];
+  section_ids: string[];
+  gymnasium_id: string | null;
+  location: string;
+  starts_at: string;
+  ends_at: string;
+  courts: number;
+  referent_id: string;
+  direct_edit: boolean;
+  registration_section_ids: string[];
+  registration_team_ids: string[];
+  registration_limit: number | null;
+}
+export interface EventRequest {
+  id: string;
+  team_id: string | null;
+  actor_id: string | null;
+  actor_name: string;
+  proposal: EventProposal;
+  note: string;
+  status: string;
+  decision: string;
+  decider_name: string | null;
+  decided_at: string | null;
+  created_at: string;
+  event_id: string | null;
 }
 export interface Revision {
   id: string;

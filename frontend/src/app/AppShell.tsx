@@ -6,6 +6,7 @@ import { useSession } from '../auth/session';
 import { useRequest } from '../auth/useRequest';
 import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
+import { CountBadge, UnreadProvider, useUnread } from './unread';
 import { ClubProvider } from '../club/context';
 import { HomePage } from '../club/HomePage';
 import { PlanningPage } from '../club/PlanningPage';
@@ -24,6 +25,7 @@ const clubSections = [
 ];
 
 const applications = [
+  { path: '/app', title: 'Accueil', icon: 'home' },
   { path: '/app/planning', title: 'Planning', icon: 'calendar' },
   { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
@@ -58,11 +60,13 @@ export function AppShell() {
   if (!section || (location.pathname === '/app/administration' && !admin))
     return <Navigate to="/app" replace />;
   return (
-    <Workspace
-      key={`${session.account.id}:${location.pathname}`}
-      account={session.account}
-      section={section}
-    />
+    <UnreadProvider key={session.account.id}>
+      <Workspace
+        key={`${session.account.id}:${location.pathname}`}
+        account={session.account}
+        section={section}
+      />
+    </UnreadProvider>
   );
 }
 
@@ -71,10 +75,28 @@ function Workspace({ account, section }: { account: Account; section: string }) 
   const request = useRequest();
   const [profileOpen, setProfileOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigation = useRef<HTMLElement>(null);
+  const navigationButton = useRef<HTMLButtonElement>(null);
   const profile = useRef<HTMLDivElement>(null);
   const profileButton = useRef<HTMLButtonElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const admin = account.roles.includes('admin');
+  const unread = useUnread();
+  const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
+    Accueil: {
+      count: unread.notifications,
+      label: ['notification non lue', 'notifications non lues'],
+    },
+    Messagerie: {
+      count: unread.messages,
+      label: admin
+        ? ['question non lue', 'questions non lues']
+        : ['réponse non lue', 'réponses non lues'],
+    },
+  };
+  const { refresh } = unread;
+  // Chaque changement de section relit les compteurs.
+  useEffect(refresh, [refresh]);
   useEffect(() => {
     document.title = `${section} · LSO Colombes Volley`;
     title.current?.focus();
@@ -98,12 +120,35 @@ function Workspace({ account, section }: { account: Account; section: string }) 
       document.removeEventListener('keydown', escape);
     };
   }, [profileOpen]);
+  useEffect(() => {
+    if (!navigationOpen) return;
+    function outside(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !navigation.current?.contains(event.target) &&
+        !navigationButton.current?.contains(event.target)
+      )
+        setNavigationOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setNavigationOpen(false);
+        navigationButton.current?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [navigationOpen]);
   return (
     <div className="app-shell">
       <a className="skip-link" href="#section-content">
         Aller au contenu
       </a>
-      <aside className={`app-sidebar${navigationOpen ? ' expanded' : ''}`}>
+      <aside ref={navigation} className={`app-sidebar${navigationOpen ? ' expanded' : ''}`}>
         <Link to="/app" className="sidebar-brand" aria-label="LSO Colombes Volley — accueil">
           <ClubMark compact />
         </Link>
@@ -119,6 +164,7 @@ function Workspace({ account, section }: { account: Account; section: string }) 
               >
                 <Icon name={item.icon} />
                 <span>{item.title}</span>
+                {item.title in badges && <CountBadge {...badges[item.title]!} />}
               </NavLink>
             ))}
         </nav>
@@ -129,6 +175,7 @@ function Workspace({ account, section }: { account: Account; section: string }) 
       <div className="app-body">
         <header className="app-header">
           <button
+            ref={navigationButton}
             className="mobile-menu"
             type="button"
             aria-label={navigationOpen ? 'Fermer les applications' : 'Ouvrir les applications'}
@@ -136,6 +183,9 @@ function Workspace({ account, section }: { account: Account; section: string }) 
             onClick={() => setNavigationOpen(!navigationOpen)}
           >
             <Icon name="menu" />
+            {unread.messages + unread.notifications > 0 && (
+              <span className="nav-dot" aria-hidden="true" />
+            )}
           </button>
           <div className="app-title">
             <span className="eyebrow">ESPACE CLUB</span>

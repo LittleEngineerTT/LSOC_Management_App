@@ -48,7 +48,7 @@ export function EventEditor({
   onDone: (message: string, event?: Event) => void;
   onCancel: () => void;
 }) {
-  const { api, admin, account, sections, gymnasiums, users } = useClub();
+  const { api, admin, account, sections, teams, gymnasiums, users } = useClub();
   const [capacity, setCapacity] = useState<CapacityProblem | null>(null);
   const [force, setForce] = useState(false);
   const [acknowledge, setAcknowledge] = useState(false);
@@ -62,6 +62,13 @@ export function EventEditor({
   }));
   const fields: FormField[] = [
     { name: 'title', label: 'Titre', required: true, maxLength: 200 },
+    {
+      name: 'description',
+      label: 'Description',
+      type: 'textarea' as const,
+      maxLength: 2000,
+      hint: 'Contenu de la séance, matériel, consignes… Visible par tous les membres.',
+    },
     ...(!event
       ? [
           {
@@ -165,7 +172,14 @@ export function EventEditor({
             label: 'Ouvert aux inscriptions des sections',
             type: 'choices' as const,
             options: sections.map((section) => ({ value: section.id, label: section.name })),
-            hint: 'Aucune section cochée : séance fermée aux inscriptions.',
+            hint: 'L’ouverture concerne les sections ou équipes sélectionnées.',
+          },
+          {
+            name: 'registration_team_ids',
+            label: 'Ouvert aux inscriptions des équipes',
+            type: 'choices' as const,
+            options: teams.map((team) => ({ value: team.id, label: team.name })),
+            hint: 'Ouvrir une équipe permet seulement à ses membres de s’inscrire.',
           },
           {
             name: 'registration_limit',
@@ -192,6 +206,7 @@ export function EventEditor({
   const initial: FormValues = event
     ? {
         title: event.title,
+        description: event.description ?? '',
         section_ids: event.section_ids,
         gymnasium_id: event.gymnasium_id ?? '',
         location: event.location,
@@ -206,11 +221,13 @@ export function EventEditor({
         direct_edit: event.direct_edit,
         cancelled: event.cancelled,
         registration_section_ids: event.registration_section_ids,
+        registration_team_ids: event.registration_team_ids ?? [],
         registration_limit:
           event.registration_limit === null ? '' : String(event.registration_limit),
       }
     : {
         title: '',
+        description: '',
         kind: 'training',
         section_ids: [],
         gymnasium_id: '',
@@ -221,17 +238,22 @@ export function EventEditor({
         referent_id: account.id,
         direct_edit: false,
         registration_section_ids: [],
+        registration_team_ids: [],
         registration_limit: '',
         until: '',
       };
 
   function changes(values: FormValues, original: Event) {
     const result: Record<string, unknown> = {};
-    const text = (name: 'title' | 'location') => {
-      if (fields.some((field) => field.name === name) && str(values, name) !== original[name])
+    const text = (name: 'title' | 'description' | 'location') => {
+      if (
+        fields.some((field) => field.name === name) &&
+        str(values, name) !== (original[name] ?? '')
+      )
         result[name] = str(values, name);
     };
     text('title');
+    text('description');
     text('location');
     if (admin && !sameList(choices(values, 'section_ids'), original.section_ids))
       result.section_ids = choices(values, 'section_ids');
@@ -255,6 +277,8 @@ export function EventEditor({
         result.direct_edit = checked(values, 'direct_edit');
       if (!sameList(choices(values, 'registration_section_ids'), original.registration_section_ids))
         result.registration_section_ids = choices(values, 'registration_section_ids');
+      if (!sameList(choices(values, 'registration_team_ids'), original.registration_team_ids ?? []))
+        result.registration_team_ids = choices(values, 'registration_team_ids');
       const limit = registrationLimit(values);
       if (limit !== original.registration_limit) result.registration_limit = limit;
     }
@@ -268,7 +292,8 @@ export function EventEditor({
     try {
       if (
         admin &&
-        choices(values, 'registration_section_ids').length &&
+        (choices(values, 'registration_section_ids').length ||
+          choices(values, 'registration_team_ids').length) &&
         registrationLimit(values) === null
       )
         throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
@@ -278,6 +303,7 @@ export function EventEditor({
           throw new Error('Sélectionnez au moins une section.');
         const body = {
           title: str(values, 'title'),
+          description: str(values, 'description'),
           kind: str(values, 'kind'),
           section_ids: choices(values, 'section_ids'),
           gymnasium_id: gym,
@@ -288,6 +314,7 @@ export function EventEditor({
           referent_id: str(values, 'referent_id'),
           direct_edit: checked(values, 'direct_edit'),
           registration_section_ids: choices(values, 'registration_section_ids'),
+          registration_team_ids: choices(values, 'registration_team_ids'),
           registration_limit: registrationLimit(values),
         };
         if (body.ends_at <= body.starts_at) throw new Error('La fin doit suivre le début.');

@@ -180,3 +180,27 @@ it('un administrateur ouvre une séance en fixant obligatoirement une limite', a
   await waitFor(() => expect(mutations).toHaveLength(1));
   expect(mutations[0]).toMatchObject({ path: '/events', body: { registration_section_ids: ['s1'], registration_limit: 12 } });
 });
+
+it('affiche les pastilles du menu et retire une notification marquée comme lue', async () => {
+  let notifications = 2;
+  routes['/notifications'] = [
+    { id: 'n1', kind: 'question', title: 'Question sur : Entraînement loisir', event_id: 'e1', read_at: null, created_at: at('10:00') },
+    { id: 'n2', kind: 'event_changed', title: 'Événement modifié : Entraînement loisir', event_id: 'e1', read_at: null, created_at: at('11:00') },
+  ];
+  Object.defineProperty(routes, '/unread', { enumerable: true, get: () => ({ messages: 3, notifications, threads: ['q1'] }) });
+  mutation = (path) => {
+    notifications -= 1;
+    routes['/notifications'] = (routes['/notifications'] as { id: string }[]).filter((item) => !path.includes(item.id));
+    return reply({}, 200);
+  };
+  open('/app');
+  const menu = await screen.findByRole('navigation', { name: 'Applications' });
+  expect(await within(menu).findByLabelText('3 réponses non lues')).toBeInTheDocument();
+  expect(within(menu).getByLabelText('2 notifications non lues')).toBeInTheDocument();
+  const card = (await screen.findByRole('heading', { name: /Notifications/ })).closest('section')!;
+  const item = await within(card).findByText('Événement modifié : Entraînement loisir');
+  await userEvent.click(within(item.closest('li')!).getByRole('button', { name: 'Marquer comme lu' }));
+  await waitFor(() => expect(within(card).queryByText('Événement modifié : Entraînement loisir')).not.toBeInTheDocument());
+  expect(await within(menu).findByLabelText('1 notification non lue')).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/notifications/n2/read', method: 'POST', body: {} }]);
+});

@@ -6,6 +6,7 @@ import { Badge, checked, Empty, EntityForm, LoadState, Notice, PanelHeading, str
 import { Changes } from './changes';
 import { useRequest } from '../auth/useRequest';
 import { ErrorNotice } from '../auth/components';
+import { EventRequestsPanel } from './EventRequestsPanel';
 
 export function EmailsPanel() {
   const [status, setStatus] = useState('pending');
@@ -86,12 +87,29 @@ function EmailList({ status }: { status: string }) {
 }
 export function RequestsPanel() {
   const [status, setStatus] = useState('pending');
+  const [kind, setKind] = useState<'changes' | 'events'>('changes');
   return (
     <>
       <PanelHeading
         title="Validations"
-        description="Examinez les modifications proposées par les référents et consignez votre décision."
+        description="Examinez les modifications des référents et les événements proposés par les coachs."
       />
+      <div className="admin-subtabs" role="group" aria-label="Type de demande">
+        <button
+          className={`admin-button${kind === 'changes' ? ' selected' : ''}`}
+          aria-pressed={kind === 'changes'}
+          onClick={() => setKind('changes')}
+        >
+          Modifications
+        </button>
+        <button
+          className={`admin-button${kind === 'events' ? ' selected' : ''}`}
+          aria-pressed={kind === 'events'}
+          onClick={() => setKind('events')}
+        >
+          Nouveaux événements
+        </button>
+      </div>
       <div className="admin-toolbar">
         <label>
           État des demandes
@@ -104,7 +122,11 @@ export function RequestsPanel() {
           </select>
         </label>
       </div>
-      <RequestList key={status} status={status} />
+      {kind === 'changes' ? (
+        <RequestList key={status} status={status} />
+      ) : (
+        <EventRequestsPanel key={status} status={status} />
+      )}
     </>
   );
 }

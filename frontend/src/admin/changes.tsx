@@ -2,6 +2,7 @@ import { useAdmin } from './data';
 import { dateLabel } from './time';
 export const fieldLabels: Record<string, string> = {
   title: 'Titre',
+  description: 'Description',
   kind: 'Type',
   section_ids: 'Sections',
   gymnasium_id: 'Gymnase',
@@ -23,6 +24,7 @@ export const fieldLabels: Record<string, string> = {
   ffvb_suspended_until: 'Suspension jusqu’au',
   occupancy_unknown: 'Occupation inconnue',
   registration_section_ids: 'Ouvert aux sections',
+  registration_team_ids: 'Ouvert aux équipes',
   registration_limit: 'Limite d’inscrits',
 };
 export function Changes({ values }: { values: Record<string, unknown> }) {
@@ -36,6 +38,10 @@ export function Changes({ values }: { values: Record<string, unknown> }) {
         .join(', ');
     if (key === 'gymnasium_id')
       return catalog.gymnasiums.find((gym) => gym.id === value)?.name ?? String(value);
+    if (key === 'registration_team_ids' && Array.isArray(value))
+      return value
+        .map((id) => catalog.teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée')
+        .join(', ');
     if (key === 'referent_id')
       return catalog.users.find((user) => user.id === value)?.first_name ?? 'Compte supprimé';
     if (

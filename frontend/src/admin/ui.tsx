@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
+import { FrenchDateTimeField } from './FrenchDateTimeField';
+import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 
 export interface Option {
   value: string;
@@ -10,7 +12,15 @@ export interface FormField {
   name: string;
   label: string;
   type?:
-    'text' | 'number' | 'select' | 'checkbox' | 'choices' | 'datetime-local' | 'date' | 'textarea';
+    | 'text'
+    | 'number'
+    | 'select'
+    | 'checkbox'
+    | 'choices'
+    | 'datetime-local'
+    | 'datetime-fr'
+    | 'date'
+    | 'textarea';
   options?: Option[];
   required?: boolean;
   min?: number | string;
@@ -115,6 +125,16 @@ export function EntityForm({
                   />
                   {field.label}
                 </label>
+              ) : field.type === 'datetime-fr' ? (
+                <FrenchDateTimeField
+                  id={fieldId}
+                  label={field.label}
+                  value={String(value ?? '')}
+                  onChange={update}
+                  required={field.required}
+                  disabled={field.disabled}
+                  describedBy={common['aria-describedby']}
+                />
               ) : (
                 <>
                   <label htmlFor={fieldId}>{field.label}</label>
@@ -198,6 +218,7 @@ export function Confirm({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const backdropDismiss = useDialogBackdropDismiss(onClose);
   const request = useRequest();
   const id = useId();
   useEffect(() => {
@@ -208,6 +229,7 @@ export function Confirm({
   return (
     <dialog
       ref={dialog}
+      {...backdropDismiss}
       className="admin-dialog"
       aria-labelledby={id}
       onCancel={(event) => {

@@ -8,6 +8,7 @@ import type { Event } from '../admin/types';
 import { Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
+import { useUnread } from '../app/unread';
 
 interface Conversation extends Thread {
   event: Event | null;
@@ -15,6 +16,7 @@ interface Conversation extends Thread {
 
 export function MessagingPage() {
   const { api, admin } = useClub();
+  const { threads: unreadThreads } = useUnread();
   const [search] = useSearchParams();
   const loader = useCallback(
     async (signal: AbortSignal): Promise<Conversation[]> => {
@@ -73,7 +75,14 @@ export function MessagingPage() {
                 className={item.id === selected?.id ? 'active' : ''}
                 aria-current={item.id === selected?.id ? 'page' : undefined}
               >
-                <strong>{item.event?.title ?? 'Événement indisponible'}</strong>
+                <strong>
+                  {item.event?.title ?? 'Événement indisponible'}
+                  {unreadThreads.includes(item.id) && item.id !== selected?.id && (
+                    <span className="club-unread">
+                      {admin ? 'Nouvelle question' : 'Nouvelle réponse'}
+                    </span>
+                  )}
+                </strong>
                 <span>
                   {item.event && dayLabel(parisDay(item.event.starts_at))}
                   {admin && (
@@ -99,6 +108,7 @@ export function MessagingPage() {
 
 function ThreadView({ conversation }: { conversation: Conversation }) {
   const { api, account, admin } = useClub();
+  const { refresh } = useUnread();
   const loader = useCallback(
     (signal: AbortSignal) =>
       api.list<Message>(`/questions/${conversation.id}/messages`, true, signal),
@@ -119,9 +129,10 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
     const controller = new AbortController();
     api
       .request(`/questions/${conversation.id}/read`, 'POST', {}, controller.signal)
+      .then(refresh)
       .catch(() => undefined);
     return () => controller.abort();
-  }, [api, conversation.id, unread]);
+  }, [api, conversation.id, unread, refresh]);
   return (
     <section className="club-thread" aria-label="Conversation">
       <header>

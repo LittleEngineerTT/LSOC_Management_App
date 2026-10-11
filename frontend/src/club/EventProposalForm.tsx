@@ -1,0 +1,175 @@
+import { interval } from '../admin/time';
+import type { EventRequest } from '../admin/types';
+import { choices, EntityForm, num, str, type FormField, type FormValues } from '../admin/ui';
+import { useClub } from './context';
+import { kindLabels } from './events';
+
+/** Une demande concerne une seule équipe actuellement coachée. */
+export function useCoachedTeams() {
+  const { account, assignments, teams } = useClub();
+  return account.roles.includes('coach')
+    ? teams.filter((team) =>
+        assignments.some(
+          (assignment) =>
+            assignment.user_id === account.id &&
+            assignment.team_id === team.id &&
+            assignment.kind === 'coach',
+        ),
+      )
+    : [];
+}
+
+export function EventProposalForm({
+  defaultDay,
+  onDone,
+  onCancel,
+}: {
+  defaultDay: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const { api, sections, teams, gymnasiums } = useClub();
+  const coached = useCoachedTeams();
+  const fields: FormField[] = [
+    {
+      name: 'team_id',
+      label: 'Équipe organisatrice',
+      type: 'select',
+      required: true,
+      options: coached.map((team) => ({ value: team.id, label: team.name })),
+      hint: 'La section organisatrice est celle de cette équipe. Vous serez le référent.',
+    },
+    { name: 'title', label: 'Titre', required: true, maxLength: 200 },
+    {
+      name: 'description',
+      label: 'Description',
+      type: 'textarea',
+      maxLength: 2000,
+      hint: 'Contenu de la séance, matériel, consignes… Visible par tous les membres.',
+    },
+    {
+      name: 'kind',
+      label: 'Type',
+      type: 'select',
+      required: true,
+      options: Object.entries(kindLabels).map(([value, label]) => ({ value, label })),
+    },
+    { name: 'starts_at', label: 'Début (Europe/Paris)', type: 'datetime-fr', required: true },
+    { name: 'ends_at', label: 'Fin (Europe/Paris)', type: 'datetime-fr', required: true },
+    {
+      name: 'gymnasium_id',
+      label: 'Gymnase du club',
+      type: 'select',
+      options: gymnasiums.map((gym) => ({
+        value: gym.id,
+        label: `${gym.name} (${gym.capacity} terrains)`,
+      })),
+      hint: 'Laissez « Choisir… » pour un lieu extérieur, sans réservation de terrain.',
+    },
+    { name: 'location', label: 'Lieu extérieur', maxLength: 200 },
+    {
+      name: 'courts',
+      label: 'Terrains occupés',
+      type: 'number',
+      min: 0,
+      max: 100,
+      required: true,
+      hint: 'Au moins un terrain dans un gymnase du club, zéro à l’extérieur.',
+    },
+    {
+      name: 'registration_section_ids',
+      label: 'Ouvert aux inscriptions des sections',
+      type: 'choices',
+      options: sections.map((section) => ({ value: section.id, label: section.name })),
+    },
+    {
+      name: 'registration_team_ids',
+      label: 'Ouvert aux inscriptions des équipes',
+      type: 'choices',
+      options: teams.map((team) => ({ value: team.id, label: team.name })),
+      hint: 'Seules les équipes ou sections cochées pourront s’inscrire.',
+    },
+    {
+      name: 'registration_limit',
+      label: 'Nombre maximal d’inscrits',
+      type: 'number',
+      min: 1,
+      max: 1000,
+      hint: 'Obligatoire dès qu’une équipe ou une section est ouverte.',
+    },
+    {
+      name: 'note',
+      label: 'Commentaire',
+      type: 'textarea',
+      maxLength: 2000,
+      hint: 'Message pour les administrateurs, non publié avec l’événement.',
+    },
+  ];
+  async function save(values: FormValues, signal: AbortSignal) {
+    const team_id = str(values, 'team_id');
+    if (!coached.some((team) => team.id === team_id))
+      throw new Error('Choisissez une équipe que vous coachez.');
+    const registration_section_ids = choices(values, 'registration_section_ids');
+    const registration_team_ids = choices(values, 'registration_team_ids');
+    const registration_limit = str(values, 'registration_limit')
+      ? num(values, 'registration_limit')
+      : null;
+    if (
+      (registration_section_ids.length || registration_team_ids.length) &&
+      registration_limit === null
+    )
+      throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
+    const gymnasium_id = str(values, 'gymnasium_id') || null;
+    const courts = gymnasium_id ? num(values, 'courts') : 0;
+    if (gymnasium_id && courts < 1)
+      throw new Error('Réservez au moins un terrain dans un gymnase du club.');
+    await api.request<EventRequest>(
+      '/event-requests',
+      'POST',
+      {
+        team_id,
+        title: str(values, 'title'),
+        description: str(values, 'description'),
+        kind: str(values, 'kind'),
+        ...interval(str(values, 'starts_at'), str(values, 'ends_at')),
+        gymnasium_id,
+        location: str(values, 'location'),
+        courts,
+        registration_section_ids,
+        registration_team_ids,
+        registration_limit,
+        note: str(values, 'note'),
+      },
+      signal,
+    );
+    onDone();
+  }
+  return (
+    <EntityForm
+      title="Demander un événement"
+      fields={fields}
+      initial={{
+        team_id: coached.length === 1 ? coached[0]!.id : '',
+        title: '',
+        description: '',
+        kind: 'training',
+        starts_at: `${defaultDay}T18:00`,
+        ends_at: `${defaultDay}T20:00`,
+        gymnasium_id: '',
+        location: '',
+        courts: '1',
+        registration_section_ids: [],
+        registration_team_ids: [],
+        registration_limit: '',
+        note: '',
+      }}
+      submit="Envoyer la demande"
+      onCancel={onCancel}
+      onSave={save}
+    >
+      <p className="admin-hint club-wide">
+        L’événement sera créé après acceptation par un administrateur.
+      </p>
+    </EntityForm>
+  );
+}

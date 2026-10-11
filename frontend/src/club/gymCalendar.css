@@ -1,0 +1,153 @@
+.gym-calendar {
+  min-width: 0;
+}
+.gym-calendar-help {
+  color: #526678;
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+.gym-free {
+  color: #276746;
+  --capacity-bg: #eaf7ef;
+  --capacity-border: #a7d6ba;
+}
+.gym-full {
+  color: #825c13;
+  --capacity-bg: #fff3d7;
+  --capacity-border: #e4c475;
+}
+.gym-excess {
+  color: #a32936;
+  --capacity-bg: #fce8eb;
+  --capacity-border: #dd98a0;
+}
+.gym-block {
+  --origin-color: #825c13;
+  --origin-bg: #fff3d7;
+  color: #825c13;
+}
+.gym-week-grid {
+  min-width: 1588px;
+  grid-template-columns: 48px repeat(7, minmax(220px, 1fr));
+}
+.gym-day-heading {
+  border: 0;
+  border-left: 1px solid #e5edf3;
+  border-bottom: 1px solid #d4e0e9;
+  cursor: pointer;
+  color: #182d3e;
+}
+.gym-day-heading[aria-pressed='true'] {
+  box-shadow: inset 0 -3px #285ca2;
+}
+.gym-day-heading:focus-visible {
+  outline: 2px solid #285ca2;
+  outline-offset: -2px;
+}
+.gym-capacity-track {
+  position: absolute;
+  inset: 0 64% 0 0;
+}
+.gym-capacity-band {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  padding: 3px;
+  border: 1px solid var(--capacity-border);
+  background: var(--capacity-bg);
+  overflow: clip;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.gym-capacity-band > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 70px;
+}
+.gym-capacity-band small {
+  font-size: 10px;
+}
+.gym-booking-track {
+  position: absolute;
+  inset: 0 2px 0 36%;
+}
+.gym-booking-track .gym-booking {
+  position: absolute;
+  overflow: clip;
+}
+.gym-booking-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gym-booking-track .gym-booking-content {
+  position: sticky;
+  top: 70px;
+}
+.gym-booking-track .gym-booking:hover,
+.gym-booking-track .gym-booking:focus-visible {
+  z-index: 6;
+}
+.gym-month-day .calendar-date-button {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.gym-month-capacity {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 3px;
+  background: var(--capacity-bg);
+}
+.gym-month-dots {
+  display: flex;
+  gap: 3px;
+}
+.gym-month-day .calendar-month-events {
+  padding: 2px;
+}
+.gym-day-slots {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 6px;
+}
+.gym-capacity-detail {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--capacity-border);
+  background: var(--capacity-bg);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.gym-day-bookings {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+.gym-day-bookings .gym-booking {
+  padding: 10px;
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .gym-month-day .calendar-date-button {
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 0;
+  }
+  .gym-month-capacity {
+    font-size: 9px;
+    padding: 2px 0;
+    white-space: nowrap;
+  }
+  .gym-month-dots .calendar-dot {
+    width: 5px;
+    height: 5px;
+  }
+}

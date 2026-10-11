@@ -10,6 +10,14 @@ export const kindLabels: Record<Event['kind'], string> = {
   other: 'Autre activité',
 };
 
+export function EventOrigin({ event }: { event: Pick<Event, 'ffvb_match_id'> }) {
+  return (
+    <span className={`event-origin origin-${event.ffvb_match_id ? 'ffvb' : 'local'}`}>
+      {event.ffvb_match_id ? 'FFVB' : 'Local'}
+    </span>
+  );
+}
+
 export function usePlace() {
   const { gymnasiums } = useClub();
   return (event: Pick<Event, 'gymnasium_id' | 'location'>) =>
@@ -21,6 +29,18 @@ export function useSectionNames() {
   const { sections } = useClub();
   return (ids: string[]) =>
     ids.map((id) => sections.find((section) => section.id === id)?.name ?? 'Section supprimée');
+}
+export function useTeamNames() {
+  const { teams } = useClub();
+  return (ids: string[]) =>
+    ids.map((id) => teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée');
+}
+export function registrationOpen(
+  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids'>,
+) {
+  return (
+    event.registration_section_ids.length > 0 || (event.registration_team_ids?.length ?? 0) > 0
+  );
 }
 
 /** Lien vers le détail d’un événement, ouvert dans la page courante. */
@@ -44,7 +64,9 @@ export function EventRow({ event }: { event: Event }) {
   const sectionNames = useSectionNames();
   const link = useEventLink();
   return (
-    <li className={`club-event kind-${event.kind}${event.cancelled ? ' cancelled' : ''}`}>
+    <li
+      className={`club-event kind-${event.kind} origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${event.cancelled ? ' cancelled' : ''}`}
+    >
       <Link to={link(event.id)} className="club-event-link">
         <span className="club-event-time">{timeRange(event.starts_at, event.ends_at)}</span>
         <span className="club-event-copy">
@@ -57,12 +79,12 @@ export function EventRow({ event }: { event: Event }) {
         </span>
         <span className="club-event-badges">
           {event.cancelled && <Badge tone="danger">Annulé</Badge>}
-          {event.ffvb_match_id && <Badge>FFVB</Badge>}
+          <EventOrigin event={event} />
           {event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
           {event.referent_id === account.id && <Badge tone="good">Référent</Badge>}
           {!event.referent_id && <Badge tone="warning">Sans référent</Badge>}
           {isFollowed(follows, event) && <Badge>Suivi</Badge>}
-          {event.registration_section_ids.length > 0 && (
+          {registrationOpen(event) && (
             <Badge tone={atLimit(event) ? 'warning' : 'good'}>
               {atLimit(event) ? 'Complet' : 'Ouvert'} · {event.registration_count}/
               {event.registration_limit}

@@ -242,10 +242,39 @@
   min-width: 0;
 }
 .admin-field > label,
+.admin-datetime-fr > label,
 .invitation-box > label {
   font-size: 13px;
   color: #354d60;
   font-weight: 600;
+}
+.admin-datetime-fr,
+.admin-datetime-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-datetime-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, auto) minmax(64px, auto);
+  gap: 8px;
+}
+.admin-datetime-controls span {
+  color: #354d60;
+  font-size: 12px;
+}
+.admin-datetime-controls input,
+.admin-datetime-controls select {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .admin-datetime-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-datetime-calendar {
+    grid-column: 1 / -1;
+  }
 }
 .administration input:not([type='checkbox']),
 .administration select,
