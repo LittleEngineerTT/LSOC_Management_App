@@ -601,15 +601,101 @@
   width: auto;
   min-width: 64px;
 }
-/* Safari iOS réduit à presque rien un champ date vide : il devient impossible à toucher. */
-.administration input[type='date'] {
-  -webkit-appearance: none;
-  appearance: none;
-  display: block;
-  min-height: 44px;
-  cursor: pointer;
+.admin-date-controls {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
 }
-.administration input[type='date']::-webkit-date-and-time-value {
-  min-height: 1.5em;
-  text-align: left;
+.admin-date-controls > input {
+  flex: 1;
+}
+.french-calendar {
+  position: relative;
+}
+.french-calendar-toggle {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #ccd9e3;
+  border-radius: 6px;
+  background: #fff;
+  color: #182d3e;
+  white-space: nowrap;
+}
+.french-calendar-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border: 1px solid #ccd9e3;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px #182d3e2e;
+}
+.admin-date-controls .french-calendar-panel {
+  left: auto;
+  right: 0;
+}
+.french-calendar-header,
+.french-calendar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.french-calendar-header strong {
+  text-transform: capitalize;
+  color: #182d3e;
+}
+.french-calendar-panel button {
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #182d3e;
+}
+.french-calendar-panel button:hover,
+.french-calendar-panel button:focus-visible {
+  border-color: #698fa9;
+}
+.french-calendar-header button {
+  font-size: 20px;
+}
+.french-calendar-panel table {
+  width: 100%;
+  margin: 8px 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.french-calendar-panel th {
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b7183;
+}
+.french-calendar-panel td {
+  padding: 1px;
+  text-align: center;
+}
+.french-calendar-panel td button {
+  width: 100%;
+  padding: 0;
+}
+.french-calendar-panel button[aria-current='date'] {
+  border-color: #ccd9e3;
+  font-weight: 700;
+}
+.french-calendar-panel button[aria-pressed='true'] {
+  background: #263f53;
+  border-color: #263f53;
+  color: #fff;
+}
+.french-calendar-footer button {
+  padding: 0 10px;
+  color: #354d60;
+  font-weight: 600;
 }

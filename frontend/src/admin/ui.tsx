@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
-import { FrenchDateTimeField, FrenchTimeField, openPicker } from './FrenchDateTimeField';
+import { FrenchDateField, FrenchDateTimeField, FrenchTimeField } from './FrenchDateTimeField';
 import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 
 export interface Option {
@@ -141,6 +141,16 @@ export function EntityForm({
                   disabled={field.disabled}
                   describedBy={common['aria-describedby']}
                 />
+              ) : field.type === 'date' ? (
+                <FrenchDateField
+                  id={fieldId}
+                  label={field.label}
+                  value={String(value ?? '')}
+                  onChange={update}
+                  required={field.required}
+                  disabled={field.disabled}
+                  describedBy={common['aria-describedby']}
+                />
               ) : field.type === 'time' ? (
                 <FrenchTimeField
                   id={fieldId}
@@ -185,11 +195,6 @@ export function EntityForm({
                       minLength={field.minLength}
                       pattern={field.pattern}
                       step={field.type === 'number' ? 1 : undefined}
-                      onClick={
-                        field.type === 'date'
-                          ? (event) => openPicker(event.currentTarget)
-                          : undefined
-                      }
                       onChange={(event) => update(event.target.value)}
                     />
                   )}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { expect, it } from 'vitest';
@@ -22,7 +22,7 @@ it('conserve l’heure choisie avant la date et propose tous les horaires', asyn
   expect(screen.getByLabelText('Minutes de Du').querySelectorAll('option')).toHaveLength(60);
   await userEvent.selectOptions(screen.getByLabelText('Heure de Du'), '23');
   await userEvent.selectOptions(screen.getByLabelText('Minutes de Du'), '59');
-  fireEvent.change(screen.getByLabelText('Choisir la date de Du'), { target: { value: '2026-12-31' } });
+  await userEvent.type(screen.getByLabelText('Du'), '31/12/2026');
   expect(screen.getByLabelText('Du')).toHaveValue('31/12/2026');
   expect(screen.getByLabelText('ISO')).toHaveTextContent('2026-12-31T23:59');
 });

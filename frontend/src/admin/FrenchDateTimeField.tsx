@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { FrenchCalendar } from './FrenchCalendar';
 
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -16,13 +17,76 @@ function frenchDate(value: string) {
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));
 const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
 
-/** Ouvre le calendrier natif au toucher de tout le champ, pas seulement de son icône. */
-export function openPicker(input: HTMLInputElement) {
-  try {
-    input.showPicker?.();
-  } catch {
-    // Navigateur sans showPicker ou appel refusé : le comportement natif reste disponible.
+/** Date seule (AAAA-MM-JJ en interne), saisie en jj/mm/aaaa ou choisie dans le calendrier. */
+export function FrenchDateField({
+  id,
+  label,
+  value,
+  onChange,
+  required,
+  disabled,
+  describedBy,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  describedBy?: string;
+}) {
+  const [draft, setDraft] = useState<{ source: string; text: string } | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const text = draft?.source === value ? draft.text : frenchDate(value);
+
+  function choose(next: string) {
+    setDraft(null);
+    input.current?.setCustomValidity('');
+    onChange(next);
   }
+
+  return (
+    <div className="admin-datetime-fr">
+      <label htmlFor={id}>{label}</label>
+      <div className="admin-date-controls">
+        <input
+          ref={input}
+          id={id}
+          type="text"
+          inputMode="numeric"
+          placeholder="jj/mm/aaaa"
+          required={required}
+          disabled={disabled}
+          aria-describedby={describedBy}
+          value={text}
+          onInvalid={(event) => {
+            if (!text)
+              event.currentTarget.setCustomValidity('Saisissez une date au format jj/mm/aaaa.');
+          }}
+          onChange={(event) => {
+            const next = event.target.value;
+            const french = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(next);
+            const nextDate = french ? `${french[3]}-${french[2]}-${french[1]}` : next;
+            if (validDate(nextDate)) {
+              choose(nextDate);
+            } else {
+              event.target.setCustomValidity(
+                next ? 'Saisissez une date valide au format jj/mm/aaaa.' : '',
+              );
+              setDraft({ source: '', text: next });
+              onChange('');
+            }
+          }}
+        />
+        <FrenchCalendar
+          label={label}
+          value={validDate(value) ? value : ''}
+          onChange={choose}
+          disabled={disabled}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function FrenchDateTimeField({
@@ -103,18 +167,15 @@ export function FrenchDateTimeField({
         }}
       />
       <div className="admin-datetime-controls">
-        <label className="admin-datetime-calendar">
+        <div className="admin-datetime-calendar">
           <span>Calendrier</span>
-          <input
-            {...common}
-            type="date"
-            lang="fr"
-            aria-label={`Choisir la date de ${controlLabel}`}
-            onClick={(event) => openPicker(event.currentTarget)}
+          <FrenchCalendar
+            label={controlLabel}
             value={validDate(date) ? date : ''}
-            onChange={(event) => chooseDate(event.target.value)}
+            onChange={chooseDate}
+            disabled={disabled}
           />
-        </label>
+        </div>
         <label>
           <span>Heure</span>
           <select

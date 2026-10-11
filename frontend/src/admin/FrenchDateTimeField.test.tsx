@@ -25,5 +25,4 @@ it('convertit la saisie jj/mm/aaaa au format technique sans perdre l’heure', a
   await userEvent.selectOptions(screen.getByLabelText('Heure de Du'), '19');
   await userEvent.selectOptions(screen.getByLabelText('Minutes de Du'), '15');
   expect(screen.getByLabelText('Valeur interne')).toHaveTextContent('2026-12-25T19:15');
-  expect(screen.getByLabelText('Choisir la date de Du')).toHaveValue('2026-12-25');
 });

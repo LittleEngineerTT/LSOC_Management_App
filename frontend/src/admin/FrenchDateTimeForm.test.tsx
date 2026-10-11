@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { interval } from './time';
@@ -15,8 +15,8 @@ it('soumet les dates du calendrier et heures choisies avec les conversions Paris
     initial={{ start: '', end: '' }}
     onSave={async (values) => save(interval(str(values, 'start'), str(values, 'end')))}
   />);
-  fireEvent.change(screen.getByLabelText('Choisir la date de Du'), { target: { value: '2026-10-20' } });
-  fireEvent.change(screen.getByLabelText('Choisir la date de Au'), { target: { value: '2026-10-20' } });
+  await userEvent.type(screen.getByLabelText('Du'), '20/10/2026');
+  await userEvent.type(screen.getByLabelText('Au'), '20/10/2026');
   expect(screen.getByLabelText('Du')).toHaveValue('20/10/2026');
   expect(screen.getByLabelText('Heure de Du')).toHaveValue('00');
   await userEvent.selectOptions(screen.getByLabelText('Heure de Du'), '18');
@@ -34,7 +34,7 @@ it('présente en français la validation d’une date obligatoire vide', async (
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(save).not.toHaveBeenCalled();
   expect((screen.getByLabelText('Du') as HTMLInputElement).validationMessage).toBe('Saisissez une date au format jj/mm/aaaa.');
-  fireEvent.change(screen.getByLabelText('Choisir la date de Du'), { target: { value: '2026-10-20' } });
+  await userEvent.type(screen.getByLabelText('Du'), '20/10/2026');
   expect(screen.getByLabelText('Du')).toBeValid();
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
   await waitFor(() => expect(save).toHaveBeenCalled());
