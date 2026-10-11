@@ -16,6 +16,11 @@
   --capacity-bg: #fff3d7;
   --capacity-border: #e4c475;
 }
+.gym-neutral {
+  color: #4f6273;
+  --capacity-bg: #f2f5f7;
+  --capacity-border: #d5dee5;
+}
 .gym-excess {
   color: #a32936;
   --capacity-bg: #fce8eb;

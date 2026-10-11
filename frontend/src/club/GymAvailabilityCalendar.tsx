@@ -13,13 +13,21 @@ type CapacitySlot = Capacity['segments'][number];
 type Booking = { type: 'event'; value: Event } | { type: 'block'; value: Block };
 const weekdayFormat = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short' });
 const weekday = (day: string) => weekdayFormat.format(new Date(`${day}T12:00:00Z`));
-const status = (item: CapacitySlot) => (item.excess ? 'excess' : item.available ? 'free' : 'full');
-const capacityLabel = (item: CapacitySlot, capacity: number) =>
-  item.excess
-    ? `Complet · ${item.excess} terrain${item.excess > 1 ? 's' : ''} en excès`
+// La vue mois n’emploie pas la notion « complet » : un créneau plein y reste neutre.
+const status = (item: CapacitySlot, mode: CalendarMode) =>
+  item.excess ? 'excess' : item.available ? 'free' : mode === 'month' ? 'neutral' : 'full';
+const capacityLabel = (item: CapacitySlot, capacity: number, mode: CalendarMode) => {
+  const excess = `${item.excess} terrain${item.excess > 1 ? 's' : ''} en excès`;
+  if (mode === 'month')
+    return item.excess
+      ? excess
+      : `${item.available} libre${item.available > 1 ? 's' : ''} sur ${capacity}`;
+  return item.excess
+    ? `Complet · ${excess}`
     : item.available
       ? `${item.available} libre${item.available > 1 ? 's' : ''} sur ${capacity}`
       : 'Complet';
+};
 
 export function GymAvailabilityCalendar({
   availability,
@@ -78,10 +86,12 @@ export function GymAvailabilityCalendar({
           <i className="calendar-dot" />
           Terrains libres
         </span>
-        <span className="gym-full">
-          <i className="calendar-dot" />
-          Complet
-        </span>
+        {mode === 'week' && (
+          <span className="gym-full">
+            <i className="calendar-dot" />
+            Complet
+          </span>
+        )}
         <span className="gym-excess">
           <i className="calendar-dot" />
           Capacité dépassée
@@ -126,11 +136,7 @@ export function GymAvailabilityCalendar({
               const min = items.length
                 ? Math.min(...items.map((slot) => slot.item.available))
                 : null;
-              const tone = items.some((slot) => slot.item.excess)
-                ? 'excess'
-                : min === 0
-                  ? 'full'
-                  : 'free';
+              const tone = items.some((slot) => slot.item.excess) ? 'excess' : 'free';
               const dayBookings = bookings.filter((slot) => slot.day === day);
               return (
                 <section
@@ -140,20 +146,23 @@ export function GymAvailabilityCalendar({
                   <button
                     className="calendar-date-button"
                     aria-pressed={day === selected}
-                    aria-label={`Voir les disponibilités du ${dayLabel(day)}, ${min === null ? 'disponibilité non renseignée' : `${min} terrain${min > 1 ? 's' : ''} libre${min > 1 ? 's' : ''} au minimum`}${tone === 'excess' ? ', capacité dépassée' : ''}`}
+                    aria-label={`Voir les disponibilités du ${dayLabel(day)}${min === null ? ', disponibilité non renseignée' : min > 0 ? `, ${min} terrain${min > 1 ? 's' : ''} libre${min > 1 ? 's' : ''} au minimum` : ''}${tone === 'excess' ? ', capacité dépassée' : ''}`}
                     onClick={() => select(day)}
                   >
                     <strong>{Number(day.slice(8))}</strong>
-                    <span
-                      className={`gym-month-capacity gym-${tone}`}
-                      title="Minimum de terrains libres dans la journée"
-                    >
-                      {min === null
-                        ? '—'
-                        : min === 0
-                          ? 'Complet'
-                          : `${min} libre${min > 1 ? 's' : ''}`}
-                    </span>
+                    {tone === 'excess' ? (
+                      <span className="gym-month-capacity gym-excess">Excès</span>
+                    ) : (
+                      min !== null &&
+                      min > 0 && (
+                        <span
+                          className="gym-month-capacity gym-free"
+                          title="Minimum de terrains libres dans la journée"
+                        >
+                          {`${min} libre${min > 1 ? 's' : ''}`}
+                        </span>
+                      )
+                    )}
                     <span className="gym-month-dots" aria-hidden="true">
                       {dayBookings.some(
                         (slot) => slot.item.type === 'event' && slot.item.value.ffvb_match_id,
@@ -186,9 +195,9 @@ export function GymAvailabilityCalendar({
           {slots
             .filter((slot) => slot.day === selected)
             .map((slot, index) => (
-              <li className={`gym-capacity-detail gym-${status(slot.item)}`} key={index}>
+              <li className={`gym-capacity-detail gym-${status(slot.item, mode)}`} key={index}>
                 <span>{gymSlotTime(slot)}</span>
-                <strong>{capacityLabel(slot.item, capacity)}</strong>
+                <strong>{capacityLabel(slot.item, capacity, mode)}</strong>
               </li>
             ))}
         </ul>
@@ -298,15 +307,15 @@ function GymWeek({
                   .map((slot, index) => (
                     <div
                       key={index}
-                      className={`gym-capacity-band gym-${status(slot.item)}`}
+                      className={`gym-capacity-band gym-${status(slot.item, 'week')}`}
                       style={{
                         top: (slot.startMinute * HOUR_HEIGHT) / 60,
                         height: ((slot.endMinute - slot.startMinute) * HOUR_HEIGHT) / 60,
                       }}
-                      title={`${gymSlotTime(slot)} · ${capacityLabel(slot.item, capacity)}`}
+                      title={`${gymSlotTime(slot)} · ${capacityLabel(slot.item, capacity, 'week')}`}
                     >
                       <span>
-                        <strong>{capacityLabel(slot.item, capacity)}</strong>
+                        <strong>{capacityLabel(slot.item, capacity, 'week')}</strong>
                         <small>{gymSlotTime(slot)}</small>
                       </span>
                     </div>

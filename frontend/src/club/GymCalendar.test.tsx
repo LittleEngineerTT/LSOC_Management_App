@@ -100,3 +100,15 @@ it('signale une séance annulée sans recalculer l’occupation renvoyée par le
   expect(day).toHaveTextContent('1 libre sur 3');
   expect(day).not.toHaveTextContent('Complet');
 });
+
+it('la vue mois n’emploie jamais la notion « complet »', async () => {
+  open('/app/gymnases?semaine=2026-10-12&vue=mois&jour=2026-10-16');
+  const month = await screen.findByRole('region', { name: 'Calendrier de disponibilité du mois' });
+  expect(month).not.toHaveTextContent(/complet/i);
+  const legend = screen.getByLabelText('Légende des disponibilités');
+  expect(legend).not.toHaveTextContent(/complet/i);
+  const detail = screen.getByRole('region', { name: /Disponibilités du Vendredi 16 octobre/ });
+  expect(detail).not.toHaveTextContent(/complet/i);
+  expect(detail).toHaveTextContent('1 terrain en excès');
+  expect(month.querySelector('.gym-full')).toBeNull();
+});
