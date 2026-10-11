@@ -33,8 +33,12 @@ class Identity:
 
 
 class User(Identity, Base):
+    """Compte ; `id` est le numéro de licence, ou à défaut `initiale-prénom-section`."""
+
     __tablename__ = "users"
     first_name: Mapped[str] = mapped_column(String(80))
+    # Seule l’initiale du nom de famille est conservée.
+    last_initial: Mapped[str] = mapped_column(String(1), default="", server_default="")
     category: Mapped[str] = mapped_column(String(30), default="adult")
     roles: Mapped[list[str]] = mapped_column(JSON, default=list)
     username: Mapped[str | None] = mapped_column(String(80), unique=True)
@@ -68,20 +72,24 @@ class License(Base):
         ),
     )
     user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), primary_key=True
     )
     number: Mapped[str | None] = mapped_column(String(40), unique=True)
     status: Mapped[str] = mapped_column(String(20), default="none")
     # Licence d’encadrement : pas d’étape de paiement.
     coach_status: Mapped[str] = mapped_column(String(20), default="none", server_default="none")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
 
 
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     purpose: Mapped[str] = mapped_column(String(20))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -89,7 +97,9 @@ class AuthToken(Base):
 class LoginSession(Base):
     __tablename__ = "sessions"
     hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     csrf_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -110,7 +120,9 @@ class Team(Identity, Base):
     __tablename__ = "teams"
     name: Mapped[str] = mapped_column(String(120))
     section_id: Mapped[str] = mapped_column(ForeignKey("sections.id"))
-    referent_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    referent_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     ffvb_source_warning_ignored: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
     )
@@ -122,7 +134,9 @@ class Assignment(Identity, Base):
         UniqueConstraint("user_id", "team_id", "kind"),
         CheckConstraint("kind IN ('player','coach')"),
     )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(10))
 
@@ -152,7 +166,9 @@ class EventSeries(Identity, Base):
 class Registration(Identity, Base):
     __tablename__ = "registrations"
     __table_args__ = (UniqueConstraint("user_id", "event_id"),)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -180,7 +196,7 @@ class Event(Identity, Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     courts: Mapped[int] = mapped_column(Integer)
     referent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), index=True
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"), index=True
     )
     direct_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -208,7 +224,9 @@ class Event(Identity, Base):
 class EventRevision(Identity, Base):
     __tablename__ = "event_revisions"
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id"), index=True)
-    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    actor_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     actor_name: Mapped[str] = mapped_column(String(80))
     origin: Mapped[str] = mapped_column(String(20))
     action: Mapped[str] = mapped_column(String(30))
@@ -222,13 +240,17 @@ class EventRevision(Identity, Base):
 class ChangeRequest(Identity, Base):
     __tablename__ = "change_requests"
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id"), index=True)
-    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    actor_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     actor_name: Mapped[str] = mapped_column(String(80))
     base_version: Mapped[int] = mapped_column(Integer)
     changes: Mapped[dict[str, Any]] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     decision: Mapped[str] = mapped_column(Text, default="")
-    decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     decider_name: Mapped[str | None] = mapped_column(String(80))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -241,14 +263,16 @@ class CoachEventRequest(Identity, Base):
         ForeignKey("teams.id", ondelete="SET NULL"), index=True
     )
     actor_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), index=True
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"), index=True
     )
     actor_name: Mapped[str] = mapped_column(String(80))
     proposal: Mapped[dict[str, Any]] = mapped_column(JSON)
     note: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     decision: Mapped[str] = mapped_column(Text, default="")
-    decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     decider_name: Mapped[str | None] = mapped_column(String(80))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
@@ -264,7 +288,9 @@ class Follow(Identity, Base):
         UniqueConstraint("user_id", "series_id"),
         CheckConstraint("(event_id IS NULL) <> (series_id IS NULL)"),
     )
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     event_id: Mapped[str | None] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
     series_id: Mapped[str | None] = mapped_column(ForeignKey("event_series.id", ondelete="CASCADE"))
 
@@ -272,7 +298,9 @@ class Follow(Identity, Base):
 class QuestionThread(Identity, Base):
     __tablename__ = "question_threads"
     __table_args__ = (UniqueConstraint("user_id", "event_id"),)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     # Sans événement (demande refusée…), la conversation porte un sujet.
     event_id: Mapped[str | None] = mapped_column(ForeignKey("events.id"))
     subject: Mapped[str] = mapped_column(String(200), default="", server_default="")
@@ -283,7 +311,9 @@ class QuestionMessage(Identity, Base):
     thread_id: Mapped[str] = mapped_column(
         ForeignKey("question_threads.id", ondelete="CASCADE"), index=True
     )
-    author_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    author_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE")
+    )
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -292,7 +322,9 @@ class QuestionMessage(Identity, Base):
 class Notification(Identity, Base):
     __tablename__ = "notifications"
     __table_args__ = (UniqueConstraint("user_id", "dedupe_key"),)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     kind: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(200))
     # Message libre (motif d’une décision…) et lien interne vers l’écran à ouvrir.
@@ -307,7 +339,9 @@ class Notification(Identity, Base):
 class EmailJob(Identity, Base):
     __tablename__ = "email_jobs"
     __table_args__ = (UniqueConstraint("user_id", "dedupe_key"),)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
     encrypted_payload: Mapped[str] = mapped_column(Text)
     dedupe_key: Mapped[str] = mapped_column(String(200))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
@@ -379,9 +413,13 @@ class FFVBConflict(Identity, Base):
     field: Mapped[str] = mapped_column(String(30))
     official_value: Mapped[str | None] = mapped_column(Text)
     local_value: Mapped[str | None] = mapped_column(Text)
-    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    author_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     status: Mapped[str] = mapped_column(String(20), default="open")
-    resolved_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    resolved_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
     resolver_name: Mapped[str | None] = mapped_column(String(80))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

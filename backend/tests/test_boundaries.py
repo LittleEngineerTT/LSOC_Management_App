@@ -49,7 +49,7 @@ def test_user_delete_scrubs_history_and_private_questions(admin: TestClient) -> 
 
 
 def test_invitation_concurrent_single_use(admin: TestClient) -> None:
-    created=admin.post('/api/v1/users',json={'first_name':'Invited','category':'M18','roles':['member']}).json()
+    created=admin.post('/api/v1/users',json={'last_name': 'Durand', 'first_name':'Invited','category':'M18','roles':['member']}).json()
     def activate(_: int) -> int:
         with TestClient(admin.app) as c:
             return c.post('/api/v1/auth/activate',json={'token':created['invitation_token'],'username':'invited','password':PASSWORD}).status_code

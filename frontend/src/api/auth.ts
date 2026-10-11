@@ -75,9 +75,12 @@ async function request<T>(
           ? 'Trop de tentatives. Patientez quelques minutes avant de réessayer.'
           : typeof detail === 'string'
             ? detail
-            : response.status === 422
-              ? 'Vérifiez les informations saisies, puis réessayez.'
-              : 'Le serveur ne peut pas traiter cette demande pour le moment. Réessayez.';
+            : // Détail structuré (licence requise…) : son message est destiné à l’utilisateur.
+              typeof detail === 'object' && detail !== null && 'message' in detail
+              ? String(detail.message)
+              : response.status === 422
+                ? 'Vérifiez les informations saisies, puis réessayez.'
+                : 'Le serveur ne peut pas traiter cette demande pour le moment. Réessayez.';
       throw new ApiError(message, response.status);
     }
     return payload as T;

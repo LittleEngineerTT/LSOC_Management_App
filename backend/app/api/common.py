@@ -64,6 +64,11 @@ def current_user(
     user = db.get(User, record.user_id)
     if user is None or not user.active:
         raise HTTPException(401, "Connexion requise")
+    from app.services.identity import has_access
+
+    # Sans numéro de licence, aucune activité n’est possible (sauf pour un administrateur).
+    if not has_access(db, user):
+        raise HTTPException(401, "Licence requise")
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
         supplied = request.headers.get("X-CSRF-Token", "")
         if not supplied or digest(supplied) != record.csrf_hash:

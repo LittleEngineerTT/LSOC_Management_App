@@ -66,6 +66,8 @@ class LoginInput(UsernameInput):
 
 class UserInput(Input):
     first_name: str = Field(min_length=1, max_length=80)
+    # Seule l’initiale est conservée ; obligatoire à la création, facultatif ensuite.
+    last_name: str | None = Field(default=None, min_length=1, max_length=80)
     category: Category = "adult"
     roles: list[Role] = Field(min_length=1)
     messaging_allowed: bool = True
@@ -87,6 +89,7 @@ class PublicProfileView(View):
 class UserView(View):
     id: str
     first_name: str
+    last_initial: str
     category: str
     roles: list[str]
     active: bool

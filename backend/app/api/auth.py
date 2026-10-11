@@ -107,6 +107,17 @@ def login(body: LoginInput, response: Response, db: DB) -> LoginView:
     valid = verify_password(body.password, user.password_hash if user else None)
     if not valid or user is None or not user.active:
         raise HTTPException(401, "Identifiants invalides")
+    from app.services.identity import has_access
+
+    if not has_access(db, user):
+        raise HTTPException(
+            403,
+            {
+                "code": "license_required",
+                "message": "Votre compte sera accessible dès qu’un administrateur aura "
+                "enregistré votre numéro de licence.",
+            },
+        )
     raw, csrf = token(), token()
     db.add(
         LoginSession(

@@ -49,6 +49,15 @@ export function UsersPanel() {
   );
   const fields: FormField[] = [
     { name: 'first_name', label: 'Prénom', required: true, maxLength: 80 },
+    {
+      name: 'last_name',
+      label: 'Nom',
+      required: !selected,
+      maxLength: 80,
+      hint: selected
+        ? `Seule l’initiale est conservée (actuellement ${selected.last_initial || '—'}.) ; laissez vide pour la garder.`
+        : 'Seule l’initiale est conservée.',
+    },
     { name: 'category', label: 'Catégorie', type: 'select', required: true, options: categories },
     {
       name: 'roles',
@@ -113,11 +122,18 @@ export function UsersPanel() {
             selected
               ? {
                   first_name: selected.first_name,
+                  last_name: '',
                   category: selected.category,
                   roles: selected.roles,
                   messaging_allowed: selected.messaging_allowed,
                 }
-              : { first_name: '', category: 'adult', roles: ['member'], messaging_allowed: true }
+              : {
+                  first_name: '',
+                  last_name: '',
+                  category: 'adult',
+                  roles: ['member'],
+                  messaging_allowed: true,
+                }
           }
           submit={selected ? 'Enregistrer' : 'Créer et inviter'}
           onCancel={() => {
@@ -134,6 +150,7 @@ export function UsersPanel() {
               throw new Error('Les adhérents doivent appartenir à M18 ou plus.');
             const body = {
               first_name: str(values, 'first_name'),
+              ...(str(values, 'last_name') ? { last_name: str(values, 'last_name') } : {}),
               category: str(values, 'category'),
               roles,
               messaging_allowed: checked(values, 'messaging_allowed'),
@@ -183,7 +200,15 @@ export function UsersPanel() {
             <InvitationLink key={invitation.invitation_url} invitation={invitation} />
           )}
           {selected.active && <UserCredentials key={selected.id} user={selected} />}
-          <Assignments key={`${selected.id}:${selected.roles.join(',')}`} user={selected} />
+          <Assignments
+            key={`${selected.id}:${selected.roles.join(',')}`}
+            user={selected}
+            onRenamed={(id) => {
+              // Sans licence, l’identifiant suit la section : le compte sélectionné le suit aussi.
+              setEditing({ ...selected, id });
+              reloadCatalog();
+            }}
+          />
         </section>
       )}
       {!filtered.length ? (
@@ -193,7 +218,8 @@ export function UsersPanel() {
           {filtered.map((user) => (
             <article className="admin-row" key={user.id}>
               <div className="admin-row-copy">
-                <h3>{user.first_name}</h3>
+                <h3>{displayName(user)}</h3>
+                <p className="admin-hint">ID : {user.id}</p>
                 {user.username && <p>Identifiant : {user.username}</p>}
                 <p>
                   {user.category === 'adult' ? 'Sénior' : user.category} ·{' '}
@@ -311,7 +337,10 @@ function InvitationLink({ invitation }: { invitation: Invitation }) {
     </div>
   );
 }
-function Assignments({ user }: { user: User }) {
+export function displayName(user: Pick<User, 'first_name' | 'last_initial'>) {
+  return user.last_initial ? `${user.first_name} ${user.last_initial}.` : user.first_name;
+}
+function Assignments({ user, onRenamed }: { user: User; onRenamed: (id: string) => void }) {
   const { api, catalog } = useAdmin();
   const resource = useResource<Assignment>(`/users/${user.id}/assignments`);
   const [removing, setRemoving] = useState<Assignment | null>(null);
@@ -360,13 +389,14 @@ function Assignments({ user }: { user: User }) {
           initial={{ team_id: '', kind: kinds[0]?.value ?? '' }}
           submit="Rattacher"
           onSave={async (values, signal) => {
-            await api.request(
+            const created = await api.request<Assignment>(
               `/users/${user.id}/assignments`,
               'POST',
               { team_id: str(values, 'team_id'), kind: str(values, 'kind') },
               signal,
             );
-            resource.reload();
+            if (created?.user_id && created.user_id !== user.id) onRenamed(created.user_id);
+            else resource.reload();
             setRevision((value) => value + 1);
           }}
         />
@@ -380,13 +410,14 @@ function Assignments({ user }: { user: User }) {
           title="Retirer ce rattachement ?"
           onClose={() => setRemoving(null)}
           onConfirm={async (signal) => {
-            await api.request(
+            const updated = await api.request<User>(
               `/users/${user.id}/assignments/${removing.id}`,
               'DELETE',
               undefined,
               signal,
             );
-            resource.reload();
+            if (updated?.id && updated.id !== user.id) onRenamed(updated.id);
+            else resource.reload();
           }}
         >
           <p>L’utilisateur ne sera plus rattaché à cette équipe pour ce rôle.</p>

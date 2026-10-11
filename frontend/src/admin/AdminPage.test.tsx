@@ -37,13 +37,14 @@ it('crée un compte et présente son lien, sans stocker de secret', async () => 
   mutation = (path, init) => {
     expect(path).toBe('/api/v1/users');
     expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('admin-csrf');
-    expect(JSON.parse(String(init?.body))).toEqual({ first_name: 'Alex', category: 'adult', roles: ['member'], messaging_allowed: true });
+    expect(JSON.parse(String(init?.body))).toEqual({ first_name: 'Alex', last_name: 'Durand', category: 'adult', roles: ['member'], messaging_allowed: true });
     users = [admin, invited];
     return reply({ user: invited, invitation_url: 'http://localhost:5173/activate?token=secret-invitation', invitation_token: 'secret-invitation' }, 201);
   };
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Ajouter un utilisateur' }));
   await userEvent.type(screen.getByLabelText('Prénom'), 'Alex');
+  await userEvent.type(screen.getByLabelText('Nom'), 'Durand');
   await userEvent.click(screen.getByRole('button', { name: 'Créer et inviter' }));
   expect(await screen.findByLabelText('Lien d’invitation')).toHaveValue('http://localhost:5173/activate?token=secret-invitation');
   expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0);

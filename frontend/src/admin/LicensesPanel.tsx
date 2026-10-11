@@ -44,7 +44,7 @@ const field: Record<Kind, 'status' | 'coach_status'> = { player: 'status', coach
 
 /** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. */
 export function LicensesPanel() {
-  const { api, catalog } = useAdmin();
+  const { api, catalog, reloadCatalog } = useAdmin();
   const [kind, setKind] = useState<Kind>('player');
   const [section, setSection] = useState('');
   const [team, setTeam] = useState('');
@@ -186,6 +186,8 @@ export function LicensesPanel() {
             setNotice(`Licence de ${editing.first_name} : ${licenseLabels[status]}.`);
             setEditing(null);
             result.reload();
+            // Le numéro de licence devient l’identifiant du compte.
+            reloadCatalog();
           }}
         />
       )}

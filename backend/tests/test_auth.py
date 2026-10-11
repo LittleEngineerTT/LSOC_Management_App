@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.core.security import now
 from app.persistence.database import SessionFactory
 from app.persistence.models import AuthToken, EmailJob, LoginSession, User
-from conftest import PASSWORD, add_user, login
+from conftest import PASSWORD, add_user, grant_license, login
 
 
 def test_bad_login_and_csrf(client: TestClient, admin: TestClient) -> None:
@@ -17,7 +17,7 @@ def test_bad_login_and_csrf(client: TestClient, admin: TestClient) -> None:
 
 
 def test_invitation_activation_single_use(admin: TestClient) -> None:
-    response = admin.post('/api/v1/users', json={'first_name': 'Camille', 'category': 'M18', 'roles': ['member']})
+    response = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Camille', 'category': 'M18', 'roles': ['member']})
     assert response.status_code == 201, response.text
     user_id = response.json()['user']['id']
     invitation = response.json()['invitation_token']
@@ -25,15 +25,19 @@ def test_invitation_activation_single_use(admin: TestClient) -> None:
     payload = {'token': invitation, 'username': 'camille', 'password': PASSWORD}
     assert visitor.post('/api/v1/auth/activate', json=payload).status_code == 200
     assert visitor.post('/api/v1/auth/activate', json=payload).status_code == 400
+    # Sans numéro de licence, le compte activé reste inaccessible.
+    refused = visitor.post('/api/v1/auth/login', json={'username': 'camille', 'password': PASSWORD})
+    assert refused.status_code == 403 and refused.json()['detail']['code'] == 'license_required'
+    grant_license(admin, user_id)
     assert visitor.post('/api/v1/auth/login', json={'username': 'camille', 'password': PASSWORD}).status_code == 200
     with SessionFactory() as db:
         assert list(db.scalars(select(EmailJob).where(EmailJob.user_id == user_id))) == []
 
 
 def test_expired_invitation_and_roles(admin: TestClient) -> None:
-    result = admin.post('/api/v1/users', json={'first_name': 'Young', 'category': 'M15', 'roles': ['member']})
+    result = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Young', 'category': 'M15', 'roles': ['member']})
     assert result.status_code == 422
-    result = admin.post('/api/v1/users', json={'first_name': 'Coach', 'category': 'M15', 'roles': ['coach']})
+    result = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Coach', 'category': 'M15', 'roles': ['coach']})
     assert result.status_code == 201
     with SessionFactory.begin() as db:
         t = db.scalar(select(AuthToken).where(AuthToken.user_id == result.json()['user']['id']))

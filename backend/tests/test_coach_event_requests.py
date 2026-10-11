@@ -146,7 +146,7 @@ def test_revoked_request_cannot_be_accepted_but_can_be_rejected(
         )
     elif revocation == "assignment":
         assignment = admin.get("/api/v1/users/coach/assignments").json()[0]["id"]
-        assert admin.delete(f"/api/v1/users/coach/assignments/{assignment}").status_code == 204
+        assert admin.delete(f"/api/v1/users/coach/assignments/{assignment}").status_code == 200
     else:
         with SessionFactory.begin() as db:
             db.get(User, "coach").active = False

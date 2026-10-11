@@ -12,6 +12,7 @@ from app.api.schemas import (
 )
 from app.core.security import now, token
 from app.persistence.models import Assignment, License, Team, User
+from app.services.identity import rekey
 from app.services.notifications import notify
 
 router = APIRouter(tags=["Licences"])
@@ -169,5 +170,8 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
                     send_email=False,
                     link="/app/profil",
                 )
-    mine = list(db.scalars(select(Assignment).where(Assignment.user_id == user_id)))
+    # Le numéro de licence devient l’identifiant du compte (temporaire sans numéro).
+    user = rekey(db, user)
+    value = db.get(License, user.id)
+    mine = list(db.scalars(select(Assignment).where(Assignment.user_id == user.id)))
     return view(user, value, mine, concerned_coach(user, mine))

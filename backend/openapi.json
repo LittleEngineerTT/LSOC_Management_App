@@ -641,6 +641,7 @@
           "Comptes"
         ],
         "summary": "Unassign",
+        "description": "Retire un rattachement ; renvoie le compte, dont l’identifiant temporaire peut changer.",
         "operationId": "unassign_api_v1_users__user_id__assignments__assignment_id__delete",
         "security": [
           {
@@ -668,8 +669,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserView"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -6940,6 +6948,10 @@
             "type": "string",
             "title": "First Name"
           },
+          "last_initial": {
+            "type": "string",
+            "title": "Last Initial"
+          },
           "category": {
             "type": "string",
             "title": "Category"
@@ -6998,6 +7010,7 @@
         "required": [
           "id",
           "first_name",
+          "last_initial",
           "category",
           "roles",
           "active",
@@ -7909,6 +7922,19 @@
             "minLength": 1,
             "title": "First Name"
           },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
           "category": {
             "type": "string",
             "enum": [
@@ -7960,6 +7986,10 @@
             "type": "string",
             "title": "First Name"
           },
+          "last_initial": {
+            "type": "string",
+            "title": "Last Initial"
+          },
           "category": {
             "type": "string",
             "title": "Category"
@@ -7995,6 +8025,7 @@
         "required": [
           "id",
           "first_name",
+          "last_initial",
           "category",
           "roles",
           "active",

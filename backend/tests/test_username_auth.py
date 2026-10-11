@@ -6,15 +6,16 @@ import pytest
 
 from app.persistence.database import SessionFactory
 from app.persistence.models import EmailJob
-from conftest import PASSWORD, add_user
+from conftest import PASSWORD, add_user, grant_license
 from app.api import auth
 
 
 def test_activation_without_email_and_admin_reset(admin: TestClient) -> None:
-    created = admin.post('/api/v1/users', json={'first_name': 'Camille', 'category': 'M18', 'roles': ['member']}).json()
+    created = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Camille', 'category': 'M18', 'roles': ['member']}).json()
     with TestClient(admin.app) as visitor:
         result = visitor.post('/api/v1/auth/activate', json={'token': created['invitation_token'], 'username': 'Camille.Volley', 'password': PASSWORD})
         assert result.status_code == 200, result.text
+        grant_license(admin, created['user']['id'])
         result = visitor.post('/api/v1/auth/login', json={'username': 'CAMILLE.VOLLEY', 'password': PASSWORD})
         assert result.status_code == 200, result.text
         assert result.json()['user']['email'] is None
@@ -31,7 +32,7 @@ def test_activation_without_email_and_admin_reset(admin: TestClient) -> None:
 
 
 def test_identifier_uniqueness_and_admin_rename(admin: TestClient) -> None:
-    created = admin.post('/api/v1/users', json={'first_name': 'Camille', 'roles': ['member']}).json()
+    created = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Camille', 'roles': ['member']}).json()
     body = {'token': created['invitation_token'], 'username': 'admin', 'password': PASSWORD}
     assert admin.post('/api/v1/auth/activate', json=body).status_code == 409
     body['username'] = 'camille'
@@ -39,6 +40,7 @@ def test_identifier_uniqueness_and_admin_rename(admin: TestClient) -> None:
     path = f"/api/v1/users/{created['user']['id']}/username"
     assert admin.put(path, json={'username': 'ADMIN'}).status_code == 409
     assert admin.put(path, json={'username': 'Camille.New'}).json()['username'] == 'camille.new'
+    grant_license(admin, created['user']['id'])
     assert admin.post('/api/v1/auth/login', json={'username': 'camille', 'password': PASSWORD}).status_code == 401
     assert admin.post('/api/v1/auth/login', json={'username': 'camille.new', 'password': PASSWORD}).status_code == 200
     assert admin.post('/api/v1/auth/login', json={'email': 'admin@example.org', 'password': PASSWORD}).status_code == 422
@@ -83,9 +85,10 @@ def test_login_cannot_recreate_a_session_after_credential_revocation(admin: Test
 
 
 def test_username_may_be_an_unverified_email_address(admin: TestClient) -> None:
-    created = admin.post('/api/v1/users', json={'first_name': 'Camille', 'roles': ['member']}).json()
+    created = admin.post('/api/v1/users', json={'last_name': 'Durand', 'first_name': 'Camille', 'roles': ['member']}).json()
     body = {'token': created['invitation_token'], 'username': ' Camille+Club@Example.ORG ', 'password': PASSWORD}
     assert admin.post('/api/v1/auth/activate', json=body).status_code == 200
+    grant_license(admin, created['user']['id'])
     with TestClient(admin.app) as visitor:
         result = visitor.post('/api/v1/auth/login', json={'username': 'camille+club@example.org', 'password': PASSWORD})
         assert result.status_code == 200, result.text

@@ -41,6 +41,15 @@ Les erreurs métier utilisent `{"detail": "message"}` ou un objet dans `detail`.
 
 ## Comptes et catalogue
 
+L’identifiant interne d’un compte (`id`) est son numéro de licence. À défaut, c’est un identifiant temporaire `initiale-prénom-section` : section de sa première équipe ou `sans-section`, chaque partie raccourcie pour tenir en 36 caractères, et suffixe de trois lettres en cas de doublon.
+- **Recalcul** : l’identifiant change quand le numéro de licence est saisi, modifié ou retiré, quand le prénom ou le nom change, ou quand les équipes d’un compte sans licence changent.
+- **Propagation** : clés étrangères (`ON UPDATE CASCADE`) et identifiants stockés en JSON (historique, demandes, protections FFVB) suivent.
+- **Réponses** : `POST /users/{id}/assignments` renvoie le rattachement avec le nouvel `user_id`, et `DELETE /users/{id}/assignments/{aid}` renvoie le compte à jour (200).
+
+`POST /users` exige `last_name`, dont seule l’initiale est conservée (`last_initial`) ; `PUT /users/{id}` l’accepte facultativement. Un même prénom avec la même initiale dans une section déclenche une alerte admin `duplicate_user`.
+
+Sans numéro de licence, un compte non administrateur ne peut ni se connecter (403 `{code: "license_required"}`), ni utiliser une session existante (401). Les administrateurs gèrent ces comptes normalement.
+
 | Routes | Usage |
 | --- | --- |
 | `GET/POST /users`, `GET/PUT/DELETE /users/{id}` | Administration des comptes ; aucun e-mail privé exposé par ces réponses |

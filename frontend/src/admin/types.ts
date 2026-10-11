@@ -1,8 +1,11 @@
 export type Role = 'member' | 'coach' | 'admin';
 export interface User {
+  /** Numéro de licence, ou identifiant temporaire « initiale-prénom-section ». */
   id: string;
   username?: string | null;
   first_name: string;
+  /** Initiale du nom de famille, seule partie conservée. */
+  last_initial?: string;
   category: string;
   roles: Role[];
   active: boolean;

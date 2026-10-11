@@ -6,11 +6,11 @@ from sqlalchemy import text
 
 from app.api import accounts, auth
 from app.persistence.database import SessionFactory
-from conftest import PASSWORD, add_user
+from conftest import PASSWORD, add_user, grant_license
 
 
 def test_invitation_regeneration_cannot_break_activated_account(admin: TestClient, monkeypatch) -> None:
-    created=admin.post('/api/v1/users',json={'first_name':'Invited','category':'M18','roles':['member']}).json()
+    created=admin.post('/api/v1/users',json={'last_name': 'Durand', 'first_name':'Invited','category':'M18','roles':['member']}).json()
     visitor=TestClient(admin.app)
     consumed,regenerating=Signal(),Signal()
     original_consume,original_invitation=auth.consume,accounts.invitation
@@ -30,6 +30,7 @@ def test_invitation_regeneration_cannot_break_activated_account(admin: TestClien
         regenerate=pool.submit(lambda:admin.post(f"/api/v1/users/{created['user']['id']}/invitation"))
         assert activation.result(timeout=8).status_code==200
         assert regenerate.result(timeout=8).status_code==409
+    grant_license(admin, created['user']['id'])
     assert visitor.post('/api/v1/auth/login',json={'username':'invited','password':PASSWORD}).status_code==200
 
 

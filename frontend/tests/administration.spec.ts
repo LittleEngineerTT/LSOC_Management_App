@@ -67,6 +67,7 @@ test('utilisateur, invitation, rôles et rattachement', async ({ page }) => {
   const { mutations } = await prepare(page);
   await page.getByRole('button', { name: 'Ajouter un utilisateur' }).click();
   await page.getByLabel('Prénom', { exact: true }).fill('Mina');
+  await page.getByLabel('Nom', { exact: true }).fill('Durand');
   await page.getByRole('checkbox', { name: 'Coach', exact: true }).check();
   await page.getByRole('button', { name: 'Créer et inviter' }).click();
   await expect(page.getByLabel('Lien d’invitation')).toHaveValue(/private-link-token/);

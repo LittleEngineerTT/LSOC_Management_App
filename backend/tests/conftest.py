@@ -11,7 +11,7 @@ os.environ.setdefault('LSOC_DATABASE_URL', 'postgresql+psycopg://lewis@127.0.0.1
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.persistence.database import SessionFactory, engine  # noqa: E402
-from app.persistence.models import Base, User  # noqa: E402
+from app.persistence.models import Base, License, User  # noqa: E402
 
 PASSWORD = 'valid-password-12345'
 
@@ -41,9 +41,13 @@ def admin(client: TestClient) -> TestClient:
     return client
 
 
-def add_user(identifier: str = 'member', roles: list[str] | None = None) -> None:
+def add_user(identifier: str = 'member', roles: list[str] | None = None, licensed: bool = True) -> None:
+    # Directive du 11 octobre : l’identifiant d’un compte licencié est son numéro de licence.
     with SessionFactory.begin() as db:
         db.add(User(id=identifier, username=identifier, first_name=identifier, roles=roles or ['member'], category='M18', email=f'{identifier}@example.org', password_hash=hash_password(PASSWORD), active=True))
+        if licensed:
+            db.flush()
+            db.add(License(user_id=identifier, number=identifier))
 
 
 def login(identifier: str = 'member') -> TestClient:
@@ -57,3 +61,9 @@ def login(identifier: str = 'member') -> TestClient:
 def record(model: type[Any], **where: Any) -> Any:
     with SessionFactory() as db:
         return db.scalar(select(model).filter_by(**where))
+
+
+def grant_license(admin: TestClient, user_id: str) -> None:
+    """Licence dont le numéro est l’identifiant actuel : le compte garde son identifiant."""
+    response = admin.put(f'/api/v1/licenses/{user_id}', json={'status': 'in_progress', 'number': user_id})
+    assert response.status_code == 200, response.text

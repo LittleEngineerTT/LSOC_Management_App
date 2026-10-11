@@ -32,9 +32,14 @@ from app.persistence.models import (
     Team,
     User,
 )
+from app.services.identity import alert_duplicates, rekey
 from app.services.notifications import admins, notify
 
 router = APIRouter(tags=["Comptes"])
+
+
+def initial(last_name: str) -> str:
+    return last_name.strip()[:1].upper()
 
 
 def protect_last_admin(db: DB, user: User, next_roles: list[str]) -> None:
@@ -74,9 +79,13 @@ def users(
 
 @router.post("/users", response_model=InvitationView, status_code=201)
 def create_user(body: UserInput, db: DB, actor: Admin) -> InvitationView:
-    user = User(**body.model_dump())
+    if not body.last_name:
+        raise HTTPException(422, "Le nom de famille est requis")
+    user = User(**body.model_dump(exclude={"last_name"}), last_initial=initial(body.last_name))
     db.add(user)
     db.flush()
+    # Sans licence ni équipe : identifiant temporaire « initiale-prénom-sans-section ».
+    user = rekey(db, user)
     return invitation(db, user)
 
 
@@ -93,12 +102,16 @@ def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
 
     lock_planning(db)
     db.refresh(user)
-    for key, value in body.model_dump().items():
+    for key, value in body.model_dump(exclude={"last_name"}).items():
         setattr(user, key, value)
+    if body.last_name:
+        user.last_initial = initial(body.last_name)
     for assignment in db.scalars(select(Assignment).where(Assignment.user_id == user_id)):
         role = "coach" if assignment.kind == "coach" else "member"
         if role not in user.roles:
             db.delete(assignment)
+    user = rekey(db, user)
+    alert_duplicates(db, user)
     notify(
         db,
         user,
@@ -206,11 +219,16 @@ def assign(user_id: str, body: AssignmentInput, db: DB, actor: Admin) -> Assignm
     value = Assignment(user_id=user_id, **body.model_dump())
     db.add(value)
     db.flush()
-    return value
+    identifier = value.id
+    # La section d’un compte sans licence entre dans son identifiant temporaire.
+    user = rekey(db, user)
+    alert_duplicates(db, user)
+    return get(db, Assignment, identifier)
 
 
-@router.delete("/users/{user_id}/assignments/{assignment_id}", status_code=204)
-def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> None:
+@router.delete("/users/{user_id}/assignments/{assignment_id}", response_model=UserView)
+def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> User:
+    """Retire un rattachement ; renvoie le compte, dont l’identifiant temporaire peut changer."""
     from app.services.events import lock_planning
 
     lock_planning(db)
@@ -218,6 +236,8 @@ def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> None:
     if value.user_id != user_id:
         raise HTTPException(404, "Rattachement introuvable")
     db.delete(value)
+    db.flush()
+    return rekey(db, get(db, User, user_id))
 
 
 @router.put("/preferences", response_model=MeView)
