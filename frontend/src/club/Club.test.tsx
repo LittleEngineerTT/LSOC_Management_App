@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
@@ -298,4 +298,19 @@ it('la messagerie affiche une conversation sans événement par son sujet', asyn
   expect(await screen.findByRole('heading', { name: 'Demande d’événement : Stage' })).toBeInTheDocument();
   expect(await screen.findByText(/Créneau déjà pris/)).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Voir l’événement' })).not.toBeInTheDocument();
+});
+
+it('le coach référent supprime son événement ; un simple adhérent ne voit pas le bouton', async () => {
+  routes['/events/e1'] = { ...training, referent_id: 'm1' };
+  open('/app/planning?event=e1');
+  let dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  expect(within(dialog).queryByRole('button', { name: 'Supprimer' })).not.toBeInTheDocument();
+  cleanup();
+  account = { ...member, roles: ['member', 'coach'] };
+  mutation = () => new Response(null, { status: 204 });
+  open('/app/planning?event=e1');
+  dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer' }));
+  await userEvent.click(within(screen.getByRole('dialog', { name: /Supprimer « Entraînement loisir »/ })).getByRole('button', { name: 'Supprimer' }));
+  await waitFor(() => expect(mutations).toContainEqual(expect.objectContaining({ path: '/events/e1', method: 'DELETE' })));
 });

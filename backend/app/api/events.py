@@ -249,9 +249,12 @@ def create_series(body: SeriesInput, db: DB, actor: Admin) -> list[Event]:
 
 @router.delete("/events/{event_id}", status_code=204)
 def remove(
-    event_id: str, db: DB, actor: Admin, scope: Literal["event", "following"] = "event"
+    event_id: str, db: DB, actor: Actor, scope: Literal["event", "following"] = "event"
 ) -> None:
-    """Supprime un événement, ou celui-ci et les suivants de sa série."""
+    """Supprime un événement, ou celui-ci et les suivants de sa série.
+
+    Réservé aux administrateurs et aux coachs référents de chaque événement supprimé.
+    """
     lock_planning(db)
     event = get(db, Event, event_id)
     targets = [event]
@@ -265,10 +268,26 @@ def remove(
                 .order_by(Event.starts_at, Event.id)
             )
         )
+    is_admin = "admin" in actor.roles
+    if not is_admin and (
+        "coach" not in actor.roles or any(target.referent_id != actor.id for target in targets)
+    ):
+        raise HTTPException(
+            403, "Suppression réservée aux administrateurs et au coach référent de l’événement"
+        )
     if any(target.ffvb_match_id for target in targets):
         raise HTTPException(409, "Un match FFVB se supprime avec sa source ; vous pouvez l’annuler")
     series_id = event.series_id
     for target in targets:
+        if not is_admin:
+            # L’historique disparaît avec l’événement : les administrateurs en gardent la trace.
+            day = target.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+            admins(
+                db,
+                f"deleted-by-coach:{target.id}",
+                "event_deleted",
+                f"Événement supprimé par {actor.first_name} : {target.title} du {day}",
+            )
         delete_event(db, target, actor)
     db.flush()
     if series_id and not db.scalar(select(Event.id).where(Event.series_id == series_id)):

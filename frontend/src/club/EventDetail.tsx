@@ -200,7 +200,7 @@ function EventBody({
         <button type="button" className="admin-button" onClick={() => setHistory(!history)}>
           {history ? 'Masquer l’historique' : 'Historique'}
         </button>
-        {admin && !event.ffvb_match_id && (
+        {(admin || (referent && account.roles.includes('coach'))) && !event.ffvb_match_id && (
           <button type="button" className="admin-button danger" onClick={() => setDeleting(true)}>
             Supprimer
           </button>
