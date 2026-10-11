@@ -23,7 +23,8 @@ beforeEach(() => {
     const path = new URL(String(input), 'http://localhost').pathname;
     if (path.endsWith('/auth/me')) return reply(admin);
     if (path.endsWith('/users')) return reply([admin]);
-    if (path.endsWith('/teams')) return reply([{ id: 't', name: 'LSO COLOMBES', section_id: 's', referent_id: 'a' }]);
+    if (path.endsWith('/teams')) return reply([{ id: 't', name: 'Seniors M1', section_id: 's', referent_id: 'a' }]);
+    if (path.endsWith('/sections')) return reply([{ id: 's', name: 'Seniors' }]);
     if (path.endsWith('/club')) { if (init?.method === 'PUT') clubCode = '0926620'; return reply({ club_code: clubCode }); }
     if (path.endsWith('/preview')) return reply({ season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', club_code: clubCode, candidates: [{ team_name: 'LSO COLOMBES', team_number: '6', team_id: linked ? 't' : null }], warning: null });
     if (path.endsWith('/sources') && init?.method === 'POST') { if (rejectCreation) return new Response(JSON.stringify({ detail: 'Référent devenu inactif' }), { status: 409 }); const body = JSON.parse(String(init.body)); source = { id: 'source', ...body, interval_minutes: body.interval_days * 1440, last_success_at: null }; return reply(source); }
@@ -78,6 +79,7 @@ it('règle les terrains et marges d’une source, vides pour suivre la configura
   source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: 60, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
   open();
   expect(await screen.findByText('Réglages propres : 60 min avant')).toBeInTheDocument();
+  expect(screen.getByText('Seniors M1 (Seniors)')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Modifier' }));
   expect(screen.getByLabelText('Marge avant le coup d’envoi (minutes)')).toHaveValue(60);
   await userEvent.type(screen.getByLabelText('Terrains réservés par match'), '2');
@@ -92,7 +94,7 @@ it('supprime une source après confirmation, avec annulation facultative des mat
   source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: null, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Supprimer' }));
-  const dialog = await screen.findByRole('dialog', { name: /Supprimer la source LSO COLOMBES n°6/ });
+  const dialog = await screen.findByRole('dialog', { name: /Supprimer la source LSO COLOMBES n°6 \(équipe locale Seniors M1 \(Seniors\)\)/ });
   await userEvent.click(within(dialog).getByLabelText(/Annuler aussi ses matchs à venir/));
   await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer la source' }));
   expect(await screen.findByText('Source supprimée ; ses matchs à venir sont annulés.')).toBeInTheDocument();

@@ -62,6 +62,13 @@ export function SourcesPanel({
   const [removing, setRemoving] = useState<Source | null>(null);
   const [cancelUpcoming, setCancelUpcoming] = useState(false);
   const item = editing && editing !== 'new' ? editing : null;
+  // Plusieurs sources portent souvent le même nom FFVB : l’équipe locale les distingue.
+  function localTeam(id: string) {
+    const team = catalog.teams.find((value) => value.id === id);
+    if (!team) return 'Équipe supprimée';
+    const section = catalog.sections.find((value) => value.id === team.section_id);
+    return section ? `${team.name} (${section.name})` : team.name;
+  }
   const fields: FormField[] = [
     {
       name: 'team_id',
@@ -352,6 +359,9 @@ export function SourcesPanel({
               <h3>
                 {source.team_name} n°{source.team_number}
               </h3>
+              <p className="admin-source-team">
+                Équipe locale : <strong>{localTeam(source.team_id)}</strong>
+              </p>
               <p>
                 {source.season} · {source.entity} · {source.pool} · {days(source)} jour(s)
               </p>
@@ -411,7 +421,7 @@ export function SourcesPanel({
       </div>
       {removing && (
         <Confirm
-          title={`Supprimer la source ${removing.team_name} n°${removing.team_number} ?`}
+          title={`Supprimer la source ${removing.team_name} n°${removing.team_number} (équipe locale ${localTeam(removing.team_id)}) ?`}
           label="Supprimer la source"
           onClose={() => setRemoving(null)}
           onConfirm={async (signal) => {
