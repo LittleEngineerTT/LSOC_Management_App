@@ -29,13 +29,12 @@ def test_member_only_sees_own_status(admin: TestClient) -> None:
     assert alice.get('/api/v1/notifications').json()[0]['title'] == 'Licence joueur : En cours'
 
 
-def test_payment_pending_is_the_last_step_before_active(admin: TestClient) -> None:
+def test_active_can_be_chosen_directly_but_requires_a_number(admin: TestClient) -> None:
+    # Directive du 11 octobre : plus d’étape préalable avant « active ».
     setup(admin)
-    assert status(admin, 'alice', 'active', 'alice') == 422
-    assert status(admin, 'alice', 'in_progress', 'alice') == 200
-    assert status(admin, 'alice', 'active', 'alice') == 422
-    assert status(admin, 'alice', 'payment_pending', 'alice') == 200
     assert status(admin, 'alice', 'active') == 422
+    assert status(admin, 'alice', 'active', 'alice') == 200
+    assert status(admin, 'alice', 'payment_pending', 'alice') == 200
     assert status(admin, 'alice', 'active', 'alice') == 200
     # Corrections possibles dans l’autre sens ; numéro unique.
     assert status(admin, 'bob', 'in_progress', 'alice') == 409
@@ -64,14 +63,13 @@ def coach_status(admin: TestClient, user: str, value: str, number: str | None = 
     return admin.put(f'/api/v1/licenses/{user}', json={'coach_status': value, 'number': number}).status_code
 
 
-def test_coach_license_skips_payment_and_shares_the_number(admin: TestClient) -> None:
+def test_coach_license_has_no_payment_and_shares_the_number(admin: TestClient) -> None:
     loisir, competition, team_l, team_c = setup(admin)
     # Carla est coach de la Régionale : sa licence coach manque, pas sa licence joueur.
     assert [i['user_id'] for i in admin.get('/api/v1/licenses?kind=coach&missing=true').json()] == ['carla']
     assert 'carla' not in [i['user_id'] for i in admin.get('/api/v1/licenses?missing=true').json()]
+    # La licence coach n’a pas d’étape de paiement ; « active » se choisit directement.
     assert admin.put('/api/v1/licenses/carla', json={'coach_status': 'payment_pending', 'number': 'carla'}).status_code == 422
-    assert coach_status(admin, 'carla', 'active', 'carla') == 422
-    assert coach_status(admin, 'carla', 'in_progress', 'carla') == 200
     assert coach_status(admin, 'carla', 'active') == 422
     assert coach_status(admin, 'carla', 'active', 'carla') == 200
     assert admin.get('/api/v1/licenses?kind=coach&missing=true').json() == []

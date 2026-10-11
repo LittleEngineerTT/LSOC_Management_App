@@ -36,10 +36,6 @@ const steps: Record<Kind, LicenseStatus[]> = {
   player: ['none', 'in_progress', 'payment_pending', 'active'],
   coach: ['none', 'in_progress', 'active'],
 };
-const beforeActive: Record<Kind, LicenseStatus> = {
-  player: 'payment_pending',
-  coach: 'in_progress',
-};
 const field: Record<Kind, 'status' | 'coach_status'> = { player: 'status', coach: 'coach_status' };
 
 /** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. */
@@ -156,19 +152,15 @@ export function LicensesPanel() {
               label: 'Statut',
               type: 'select',
               required: true,
-              // « Active » n’est proposé qu’après l’étape qui la précède.
-              options: steps[kind]
-                .filter(
-                  (status) =>
-                    status !== 'active' ||
-                    editing[field[kind]] === beforeActive[kind] ||
-                    editing[field[kind]] === 'active',
-                )
-                .map((status) => ({ value: status, label: licenseLabels[status] })),
+              // Tout statut, « Active » compris, peut être choisi directement.
+              options: steps[kind].map((status) => ({
+                value: status,
+                label: licenseLabels[status],
+              })),
               hint:
                 kind === 'coach'
-                  ? 'Étapes : en cours, puis active (sans paiement).'
-                  : 'Étapes : en cours, paiement en attente, puis active.',
+                  ? 'Licence coach : pas d’étape de paiement. « Active » exige un numéro.'
+                  : '« Active » peut être choisi directement ; un numéro de licence est alors requis.',
             },
           ]}
           initial={{ number: editing.number ?? '', status: editing[field[kind]] }}

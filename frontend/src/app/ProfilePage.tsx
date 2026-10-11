@@ -119,10 +119,7 @@ function MyLicense() {
           <Badge tone={licenseTones[data.coach_status]}>{licenseLabels[data.coach_status]}</Badge>
         </p>
       )}
-      <p className="admin-hint">
-        Les licences sont gérées par les administrateurs du club. Joueur : en cours, paiement en
-        attente, puis active. Coach : en cours, puis active.
-      </p>
+      <p className="admin-hint">Les licences sont gérées par les administrateurs du club.</p>
     </section>
   );
 }

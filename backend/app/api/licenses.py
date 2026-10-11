@@ -23,8 +23,7 @@ LABELS = {
     "payment_pending": "Paiement en attente",
     "active": "Active",
 }
-# Étape obligatoire avant « active » : le paiement pour un joueur, « en cours » pour un coach.
-BEFORE_ACTIVE = {"status": "payment_pending", "coach_status": "in_progress"}
+# Directive du 11 octobre : « active » se choisit directement, sans étape préalable.
 
 
 def lock_licenses(db: DB) -> None:
@@ -138,13 +137,6 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
         "status": body.status or current["status"],
         "coach_status": body.coach_status or current["coach_status"],
     }
-    for field, required in BEFORE_ACTIVE.items():
-        if wanted[field] == "active" and current[field] not in {required, "active"}:
-            kind = "coach" if field == "coach_status" else "joueur"
-            raise HTTPException(
-                422,
-                f"Une licence {kind} devient active uniquement après « {LABELS[required]} »",
-            )
     if "active" in wanted.values() and not body.number:
         raise HTTPException(422, "Un numéro de licence est requis pour une licence active")
     if body.number and db.scalar(

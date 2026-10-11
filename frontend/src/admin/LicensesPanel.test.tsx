@@ -63,12 +63,13 @@ it('liste les licences, filtre les manquantes et active une licence après paiem
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ number: 'A-1', status: 'active' });
 });
 
-it('ne propose pas le statut actif avant le paiement en attente', async () => {
+it('propose directement le statut actif, même sans étape préalable', async () => {
   open('/app/administration?tab=licenses');
   const carla = (await screen.findByRole('heading', { name: /Carla/ })).closest('article')!;
   await userEvent.click(within(carla).getByRole('button', { name: 'Gérer la licence' }));
   const options = within(screen.getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);
-  expect(options).not.toContain('Active');
+  // Directive du 11 octobre : « Active » se choisit dès la création.
+  expect(options).toContain('Active');
   expect(options).toContain('Paiement en attente');
 });
 
