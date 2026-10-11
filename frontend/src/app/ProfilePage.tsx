@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { createAdminApi } from '../admin/api';
-import { EntityForm, Notice, checked, str } from '../admin/ui';
+import { useLoad } from '../admin/data';
+import { licenseLabels, licenseTones, type LicenseStatus } from '../admin/LicensesPanel';
+import { Badge, EntityForm, LoadState, Notice, checked, str } from '../admin/ui';
 import type { Account } from '../api/auth';
 import { useSession } from '../auth/session';
 import { validEmail } from '../auth/validation';
@@ -21,6 +23,7 @@ export function ProfilePage({ account }: { account: Account }) {
           réinitialisation du mot de passe.
         </p>
       </section>
+      <MyLicense />
       {notice && <Notice>{notice}</Notice>}
       <EntityForm
         title="Notifications par e-mail"
@@ -81,5 +84,33 @@ export function ProfilePage({ account }: { account: Account }) {
         }}
       />
     </div>
+  );
+}
+
+/** Statut de licence du compte ; le numéro et la gestion restent réservés aux administrateurs. */
+function MyLicense() {
+  const { csrfToken, clear } = useSession();
+  const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      api.request<{ status: LicenseStatus }>('/licenses/me', 'GET', undefined, signal),
+    [api],
+  );
+  const result = useLoad(loader);
+  return (
+    <section className="admin-card" aria-labelledby="my-license">
+      <h2 id="my-license">Ma licence</h2>
+      <LoadState result={result} />
+      {result.data && (
+        <p>
+          Statut :{' '}
+          <Badge tone={licenseTones[result.data.status]}>{licenseLabels[result.data.status]}</Badge>
+        </p>
+      )}
+      <p className="admin-hint">
+        La licence est gérée par les administrateurs du club. Étapes : en cours, paiement en
+        attente, puis active.
+      </p>
+    </section>
   );
 }

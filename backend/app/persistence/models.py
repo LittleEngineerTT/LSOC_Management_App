@@ -47,6 +47,26 @@ class User(Identity, Base):
     admin_email: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class License(Base):
+    """Licence d’un adhérent ; l’absence de ligne vaut « pas de licence »."""
+
+    __tablename__ = "licenses"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('none','in_progress','payment_pending','active')",
+            name="licenses_status_check",
+        ),
+        CheckConstraint("status <> 'active' OR number IS NOT NULL", name="licenses_active_number"),
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    number: Mapped[str | None] = mapped_column(String(40), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="none")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     hash: Mapped[str] = mapped_column(String(64), primary_key=True)

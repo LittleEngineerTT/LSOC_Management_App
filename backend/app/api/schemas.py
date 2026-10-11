@@ -423,6 +423,40 @@ class UnreadView(View):
     thread_counts: dict[str, int]
 
 
+LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]
+
+
+class LicenseInput(Input):
+    number: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9-]+$")
+    status: LicenseStatus
+
+    @field_validator("number", mode="before")
+    @classmethod
+    def blank(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
+
+
+class MyLicenseView(View):
+    status: LicenseStatus
+
+
+class LicenseTeamView(View):
+    team_id: str
+    kind: str
+
+
+class LicenseView(View):
+    user_id: str
+    first_name: str
+    username: str | None
+    number: str | None
+    status: LicenseStatus
+    updated_at: datetime | None
+    teams: list[LicenseTeamView]
+    # Joueur rattaché à au moins une équipe sans licence active.
+    missing: bool
+
+
 class FollowView(View):
     id: str
     user_id: str

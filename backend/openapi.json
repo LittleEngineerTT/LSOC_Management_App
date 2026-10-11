@@ -2970,6 +2970,174 @@
         }
       }
     },
+    "/api/v1/licenses/me": {
+      "get": {
+        "tags": [
+          "Licences"
+        ],
+        "summary": "Mine",
+        "operationId": "mine_api_v1_licenses_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyLicenseView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/licenses": {
+      "get": {
+        "tags": [
+          "Licences"
+        ],
+        "summary": "Licenses",
+        "description": "Licences des comptes actifs, filtrables par section, équipe ou licences manquantes.\n\nUne licence manque pour un joueur rattaché à une équipe du périmètre sans licence active.",
+        "operationId": "licenses_api_v1_licenses_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "section_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "missing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Missing"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LicenseView"
+                  },
+                  "title": "Response Licenses Api V1 Licenses Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/licenses/{user_id}": {
+      "put": {
+        "tags": [
+          "Licences"
+        ],
+        "summary": "Update License",
+        "operationId": "update_license_api_v1_licenses__user_id__put",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LicenseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/unread": {
       "get": {
         "tags": [
@@ -6275,6 +6443,136 @@
         ],
         "title": "InvitationView"
       },
+      "LicenseInput": {
+        "properties": {
+          "number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[A-Za-z0-9-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "in_progress",
+              "payment_pending",
+              "active"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "LicenseInput"
+      },
+      "LicenseTeamView": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "kind"
+        ],
+        "title": "LicenseTeamView"
+      },
+      "LicenseView": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "in_progress",
+              "payment_pending",
+              "active"
+            ],
+            "title": "Status"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/LicenseTeamView"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "missing": {
+            "type": "boolean",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "first_name",
+          "username",
+          "number",
+          "status",
+          "updated_at",
+          "teams",
+          "missing"
+        ],
+        "title": "LicenseView"
+      },
       "LoginInput": {
         "properties": {
           "username": {
@@ -6633,6 +6931,25 @@
           "read_at"
         ],
         "title": "MessageView"
+      },
+      "MyLicenseView": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "in_progress",
+              "payment_pending",
+              "active"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "MyLicenseView"
       },
       "NameInput": {
         "properties": {

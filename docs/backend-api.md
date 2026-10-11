@@ -119,6 +119,16 @@ Un compte actif peut proposer un événement pour une équipe dont il est réfé
 
 Un événement porte une `description` libre (2000 caractères, vide par défaut), modifiable comme le titre et reprise de la proposition à l’acceptation ; `note` reste un message aux admins, non publié. Les vues contiennent `proposal`, l’auteur, l’équipe, la note, l’état, le motif et la date de décision et `event_id` après acceptation. Une acceptation vérifie à nouveau le rôle, le rattachement, les références et la capacité. Elle crée exactement un événement, même en cas de décisions concurrentes ; une demande traitée renvoie 409. Seul un admin peut forcer un dépassement, avec historique. Le refus reste possible si le coach a perdu ses droits. L’ouverture à une équipe n’ouvre pas les autres équipes de sa section ; les équipes et sections choisies se cumulent, avec une limite globale d’inscrits.
 
+## Licences
+
+| Routes | Usage |
+| --- | --- |
+| `GET /licenses/me` | Statut de sa licence (`none`, `in_progress`, `payment_pending`, `active`), sans numéro |
+| `GET /licenses?section_id=&team_id=&missing=true` | Admin : comptes actifs avec numéro, statut, équipes et `missing` |
+| `PUT /licenses/{user_id}` | Admin : `{number, status}` |
+
+Une licence ne devient `active` qu’après `payment_pending` et avec un numéro. Les retours en arrière restent possibles pour corriger. Le numéro est unique (409). Un filtre de section ou d’équipe limite la liste aux comptes rattachés à ce périmètre. `missing` signale un joueur rattaché à une équipe du périmètre dont la licence n’est pas active ; coachs et comptes sans équipe n’en ont pas. L’adhérent reçoit une notification, sans e-mail, à chaque changement de statut. La suppression d’un compte efface sa licence (migration 0011).
+
 ## Séances ouvertes et inscriptions
 
 Un événement porte `registration_section_ids` (sections ouvertes), `registration_team_ids` (équipes ouvertes), `registration_limit` (obligatoire dès qu’une section ou équipe est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes.

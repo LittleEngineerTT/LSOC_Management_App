@@ -572,3 +572,23 @@
   margin-top: 4px;
   flex-shrink: 0;
 }
+.admin-toolbar label.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+.admin-toolbar label.admin-check input {
+  width: auto;
+}
+.admin-badge.danger {
+  background: #fdecec;
+  color: #a23335;
+}
+.admin-license-summary {
+  margin: -8px 0 18px;
+  color: #526474;
+}
+.admin-row-copy .admin-badge + .admin-badge {
+  margin-left: 6px;
+}
