@@ -332,6 +332,18 @@ class CoachEventRequestInput(Interval):
     registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None = Field(default=None, gt=0, le=1000)
     note: str = Field(default="", max_length=2000)
+    # Récurrence hebdomadaire : fin incluse et jours (0 = lundi), comme POST /series.
+    until: date | None = None
+    weekdays: list[int] | None = Field(default=None, min_length=1, max_length=7)
+
+    @field_validator("weekdays")
+    @classmethod
+    def days(cls, value: list[int] | None) -> list[int] | None:
+        if value is not None and (
+            len(set(value)) != len(value) or any(d not in range(7) for d in value)
+        ):
+            raise ValueError("Jours de la semaine invalides")
+        return value
 
 
 class CoachEventRequestView(View):

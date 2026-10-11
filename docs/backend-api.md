@@ -114,6 +114,7 @@ Un compte actif peut proposer un événement pour une équipe dont il est réfé
 | Routes | Usage |
 | --- | --- |
 | `POST /event-requests` | `team_id`, `title`, `description`, `kind`, `starts_at`, `ends_at`, `gymnasium_id`, `location`, `courts`, `registration_section_ids`, `registration_team_ids`, `registration_limit`, `note` |
+| `POST /event-requests` (récurrence) | `until` et `weekdays` facultatifs, comme `POST /series` : l’acceptation crée toute la série et `event_id` désigne sa première occurrence |
 | `GET /event-requests?status=pending` | Ses demandes ; toutes pour un admin. `status=` retourne tous les états, pagination `limit`/`offset` |
 | `GET /event-requests/{id}` | Auteur ou admin uniquement |
 | `POST /event-requests/{id}/decision` | Admin : `{accept,reason,force,acknowledge_ffvb:false}` |

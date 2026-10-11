@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -36,13 +36,13 @@ from app.services.events import (
     change_event,
     check_capacity,
     create_event,
+    create_series_events,
     delete_event,
     lock_gyms,
     lock_planning,
     permission,
     revision,
     snapshot,
-    wall_time,
 )
 from app.services.notifications import admins, decision_message, resolve_admin_alerts
 
@@ -243,33 +243,7 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> Change
 @router.post("/series", response_model=list[EventView], status_code=201)
 def create_series(body: SeriesInput, db: DB, actor: Admin) -> list[Event]:
     lock_planning(db)
-    start = body.event.starts_at.astimezone(PARIS)
-    end = body.event.ends_at.astimezone(PARIS)
-    if body.until < start.date() or (body.until - start.date()).days > 730:
-        raise HTTPException(422, "La série doit durer de zéro à deux ans")
-    series = EventSeries()
-    db.add(series)
-    db.flush()
-    result: list[Event] = []
-    weekdays = sorted(body.weekdays or [start.weekday()])
-    span = (end.date() - start.date()).days
-    week = start.date() - timedelta(days=start.weekday())
-    while week <= body.until:
-        for weekday in weekdays:
-            day = week + timedelta(days=weekday)
-            if day < start.date() or day > body.until:
-                continue
-            cursor = datetime.combine(day, time(), tzinfo=PARIS)
-            values = body.event.model_dump()
-            values["starts_at"] = wall_time(start, cursor)
-            values["ends_at"] = wall_time(end, cursor + timedelta(days=span))
-            result.append(
-                create_event(db, EventInput.model_validate(values), actor, body.force, series.id)
-            )
-        week += timedelta(days=7)
-    if not result:
-        raise HTTPException(422, "Aucune occurrence entre le début et la fin de la série")
-    return result
+    return create_series_events(db, body.event, body.until, body.weekdays, actor, body.force)
 
 
 @router.delete("/events/{event_id}", status_code=204)

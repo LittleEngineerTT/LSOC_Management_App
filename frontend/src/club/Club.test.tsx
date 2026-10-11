@@ -97,16 +97,20 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
   expect(screen.queryByLabelText('Fin de la récurrence')).not.toBeInTheDocument();
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
-  expect(screen.getByLabelText('Fin de la récurrence')).toHaveValue(nextJuly31(day > today() ? day : today()));
+  // Récurrence cochée : les dates laissent place aux jours et aux heures.
+  expect(screen.queryByLabelText('Début (Europe/Paris)')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Fin de la récurrence')).toHaveValue(nextJuly31());
+  const weekday = (new Date(`${today()}T12:00:00Z`).getUTCDay() + 6) % 7;
+  await userEvent.click(within(screen.getByRole('group', { name: 'Jours de répétition' })).getAllByRole('checkbox')[weekday]!);
   await userEvent.clear(screen.getByLabelText('Fin de la récurrence'));
-  await userEvent.type(screen.getByLabelText('Fin de la récurrence'), addDays(day, 7));
+  await userEvent.type(screen.getByLabelText('Fin de la récurrence'), addDays(today(), 7));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Capacité dépassée')).toBeInTheDocument();
   await userEvent.click(screen.getByLabelText(/Forcer le dépassement/));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Série créée : 2 occurrences.')).toBeInTheDocument();
   expect(attempts).toBe(2);
-  expect(mutations[1]).toMatchObject({ path: '/series', body: { until: addDays(day, 7), force: true, event: { title: 'Entraînement compétition', section_ids: ['s1'], gymnasium_id: 'g1', courts: 1, referent_id: 'a1' } } });
+  expect(mutations[1]).toMatchObject({ path: '/series', body: { until: addDays(today(), 7), weekdays: [weekday], force: true, event: { title: 'Entraînement compétition', section_ids: ['s1'], gymnasium_id: 'g1', courts: 1, referent_id: 'a1' } } });
 });
 
 it('la messagerie affiche les pastilles, marque le fil comme lu sur demande et envoie une réponse', async () => {

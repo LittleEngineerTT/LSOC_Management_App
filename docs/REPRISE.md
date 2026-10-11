@@ -12,6 +12,7 @@ Frontend : [spécification authentification/accueil](superpowers/specs/2026-10-1
 - le bouton « Nouvel événement » du planning visible pour tout compte coach ou référent d’équipe ; sans équipe éligible, il explique comment le devenir ;
 - le report du référent d’équipe sur ses événements (migration 0009 de rattrapage) ;
 - Mon planning et Mes sections présents seulement dans la barre du haut, plus dans le menu du compte ;
+- bloc horaire commun aux admins et aux coachs : dates et heures, ou, si « Répéter chaque semaine » est coché, jours, heures et fin de récurrence (série à partir d’aujourd’hui) ;
 - récurrences sur plusieurs jours de la semaine, fin par défaut au prochain 31 juillet, et suppression d’une occurrence ou de la suite d’une série ;
 - notifications cliquables vers l’action à réaliser, validation ouverte depuis la notification, décisions et messages des admins écrits dans la messagerie du référent ;
 - licences par adhérent, joueur et coach (sans paiement), avec un numéro commun (Administration › Licences ; statuts visibles dans Mon profil) ;
@@ -35,7 +36,7 @@ Stack demandée : backend Python FastAPI avec typage strict, frontend React Type
 
 ## Prochaine étape
 
-1. Les 110 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0014 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
+1. Les 111 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0014 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
 2. `backend/openapi.json` a été régénéré le 10 octobre. Vérifier les sections contre le backend Docker avec des données temporaires. Sous Node 26, lancer Vitest avec `NODE_OPTIONS=--no-webstorage` (Node 22 recommandé).
 3. Avant un déploiement, cadrer hébergement, HTTPS, SMTP réel et conservation des sauvegardes.
 

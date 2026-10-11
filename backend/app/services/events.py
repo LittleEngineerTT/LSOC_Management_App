@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,6 +16,7 @@ from app.persistence.models import (
     CoachEventRequest,
     Event,
     EventRevision,
+    EventSeries,
     FFVBMatchState,
     FFVBSource,
     Gymnasium,
@@ -202,6 +203,52 @@ def reassign_team_events(db: Session, team: Team, previous: str | None, actor: U
         db.flush()
         revision(db, event, actor, before, "update")
         event_changed(db, event, actor.id)
+
+
+def series_days(start: datetime, until: date, weekdays: list[int] | None) -> list[date]:
+    """Jours des occurrences d’une série hebdomadaire, du premier événement à `until`."""
+    first = start.astimezone(PARIS).date()
+    if until < first or (until - first).days > 730:
+        raise HTTPException(422, "La série doit durer de zéro à deux ans")
+    chosen = sorted(weekdays or [first.weekday()])
+    week = first - timedelta(days=first.weekday())
+    days: list[date] = []
+    while week <= until:
+        days += [
+            day
+            for day in (week + timedelta(days=weekday) for weekday in chosen)
+            if first <= day <= until
+        ]
+        week += timedelta(days=7)
+    if not days:
+        raise HTTPException(422, "Aucune occurrence entre le début et la fin de la série")
+    return days
+
+
+def create_series_events(
+    db: Session,
+    template: EventInput,
+    until: date,
+    weekdays: list[int] | None,
+    actor: User,
+    force: bool = False,
+) -> list[Event]:
+    """Matérialise une série hebdomadaire ; l’heure locale de Paris est conservée."""
+    start = template.starts_at.astimezone(PARIS)
+    end = template.ends_at.astimezone(PARIS)
+    days = series_days(start, until, weekdays)
+    series = EventSeries()
+    db.add(series)
+    db.flush()
+    span = (end.date() - start.date()).days
+    result: list[Event] = []
+    for day in days:
+        cursor = datetime.combine(day, time(), tzinfo=PARIS)
+        values = template.model_dump()
+        values["starts_at"] = wall_time(start, cursor)
+        values["ends_at"] = wall_time(end, cursor + timedelta(days=span))
+        result.append(create_event(db, EventInput.model_validate(values), actor, force, series.id))
+    return result
 
 
 def delete_event(db: Session, event: Event, actor: User) -> None:

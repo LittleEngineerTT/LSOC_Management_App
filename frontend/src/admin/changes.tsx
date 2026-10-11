@@ -3,6 +3,8 @@ import { dateLabel } from './time';
 export const fieldLabels: Record<string, string> = {
   title: 'Titre',
   description: 'Description',
+  until: 'Fin de la récurrence',
+  weekdays: 'Chaque semaine le',
   kind: 'Type',
   section_ids: 'Sections',
   gymnasium_id: 'Gymnase',
@@ -36,6 +38,17 @@ export function Changes({ values }: { values: Record<string, unknown> }) {
       return value
         .map((id) => catalog.sections.find((section) => section.id === id)?.name ?? String(id))
         .join(', ');
+    if (key === 'weekdays' && Array.isArray(value))
+      return value
+        .map(
+          (day) =>
+            ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'][Number(day)],
+        )
+        .join(', ');
+    if (key === 'until' && typeof value === 'string')
+      return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeZone: 'UTC' }).format(
+        new Date(`${value}T12:00:00Z`),
+      );
     if (key === 'gymnasium_id')
       return catalog.gymnasiums.find((gym) => gym.id === value)?.name ?? String(value);
     if (key === 'registration_team_ids' && Array.isArray(value))

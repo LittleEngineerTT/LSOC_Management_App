@@ -1,8 +1,8 @@
-import { interval } from '../admin/time';
 import type { EventRequest } from '../admin/types';
 import { choices, EntityForm, num, str, type FormField, type FormValues } from '../admin/ui';
 import { useClub } from './context';
 import { kindLabels } from './events';
+import { schedule, scheduleFields, scheduleInitial } from './schedule';
 
 /** Une demande concerne une seule équipe actuellement coachée. */
 /** Équipes pour lesquelles le compte peut demander un événement : référent ou coach rattaché. */
@@ -57,8 +57,7 @@ export function EventProposalForm({
       required: true,
       options: Object.entries(kindLabels).map(([value, label]) => ({ value, label })),
     },
-    { name: 'starts_at', label: 'Début (Europe/Paris)', type: 'datetime-fr', required: true },
-    { name: 'ends_at', label: 'Fin (Europe/Paris)', type: 'datetime-fr', required: true },
+    ...scheduleFields('datetime-fr'),
     {
       name: 'gymnasium_id',
       label: 'Gymnase du club',
@@ -122,6 +121,7 @@ export function EventProposalForm({
       registration_limit === null
     )
       throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
+    const when = schedule(values);
     const gymnasium_id = str(values, 'gymnasium_id') || null;
     const courts = gymnasium_id ? num(values, 'courts') : 0;
     if (gymnasium_id && courts < 1)
@@ -134,7 +134,9 @@ export function EventProposalForm({
         title: str(values, 'title'),
         description: str(values, 'description'),
         kind: str(values, 'kind'),
-        ...interval(str(values, 'starts_at'), str(values, 'ends_at')),
+        starts_at: when.starts_at,
+        ends_at: when.ends_at,
+        ...(when.recurrence ?? {}),
         gymnasium_id,
         location: str(values, 'location'),
         courts,
@@ -156,8 +158,7 @@ export function EventProposalForm({
         title: '',
         description: '',
         kind: 'training',
-        starts_at: `${defaultDay}T18:00`,
-        ends_at: `${defaultDay}T20:00`,
+        ...scheduleInitial(defaultDay),
         gymnasium_id: '',
         location: '',
         courts: '1',

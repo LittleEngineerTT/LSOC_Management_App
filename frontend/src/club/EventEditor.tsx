@@ -11,12 +11,12 @@ import {
   type FormField,
   type FormValues,
 } from '../admin/ui';
-import { nextJuly31, timeRange, today } from './calendar';
+import { timeRange } from './calendar';
+import { schedule, scheduleFields, scheduleInitial } from './schedule';
 import { useClub } from './context';
 import { kindLabels } from './events';
 
 type Scope = 'event' | 'following';
-const weekdayLabels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 interface CapacityProblem {
   segments: { starts_at: string; ends_at: string; occupied: number; excess: number }[];
 }
@@ -128,20 +128,22 @@ export function EventEditor({
             },
           ]
         : []
-      : [
-          {
-            name: 'starts_at',
-            label: 'Début (Europe/Paris)',
-            type: 'datetime-local' as const,
-            required: true,
-          },
-          {
-            name: 'ends_at',
-            label: 'Fin (Europe/Paris)',
-            type: 'datetime-local' as const,
-            required: true,
-          },
-        ]),
+      : event
+        ? [
+            {
+              name: 'starts_at',
+              label: 'Début (Europe/Paris)',
+              type: 'datetime-local' as const,
+              required: true,
+            },
+            {
+              name: 'ends_at',
+              label: 'Fin (Europe/Paris)',
+              type: 'datetime-local' as const,
+              required: true,
+            },
+          ]
+        : scheduleFields('datetime-local')),
     {
       name: ffvb ? 'match_courts' : 'courts',
       label: ffvb ? 'Terrains réservés pour le match' : 'Terrains occupés',
@@ -193,32 +195,6 @@ export function EventEditor({
         ]
       : []),
     ...(event ? [{ name: 'cancelled', label: 'Événement annulé', type: 'checkbox' as const }] : []),
-    ...(!event
-      ? [
-          {
-            name: 'repeat',
-            label: 'Répéter chaque semaine',
-            type: 'checkbox' as const,
-            hint: 'Pour un entraînement régulier, aux mêmes jours et horaires chaque semaine.',
-          },
-          {
-            name: 'weekdays',
-            label: 'Jours de répétition',
-            type: 'choices' as const,
-            visibleWhen: 'repeat',
-            options: weekdayLabels.map((label, index) => ({ value: String(index), label })),
-            hint: 'Aucun jour coché : le jour du début.',
-          },
-          {
-            name: 'until',
-            label: 'Fin de la récurrence',
-            type: 'date' as const,
-            required: true,
-            visibleWhen: 'repeat',
-            hint: 'Par défaut, le prochain 31 juillet. Deux ans au maximum.',
-          },
-        ]
-      : []),
   ];
   const initial: FormValues = event
     ? {
@@ -249,17 +225,13 @@ export function EventEditor({
         section_ids: [],
         gymnasium_id: '',
         location: '',
-        starts_at: defaultDay ? `${defaultDay}T18:00` : '',
-        ends_at: defaultDay ? `${defaultDay}T20:00` : '',
+        ...scheduleInitial(defaultDay),
         courts: '1',
         referent_id: account.id,
         direct_edit: false,
         registration_section_ids: [],
         registration_team_ids: [],
         registration_limit: '',
-        repeat: false,
-        weekdays: [],
-        until: nextJuly31(defaultDay && defaultDay > today() ? defaultDay : today()),
       };
 
   function changes(values: FormValues, original: Event) {
@@ -320,6 +292,7 @@ export function EventEditor({
         const gym = str(values, 'gymnasium_id') || null;
         if (!choices(values, 'section_ids').length)
           throw new Error('Sélectionnez au moins une section.');
+        const when = schedule(values);
         const body = {
           title: str(values, 'title'),
           description: str(values, 'description'),
@@ -327,8 +300,8 @@ export function EventEditor({
           section_ids: choices(values, 'section_ids'),
           gymnasium_id: gym,
           location: str(values, 'location'),
-          starts_at: fromLocal(str(values, 'starts_at')),
-          ends_at: fromLocal(str(values, 'ends_at')),
+          starts_at: when.starts_at,
+          ends_at: when.ends_at,
           courts: gym ? num(values, 'courts') : 0,
           referent_id: str(values, 'referent_id'),
           direct_edit: checked(values, 'direct_edit'),
@@ -336,19 +309,11 @@ export function EventEditor({
           registration_team_ids: choices(values, 'registration_team_ids'),
           registration_limit: registrationLimit(values),
         };
-        if (body.ends_at <= body.starts_at) throw new Error('La fin doit suivre le début.');
-        if (checked(values, 'repeat')) {
-          if (!str(values, 'until')) throw new Error('Indiquez la fin de la récurrence.');
-          const weekdays = choices(values, 'weekdays').map(Number);
+        if (when.recurrence) {
           const created = await api.request<Event[]>(
             '/series',
             'POST',
-            {
-              event: body,
-              until: str(values, 'until'),
-              ...(weekdays.length ? { weekdays: weekdays.sort() } : {}),
-              force,
-            },
+            { event: body, ...when.recurrence, force },
             signal,
           );
           onDone(

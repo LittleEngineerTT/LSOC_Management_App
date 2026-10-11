@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AuthApp } from '../auth/AuthApp';
-import { addDays, dayLabel, today } from './calendar';
+import { addDays, dayLabel, nextJuly31, today } from './calendar';
 
 const coach = {
   id: 'coach',
@@ -162,7 +162,8 @@ it('dépose une demande pour une seule équipe coachée, avec ouverture ciblée 
       screen.getByRole('group', { name: 'Ouvert aux inscriptions des équipes' }),
     ).getByLabelText('Compétition 1'),
   );
-  expect(screen.queryByLabelText(/Répéter chaque semaine/)).not.toBeInTheDocument();
+  // Directive du 11 octobre : un coach peut aussi proposer une récurrence.
+  expect(screen.getByLabelText('Répéter chaque semaine')).not.toBeChecked();
   expect(screen.queryByLabelText('Référent')).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/Forcer/)).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
@@ -384,4 +385,23 @@ it('un adhérent référent d’une équipe, sans rôle coach, peut demander un 
     'Choisir…',
     'Loisir 2',
   ]);
+});
+
+it('un coach propose un entraînement récurrent par jours et heures', async () => {
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.selectOptions(screen.getByLabelText('Équipe organisatrice'), 't1');
+  await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement jeunes');
+  await userEvent.type(screen.getByLabelText('Lieu extérieur'), 'Parc');
+  await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
+  expect(screen.queryByText('Début (Europe/Paris)')).not.toBeInTheDocument();
+  const days = screen.getByRole('group', { name: 'Jours de répétition' });
+  await userEvent.click(within(days).getByLabelText('Mardi'));
+  await userEvent.click(within(days).getByLabelText('Jeudi'));
+  await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
+  expect(await screen.findByText(/Demande envoyée aux administrateurs/)).toBeInTheDocument();
+  expect(mutations[0]).toMatchObject({
+    path: '/event-requests',
+    body: { team_id: 't1', weekdays: [1, 3], until: nextJuly31() },
+  });
 });

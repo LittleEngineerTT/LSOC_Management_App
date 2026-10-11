@@ -5266,6 +5266,34 @@
             "maxLength": 2000,
             "title": "Note",
             "default": ""
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 7,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
           }
         },
         "additionalProperties": false,

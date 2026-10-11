@@ -20,6 +20,7 @@ export interface FormField {
     | 'datetime-local'
     | 'datetime-fr'
     | 'date'
+    | 'time'
     | 'textarea';
   options?: Option[];
   required?: boolean;
@@ -32,6 +33,8 @@ export interface FormField {
   disabled?: boolean;
   /** Nom d’une case à cocher : le champ n’apparaît que lorsqu’elle est cochée. */
   visibleWhen?: string;
+  /** Nom d’une case à cocher : le champ disparaît lorsqu’elle est cochée. */
+  hiddenWhen?: string;
 }
 export type FormValues = Record<string, string | boolean | string[]>;
 export const str = (values: FormValues, name: string) => String(values[name] ?? '').trim();
@@ -77,6 +80,7 @@ export function EntityForm({
       <fieldset disabled={request.pending} className="admin-fields">
         {fields.map((field) => {
           if (field.visibleWhen && values[field.visibleWhen] !== true) return null;
+          if (field.hiddenWhen && values[field.hiddenWhen] === true) return null;
           const fieldId = `${id}-${field.name}`;
           const common = {
             id: fieldId,

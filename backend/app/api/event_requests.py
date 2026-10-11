@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -6,7 +8,13 @@ from app.api.common import DB, Actor, Admin, get, require_admin
 from app.api.schemas import CoachEventRequestInput, CoachEventRequestView, DecisionInput, EventInput
 from app.core.security import now
 from app.persistence.models import Assignment, CoachEventRequest, Event, Team, User
-from app.services.events import create_event, lock_planning, validate_event
+from app.services.events import (
+    create_event,
+    create_series_events,
+    lock_planning,
+    series_days,
+    validate_event,
+)
 from app.services.notifications import admins, decision_message, notify, resolve_admin_alerts
 
 router = APIRouter(tags=["Planning"])
@@ -51,18 +59,24 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
     lock_planning(db)
     team = coach_team(db, actor, body.team_id)
     proposal = EventInput(
-        **body.model_dump(exclude={"team_id", "note"}),
+        **body.model_dump(exclude={"team_id", "note", "until", "weekdays"}),
         section_ids=[team.section_id],
         referent_id=actor.id,
         direct_edit=False,
     )
     # Valider les références et l’ouverture sans insérer d’événement ni réserver de terrain.
     validate_event(db, Event(**proposal.model_dump()))
+    stored = proposal.model_dump(mode="json")
+    if body.until is not None:
+        series_days(proposal.starts_at, body.until, body.weekdays)
+        stored |= {"until": body.until.isoformat(), "weekdays": sorted(body.weekdays or [])}
+    elif body.weekdays:
+        raise HTTPException(422, "Indiquez la fin de la récurrence")
     value = CoachEventRequest(
         team_id=team.id,
         actor_id=actor.id,
         actor_name=actor.first_name,
-        proposal=proposal.model_dump(mode="json"),
+        proposal=stored,
         note=body.note,
     )
     db.add(value)
@@ -135,16 +149,30 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
             raise HTTPException(409, "Demande non exécutable")
         requester = get(db, User, value.actor_id)
         team = coach_team(db, requester, value.team_id)
+        recurrence = {
+            key: value.proposal[key] for key in ("until", "weekdays") if key in value.proposal
+        }
         proposal = EventInput.model_validate(
-            value.proposal
+            {key: item for key, item in value.proposal.items() if key not in recurrence}
             | {
                 "section_ids": [team.section_id],
                 "referent_id": requester.id,
                 "direct_edit": False,
             }
         )
-        event = create_event(db, proposal, actor, body.force)
-        value.event_id = event.id
+        if "until" in recurrence:
+            events = create_series_events(
+                db,
+                proposal,
+                date.fromisoformat(str(recurrence["until"])),
+                [int(day) for day in recurrence.get("weekdays") or []] or None,
+                actor,
+                body.force,
+            )
+            # La demande renvoie à la première occurrence de la série créée.
+            value.event_id = events[0].id
+        else:
+            value.event_id = create_event(db, proposal, actor, body.force).id
     value.status = "accepted" if body.accept else "rejected"
     value.decision = body.reason
     value.decided_by = actor.id

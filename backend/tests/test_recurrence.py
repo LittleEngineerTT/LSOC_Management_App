@@ -63,3 +63,22 @@ def test_ffvb_matches_cannot_be_deleted_individually(admin: TestClient) -> None:
     source, _, _ = configure(admin)
     sync(source)
     assert admin.delete(f"/api/v1/events/{match_event('BRC007').id}").status_code == 409
+
+
+def test_coach_can_request_a_recurring_event(admin: TestClient) -> None:
+    from test_coach_event_requests import coach_setup
+
+    coach, team, section, gym = coach_setup(admin)
+    body = {'team_id': team, 'title': 'Entraînement jeunes', 'kind': 'training', 'starts_at': '2026-10-13T18:00:00+02:00', 'ends_at': '2026-10-13T20:00:00+02:00', 'gymnasium_id': gym, 'courts': 1, 'until': '2026-10-29', 'weekdays': [3, 1]}
+    request = coach.post('/api/v1/event-requests', json=body)
+    assert request.status_code == 201, request.text
+    assert (request.json()['proposal']['until'], request.json()['proposal']['weekdays']) == ('2026-10-29', [1, 3])
+    assert admin.get('/api/v1/events').json() == []
+    assert coach.post('/api/v1/event-requests', json=body | {'until': '2026-10-01'}).status_code == 422
+    assert coach.post('/api/v1/event-requests', json=body | {'until': None}).status_code == 422
+    decided = admin.post(f"/api/v1/event-requests/{request.json()['id']}/decision", json={'accept': True, 'reason': 'OK'})
+    assert decided.status_code == 200, decided.text
+    events = admin.get('/api/v1/events').json()
+    assert [e['starts_at'][:10] for e in events] == ['2026-10-13', '2026-10-15', '2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29']
+    assert len({e['series_id'] for e in events}) == 1 and events[0]['referent_id'] == 'coach'
+    assert decided.json()['event_id'] == events[0]['id']
