@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AuthApp } from '../auth/AuthApp';
 const url = 'https://www.ffvbbeach.org/ffvbapp/resu/vbspo_calendrier.php?saison=2026/2027&codent=PTIDF92&poule=BRC';
 const admin = { id: 'a', first_name: 'Admin', category: 'adult', active: true, roles: ['admin'] };
@@ -12,6 +12,11 @@ let source: Record<string, unknown> | null;
 let rejectCreation: boolean;
 function reply(value: unknown) { return new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } }); }
 function open() { render(<MemoryRouter initialEntries={['/app/administration?tab=ffvb']}><AuthApp /></MemoryRouter>); }
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', ''); } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.removeAttribute('open'); } });
+});
+afterAll(() => { Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal'); Reflect.deleteProperty(HTMLDialogElement.prototype, 'close'); });
 beforeEach(() => {
   clubCode = '0926620'; linked = true; source = null; rejectCreation = false; document.cookie = 'lsoc_csrf=csrf; path=/';
   fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
@@ -81,4 +86,15 @@ it('règle les terrains et marges d’une source, vides pour suivre la configura
   await screen.findByText('Source enregistrée.');
   const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/ffvb/sources/source') && init?.method === 'PUT');
   expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ courts: 2, before_minutes: null, after_minutes: null });
+});
+
+it('supprime une source après confirmation, avec annulation facultative des matchs à venir', async () => {
+  source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: null, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Supprimer' }));
+  const dialog = await screen.findByRole('dialog', { name: /Supprimer la source LSO COLOMBES n°6/ });
+  await userEvent.click(within(dialog).getByLabelText(/Annuler aussi ses matchs à venir/));
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer la source' }));
+  expect(await screen.findByText('Source supprimée ; ses matchs à venir sont annulés.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/sources/source?cancel_upcoming=true', expect.objectContaining({ method: 'DELETE' }));
 });

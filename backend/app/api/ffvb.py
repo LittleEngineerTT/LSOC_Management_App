@@ -36,6 +36,7 @@ from app.services.events import lock_planning
 from app.services.ffvb import (
     apply_source_settings,
     defaults,
+    delete_source,
     match_settings,
     remap_venues,
     resolve,
@@ -175,6 +176,12 @@ def update_source(source_id: str, body: FFVBSourceInput, db: DB, actor: Admin) -
     db.flush()
     apply_source_settings(db, value, previous, actor)
     return value
+
+
+@router.delete("/sources/{source_id}", status_code=204)
+def remove_source(source_id: str, db: DB, actor: Admin, cancel_upcoming: bool = False) -> None:
+    lock_planning(db)
+    delete_source(db, get(db, FFVBSource, source_id), actor, cancel_upcoming)
 
 
 @router.post("/sources/{source_id}/sync", response_model=FFVBSourceView)

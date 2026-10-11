@@ -4,6 +4,7 @@ import type { Source } from './types';
 import {
   Badge,
   checked,
+  Confirm,
   Empty,
   EntityForm,
   LoadState,
@@ -58,6 +59,8 @@ export function SourcesPanel({
   const [formKey, setFormKey] = useState(0);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [notice, setNotice] = useState('');
+  const [removing, setRemoving] = useState<Source | null>(null);
+  const [cancelUpcoming, setCancelUpcoming] = useState(false);
   const item = editing && editing !== 'new' ? editing : null;
   const fields: FormField[] = [
     {
@@ -392,10 +395,57 @@ export function SourcesPanel({
               >
                 Synchroniser
               </button>
+              <button
+                className="admin-button danger"
+                onClick={() => {
+                  setNotice('');
+                  setCancelUpcoming(false);
+                  setRemoving(source);
+                }}
+              >
+                Supprimer
+              </button>
             </div>
           </article>
         ))}
       </div>
+      {removing && (
+        <Confirm
+          title={`Supprimer la source ${removing.team_name} n°${removing.team_number} ?`}
+          label="Supprimer la source"
+          onClose={() => setRemoving(null)}
+          onConfirm={async (signal) => {
+            await api.request(
+              `/ffvb/sources/${removing.id}${cancelUpcoming ? '?cancel_upcoming=true' : ''}`,
+              'DELETE',
+              undefined,
+              signal,
+            );
+            if (editing && editing !== 'new' && editing.id === removing.id) setEditing(null);
+            setNotice(
+              cancelUpcoming
+                ? 'Source supprimée ; ses matchs à venir sont annulés.'
+                : 'Source supprimée ; ses matchs sont conservés comme événements ordinaires.',
+            );
+            result.reload();
+          }}
+        >
+          <p>
+            La synchronisation de cette source s’arrête. Ses matchs déjà importés sont conservés
+            avec leur historique, leurs suivis et leurs inscriptions, mais ne seront plus mis à jour
+            par la FFVB.
+          </p>
+          <label className="admin-confirm-option">
+            <input
+              type="checkbox"
+              checked={cancelUpcoming}
+              onChange={(change) => setCancelUpcoming(change.target.checked)}
+            />
+            Annuler aussi ses matchs à venir (libère les terrains et prévient les personnes qui les
+            suivent)
+          </label>
+        </Confirm>
+      )}
     </>
   );
 }

@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get
@@ -111,6 +111,33 @@ def apply_source_settings(
         ):
             changed += 1
     return changed
+
+
+def delete_source(db: Session, source: FFVBSource, actor: User, cancel_upcoming: bool) -> None:
+    """Supprime une source ; ses matchs deviennent des événements ordinaires non synchronisés.
+
+    Avec `cancel_upcoming`, les matchs à venir sont annulés, ce qui libère leurs terrains.
+    """
+    lock_planning(db)
+    states = list(db.scalars(select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)))
+    for state in states:
+        event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
+        if event is None:
+            continue
+        before = snapshot(event)
+        event.ffvb_match_id = None
+        event.occupancy_unknown = False
+        if cancel_upcoming and not event.cancelled and event.starts_at > now():
+            event.cancelled = True
+        event.version += 1
+        db.flush()
+        revision(db, event, actor, before, "ffvb_source_deleted")
+        event_changed(db, event, actor.id)
+    identifiers = [state.id for state in states]
+    if identifiers:
+        db.execute(delete(FFVBConflict).where(FFVBConflict.match_id.in_(identifiers)))
+        db.execute(delete(FFVBMatchState).where(FFVBMatchState.id.in_(identifiers)))
+    db.delete(source)
 
 
 def remap_venues(db: Session) -> int:
