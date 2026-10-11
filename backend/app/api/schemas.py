@@ -197,6 +197,7 @@ class BlockView(View):
 
 class EventInput(Interval):
     title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
     kind: Literal["training", "match", "other"] = "training"
     section_ids: list[str] = Field(min_length=1)
     gymnasium_id: str | None = None
@@ -205,11 +206,13 @@ class EventInput(Interval):
     referent_id: str
     direct_edit: bool = False
     registration_section_ids: list[str] = Field(default_factory=list)
+    registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None = Field(default=None, gt=0, le=1000)
 
 
 class EventPatch(Input):
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
     section_ids: list[str] | None = Field(default=None, min_length=1)
     gymnasium_id: str | None = None
     location: str | None = Field(default=None, max_length=200)
@@ -224,6 +227,7 @@ class EventPatch(Input):
     after_minutes: int | None = Field(default=None, gt=0, le=1440)
     kickoff_at: AwareDatetime | None = None
     registration_section_ids: list[str] | None = None
+    registration_team_ids: list[str] | None = Field(default_factory=list)
     registration_limit: int | None = Field(default=None, gt=0, le=1000)
 
     @model_validator(mode="after")
@@ -246,6 +250,7 @@ class ChangeInput(Input):
 class EventView(View):
     id: str
     title: str
+    description: str
     kind: str
     section_ids: list[str]
     gymnasium_id: str | None
@@ -266,6 +271,7 @@ class EventView(View):
     occupancy_unknown: bool
     match_courts: int
     registration_section_ids: list[str]
+    registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None
     registration_count: int
 
@@ -301,6 +307,35 @@ class ChangeView(View):
     decider_name: str | None
     decided_at: datetime | None
     created_at: datetime
+
+
+class CoachEventRequestInput(Interval):
+    team_id: str
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    kind: Literal["training", "match", "other"] = "training"
+    gymnasium_id: str | None = None
+    location: str = Field(default="", max_length=200)
+    courts: int = Field(ge=0, le=100)
+    registration_section_ids: list[str] = Field(default_factory=list)
+    registration_team_ids: list[str] = Field(default_factory=list)
+    registration_limit: int | None = Field(default=None, gt=0, le=1000)
+    note: str = Field(default="", max_length=2000)
+
+
+class CoachEventRequestView(View):
+    id: str
+    team_id: str | None
+    actor_id: str | None
+    actor_name: str
+    proposal: dict[str, object]
+    note: str
+    status: str
+    decision: str
+    decider_name: str | None
+    decided_at: datetime | None
+    created_at: datetime
+    event_id: str | None
 
 
 class RevisionView(View):
@@ -378,6 +413,12 @@ class RegistrationSummary(View):
     registered: bool
     eligible: bool
     participants: list[ParticipantView] | None
+
+
+class UnreadView(View):
+    messages: int
+    notifications: int
+    threads: list[str]
 
 
 class FollowView(View):

@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.core.security import now
 from app.persistence.database import SessionFactory
-from app.persistence.models import AuthToken, EmailJob, User
+from app.persistence.models import AuthToken, EmailJob, LoginSession, User
 from conftest import PASSWORD, add_user, login
 
 
@@ -69,3 +69,32 @@ def test_delete_account_invalidates_access_and_purges(admin: TestClient) -> None
     with SessionFactory() as db:
         assert db.get(User, 'member') is None
         assert list(db.scalars(select(EmailJob).where(EmailJob.user_id == 'member'))) == []
+
+
+def test_session_expires_only_after_a_week_without_activity(client: TestClient) -> None:
+    response = client.post('/api/v1/auth/login', json={'username': 'admin', 'password': PASSWORD})
+    assert response.status_code == 200
+    assert 'Max-Age=604800' in response.headers['set-cookie']
+    client.headers['X-CSRF-Token'] = response.json()['csrf_token']
+
+    def age(days: float) -> None:
+        with SessionFactory.begin() as db:
+            for record in db.scalars(select(LoginSession)):
+                record.expires_at = now() + timedelta(days=7 - days)
+
+    def remaining() -> timedelta:
+        with SessionFactory() as db:
+            return db.scalars(select(LoginSession)).one().expires_at - now()
+
+    age(6)
+    # Le rafraîchissement automatique des pastilles ne compte pas comme une activité.
+    assert client.get('/api/v1/unread').status_code == 200
+    assert remaining() < timedelta(days=1.1)
+    refreshed = client.get('/api/v1/auth/me')
+    assert refreshed.status_code == 200
+    assert remaining() > timedelta(days=6.9)
+    assert 'lsoc_session=' in refreshed.headers['set-cookie'] and 'lsoc_csrf=' in refreshed.headers['set-cookie']
+    # Moins d’une heure après, aucune réécriture ni nouveau cookie.
+    assert 'set-cookie' not in client.get('/api/v1/auth/me').headers
+    age(7.01)
+    assert client.get('/api/v1/auth/me').status_code == 401

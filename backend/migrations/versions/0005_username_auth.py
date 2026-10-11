@@ -46,9 +46,9 @@ def upgrade() -> None:
         )
     op.create_unique_constraint("users_username_key", "users", ["username"])
     op.drop_constraint("users_email_key", "users", type_="unique")
-    op.execute(
-        "UPDATE users SET active=true WHERE password_hash IS NOT NULL AND id IN (SELECT user_id FROM auth_tokens WHERE purpose='verify')"
-    )
+    # V1 ne désactive jamais un compte : un mot de passe sans activation signifie une
+    # vérification d’e-mail en attente, même si son jeton a expiré. Elle est supprimée.
+    op.execute("UPDATE users SET active=true WHERE password_hash IS NOT NULL AND NOT active")
     op.execute("DELETE FROM auth_tokens WHERE purpose IN ('verify', 'recovery')")
     op.execute(
         "DELETE FROM email_jobs WHERE dedupe_key LIKE 'verify:%' OR dedupe_key LIKE 'recovery:%'"

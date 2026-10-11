@@ -6,7 +6,7 @@ from sqlalchemy import case, delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.api.common import DB, Actor, session_cookie
+from app.api.common import DB, Actor, session_cookie, session_lifetime, set_session_cookies
 from app.api.schemas import (
     ActivateInput,
     LoginInput,
@@ -113,27 +113,10 @@ def login(body: LoginInput, response: Response, db: DB) -> LoginView:
             hash=digest(raw),
             user_id=user.id,
             csrf_hash=digest(csrf),
-            expires_at=now() + timedelta(hours=settings.session_hours),
+            expires_at=now() + session_lifetime(),
         )
     )
-    response.set_cookie(
-        "lsoc_session",
-        raw,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        max_age=settings.session_hours * 3600,
-        path="/",
-    )
-    response.set_cookie(
-        "lsoc_csrf",
-        csrf,
-        httponly=False,
-        secure=settings.cookie_secure,
-        samesite="lax",
-        max_age=settings.session_hours * 3600,
-        path="/",
-    )
+    set_session_cookies(response, raw, csrf)
     return LoginView(user=MeView.model_validate(user), csrf_token=csrf)
 
 

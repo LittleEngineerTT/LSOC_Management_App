@@ -1,10 +1,12 @@
 from collections.abc import Iterator
+from datetime import timedelta
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.security import APIKeyCookie
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import digest, now
 from app.persistence.database import SessionFactory
 from app.persistence.models import LoginSession, User
@@ -27,8 +29,34 @@ def get[T](db: Session, model: type[T], identifier: str) -> T:
     return value
 
 
+# Le délai d’inactivité n’est repoussé qu’une fois par heure, pour éviter une écriture par requête.
+SESSION_REFRESH = timedelta(hours=1)
+# Rafraîchissements automatiques de l’interface : ils ne comptent pas comme une activité.
+PASSIVE_PATHS = ("/api/v1/unread",)
+
+
+def session_lifetime() -> timedelta:
+    return timedelta(days=settings.session_idle_days)
+
+
+def set_session_cookies(response: Response, raw: str, csrf: str) -> None:
+    for name, value, httponly in (("lsoc_session", raw, True), ("lsoc_csrf", csrf, False)):
+        response.set_cookie(
+            name,
+            value,
+            httponly=httponly,
+            secure=settings.cookie_secure,
+            samesite="lax",
+            max_age=int(session_lifetime().total_seconds()),
+            path="/",
+        )
+
+
 def current_user(
-    request: Request, db: DB, cookie: Annotated[str | None, Depends(session_cookie)]
+    request: Request,
+    response: Response,
+    db: DB,
+    cookie: Annotated[str | None, Depends(session_cookie)],
 ) -> User:
     record = db.get(LoginSession, digest(cookie)) if cookie else None
     if record is None or record.expires_at <= now():
@@ -40,6 +68,17 @@ def current_user(
         supplied = request.headers.get("X-CSRF-Token", "")
         if not supplied or digest(supplied) != record.csrf_hash:
             raise HTTPException(403, "Jeton CSRF invalide")
+    deadline = now() + session_lifetime()
+    if (
+        cookie
+        and request.url.path not in PASSIVE_PATHS
+        and deadline - record.expires_at >= SESSION_REFRESH
+    ):
+        record.expires_at = deadline
+        csrf = request.cookies.get("lsoc_csrf", "")
+        # Le cookie CSRF n’est renouvelé que s’il correspond bien à cette session.
+        if csrf and digest(csrf) == record.csrf_hash:
+            set_session_cookies(response, cookie, csrf)
     return user
 
 

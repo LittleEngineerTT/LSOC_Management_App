@@ -23,6 +23,7 @@ from app.persistence.models import (
     Assignment,
     AuthToken,
     ChangeRequest,
+    CoachEventRequest,
     EmailJob,
     Event,
     EventRevision,
@@ -88,6 +89,10 @@ def user_detail(user_id: str, db: DB, actor: Admin) -> User:
 def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
     user = get(db, User, user_id)
     protect_last_admin(db, user, list(body.roles))
+    from app.services.events import lock_planning
+
+    lock_planning(db)
+    db.refresh(user)
     for key, value in body.model_dump().items():
         setattr(user, key, value)
     for assignment in db.scalars(select(Assignment).where(Assignment.user_id == user_id)):
@@ -137,6 +142,19 @@ def delete_user(user_id: str, db: DB, actor: Admin) -> None:
             change.changes = values
             if change.status == "pending":
                 change.status = "withdrawn"
+    for request in db.scalars(select(CoachEventRequest)):
+        if request.actor_id == user_id:
+            request.actor_name = "Compte supprimé"
+            request.note = ""
+            request.decision = ""
+            values = dict(request.proposal)
+            values["referent_id"] = None
+            request.proposal = values
+            if request.status == "pending":
+                request.status = "withdrawn"
+        if request.decided_by == user_id:
+            request.decider_name = "Compte supprimé"
+            request.decision = ""
     for state in db.scalars(select(FFVBMatchState)):
         state.protected = {
             key: None if value == user_id else value for key, value in state.protected.items()
@@ -187,6 +205,9 @@ def assign(user_id: str, body: AssignmentInput, db: DB, actor: Admin) -> Assignm
 
 @router.delete("/users/{user_id}/assignments/{assignment_id}", status_code=204)
 def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> None:
+    from app.services.events import lock_planning
+
+    lock_planning(db)
     value = get(db, Assignment, assignment_id)
     if value.user_id != user_id:
         raise HTTPException(404, "Rattachement introuvable")

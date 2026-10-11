@@ -13,16 +13,21 @@ router = APIRouter(tags=["Inscriptions"])
 
 
 def eligible(db: Session, event: Event, user: User) -> bool:
-    if "member" not in user.roles or not event.registration_section_ids:
+    if "member" not in user.roles or not (
+        event.registration_section_ids or event.registration_team_ids
+    ):
         return False
-    sections = set(
-        db.scalars(
-            select(Team.section_id)
+    assignments = list(
+        db.execute(
+            select(Team.id, Team.section_id)
             .join(Assignment, Assignment.team_id == Team.id)
             .where(Assignment.user_id == user.id)
         )
     )
-    return bool(sections & set(event.registration_section_ids))
+    return any(
+        team in event.registration_team_ids or section in event.registration_section_ids
+        for team, section in assignments
+    )
 
 
 def locked_event(db: Session, event_id: str) -> Event:
@@ -74,11 +79,11 @@ def summary(event_id: str, db: DB, actor: Actor) -> RegistrationSummary:
                 .join(Registration, Registration.user_id == User.id)
                 .where(Registration.event_id == event_id)
                 .order_by(Registration.created_at, Registration.id)
-            ).tuples()
+            )
         ]
     return RegistrationSummary(
         event_id=event_id,
-        open=bool(event.registration_section_ids),
+        open=bool(event.registration_section_ids or event.registration_team_ids),
         limit=event.registration_limit,
         count=count or 0,
         registered=own(db, event_id, actor.id) is not None,
@@ -97,10 +102,10 @@ def register(event_id: str, db: DB, actor: Actor) -> Registration:
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance annulée"})
     if event.starts_at <= now():
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance commencée"})
-    if not event.registration_section_ids:
+    if not (event.registration_section_ids or event.registration_team_ids):
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance fermée"})
     if not eligible(db, event, actor):
-        raise HTTPException(403, "Séance réservée à d’autres sections")
+        raise HTTPException(403, "Séance réservée à d’autres équipes ou sections")
     count = db.scalar(select(func.count(Registration.id)).where(Registration.event_id == event_id))
     if event.registration_limit is not None and (count or 0) >= event.registration_limit:
         raise HTTPException(409, {"code": "registration_full", "message": "Séance complète"})

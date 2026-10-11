@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     cors_origins: list[str] = ["http://localhost:5173"]
     cookie_secure: bool = False
-    session_hours: int = 24
+    # Déconnexion après ce délai sans activité ; chaque requête active le prolonge.
+    session_idle_days: int = 7
     smtp_host: str = "localhost"
     smtp_port: int = 1025
     smtp_username: str = ""

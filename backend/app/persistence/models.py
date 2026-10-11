@@ -140,6 +140,7 @@ class Event(Identity, Base):
     # Redéclaré ici pour que le compteur d’inscrits puisse s’y corréler.
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
     kind: Mapped[str] = mapped_column(String(20))
     section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     gymnasium_id: Mapped[str | None] = mapped_column(ForeignKey("gymnasiums.id"), index=True)
@@ -161,8 +162,9 @@ class Event(Identity, Base):
     after_minutes: Mapped[int] = mapped_column(Integer, default=150)
     match_courts: Mapped[int] = mapped_column(Integer, default=3)
     occupancy_unknown: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Séance ouverte : sections dont les adhérents peuvent s’inscrire ; vide = fermée.
+    # Séance ouverte : union des sections et équipes autorisées.
     registration_section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    registration_team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     registration_limit: Mapped[int | None] = mapped_column(Integer)
     registration_count: Mapped[int] = column_property(
         select(func.count(Registration.id))
@@ -199,6 +201,29 @@ class ChangeRequest(Identity, Base):
     decider_name: Mapped[str | None] = mapped_column(String(80))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class CoachEventRequest(Identity, Base):
+    __tablename__ = "coach_event_requests"
+    __table_args__ = (CheckConstraint("status IN ('pending','accepted','rejected','withdrawn')"),)
+    team_id: Mapped[str | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), index=True
+    )
+    actor_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    actor_name: Mapped[str] = mapped_column(String(80))
+    proposal: Mapped[dict[str, Any]] = mapped_column(JSON)
+    note: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    decision: Mapped[str] = mapped_column(Text, default="")
+    decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decider_name: Mapped[str | None] = mapped_column(String(80))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    event_id: Mapped[str | None] = mapped_column(
+        ForeignKey("events.id", ondelete="SET NULL"), unique=True
+    )
 
 
 class Follow(Identity, Base):

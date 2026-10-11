@@ -18,6 +18,7 @@ from app.persistence.models import (
     Gymnasium,
     Registration,
     Section,
+    Team,
     User,
 )
 from app.services.notifications import admins, event_changed
@@ -117,7 +118,13 @@ def validate_event(db: Session, event: Event) -> None:
         raise HTTPException(422, "Section d’inscription en double")
     for identifier in event.registration_section_ids:
         get(db, Section, identifier)
-    if event.registration_section_ids and event.registration_limit is None:
+    if len(set(event.registration_team_ids)) != len(event.registration_team_ids):
+        raise HTTPException(422, "Équipe d’inscription en double")
+    for identifier in event.registration_team_ids:
+        get(db, Team, identifier)
+    if (
+        event.registration_section_ids or event.registration_team_ids
+    ) and event.registration_limit is None:
         raise HTTPException(422, "Une séance ouverte exige une limite d’inscrits")
     if event.registration_limit is not None:
         registered = db.scalar(
@@ -185,6 +192,7 @@ def permission(
             "before_minutes",
             "after_minutes",
             "registration_section_ids",
+            "registration_team_ids",
             "registration_limit",
         }:
             raise HTTPException(403, "Champ réservé aux administrateurs")

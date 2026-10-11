@@ -53,11 +53,12 @@ def test_username_migration_keeps_passwords_handles_collisions_and_pending_activ
     migrate('head')
     with engine.connect() as db:
         values = {row.id: row for row in db.execute(text('SELECT id, username, email, password_hash, active FROM users'))}
-        assert values['a'].username == 'alex' and values['b'].username == 'alex-1'
+        # Directive du 10 octobre : une adresse valide reste l’identifiant de connexion.
+        assert values['a'].username == 'alex@example.org' and values['b'].username == 'alex@other.org'
         assert values['a'].password_hash == 'hash-a' and values['b'].email == 'alex@other.org'
-        assert values['c'].active is True and values['c'].username == 'pending'
+        assert values['c'].active is True and values['c'].username == 'pending@example.org'
         assert values['d'].active is False and values['d'].username is None
-        assert values['e'].active is True and values['e'].username == 'expired'
+        assert values['e'].active is True and values['e'].username == 'expired@example.org'
         assert list(db.scalars(text('SELECT purpose FROM auth_tokens'))) == ['invitation']
         # A shared notification address is independent of login identity.
         db.execute(text("UPDATE users SET email='shared@example.org' WHERE id IN ('a', 'b')"))

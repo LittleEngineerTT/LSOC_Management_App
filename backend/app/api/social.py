@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import delete, select
+from sqlalchemy import ColumnElement, delete, func, or_, select
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
@@ -9,6 +9,7 @@ from app.api.schemas import (
     MessageView,
     NotificationView,
     ThreadView,
+    UnreadView,
 )
 from app.core.security import now
 from app.persistence.models import (
@@ -35,6 +36,42 @@ def can_write(thread: QuestionThread, actor: User) -> None:
     access(thread, actor)
     if "admin" not in actor.roles and (not actor.messaging_allowed or "member" not in actor.roles):
         raise HTTPException(403, "Droit de messagerie indisponible")
+
+
+def unread_for(actor: User) -> ColumnElement[bool]:
+    # Pour l’auteur du fil : les réponses reçues ; pour un admin : les messages de l’adhérent.
+    received: ColumnElement[bool] = (QuestionThread.user_id == actor.id) & (
+        QuestionMessage.author_id != actor.id
+    )
+    if "admin" in actor.roles:
+        received = or_(
+            received,
+            (QuestionThread.user_id != actor.id)
+            & (QuestionMessage.author_id == QuestionThread.user_id),
+        )
+    return QuestionMessage.read_at.is_(None) & received
+
+
+@router.get("/unread", response_model=UnreadView)
+def unread(db: DB, actor: Actor) -> UnreadView:
+    rows = db.execute(
+        select(QuestionMessage.thread_id, func.count(QuestionMessage.id))
+        .join(QuestionThread, QuestionThread.id == QuestionMessage.thread_id)
+        .where(unread_for(actor))
+        .group_by(QuestionMessage.thread_id)
+        .order_by(QuestionMessage.thread_id)
+    )
+    counts = {thread_id: count for thread_id, count in rows}
+    notifications = db.scalar(
+        select(func.count(Notification.id)).where(
+            Notification.user_id == actor.id, Notification.read_at.is_(None)
+        )
+    )
+    return UnreadView(
+        messages=sum(counts.values()),
+        notifications=notifications or 0,
+        threads=list(counts),
+    )
 
 
 @router.get("/follows", response_model=list[FollowView])
@@ -152,14 +189,27 @@ def post_message(thread_id: str, body: MessageInput, db: DB, actor: Actor) -> Qu
 def mark_thread_read(thread_id: str, db: DB, actor: Actor) -> None:
     thread = get(db, QuestionThread, thread_id)
     access(thread, actor)
-    for message in db.scalars(
-        select(QuestionMessage).where(
-            QuestionMessage.thread_id == thread_id,
-            QuestionMessage.author_id != actor.id,
-            QuestionMessage.read_at.is_(None),
+    # Un admin ne marque lus que les messages de l’adhérent : la réponse d’un autre admin
+    # doit rester non lue pour l’adhérent.
+    read = list(
+        db.scalars(
+            select(QuestionMessage)
+            .join(QuestionThread, QuestionThread.id == QuestionMessage.thread_id)
+            .where(QuestionMessage.thread_id == thread_id, unread_for(actor))
         )
-    ):
+    )
+    for message in read:
         message.read_at = now()
+    if read:
+        # Les alertes « nouvelle question » correspondantes deviennent lues elles aussi.
+        for notification in db.scalars(
+            select(Notification).where(
+                Notification.user_id == actor.id,
+                Notification.read_at.is_(None),
+                Notification.dedupe_key.in_([f"question:{message.id}" for message in read]),
+            )
+        ):
+            notification.read_at = now()
 
 
 @router.get("/notifications", response_model=list[NotificationView])

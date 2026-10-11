@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from app.api import accounts, auth, catalog, events, ffvb, registrations, social
+from app.api import accounts, auth, catalog, event_requests, events, ffvb, registrations, social
 from app.api.common import DB
 from app.api.schemas import Status
 from app.core.config import settings
@@ -50,6 +50,7 @@ for router in (
     accounts.router,
     catalog.router,
     events.router,
+    event_requests.router,
     registrations.router,
     social.router,
     ffvb.router,

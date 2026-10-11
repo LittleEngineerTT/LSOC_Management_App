@@ -2494,6 +2494,236 @@
         }
       }
     },
+    "/api/v1/event-requests": {
+      "post": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Propose",
+        "operationId": "propose_api_v1_event_requests_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachEventRequestInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachEventRequestView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Requests",
+        "operationId": "requests_api_v1_event_requests_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "pending",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoachEventRequestView"
+                  },
+                  "title": "Response Requests Api V1 Event Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/event-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_v1_event_requests__request_id__get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachEventRequestView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/event-requests/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Decide",
+        "operationId": "decide_api_v1_event_requests__request_id__decision_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachEventRequestView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/registrations": {
       "get": {
         "tags": [
@@ -2738,6 +2968,32 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/unread": {
+      "get": {
+        "tags": [
+          "Messagerie et suivis"
+        ],
+        "summary": "Unread",
+        "operationId": "unread_api_v1_unread_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
       }
     },
     "/api/v1/follows": {
@@ -4615,6 +4871,218 @@
         ],
         "title": "ChangeView"
       },
+      "CoachEventRequestInput": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "training",
+              "match",
+              "other"
+            ],
+            "title": "Kind",
+            "default": "training"
+          },
+          "gymnasium_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gymnasium Id"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Location",
+            "default": ""
+          },
+          "courts": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Courts"
+          },
+          "registration_section_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Section Ids"
+          },
+          "registration_team_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Team Ids"
+          },
+          "registration_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Limit"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "starts_at",
+          "ends_at",
+          "team_id",
+          "title",
+          "courts"
+        ],
+        "title": "CoachEventRequestInput"
+      },
+      "CoachEventRequestView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_name": {
+            "type": "string",
+            "title": "Actor Name"
+          },
+          "proposal": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Proposal"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "decider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decider Name"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "actor_id",
+          "actor_name",
+          "proposal",
+          "note",
+          "status",
+          "decision",
+          "decider_name",
+          "decided_at",
+          "created_at",
+          "event_id"
+        ],
+        "title": "CoachEventRequestView"
+      },
       "ConflictView": {
         "properties": {
           "id": {
@@ -4812,6 +5280,12 @@
             "minLength": 1,
             "title": "Title"
           },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description",
+            "default": ""
+          },
           "kind": {
             "type": "string",
             "enum": [
@@ -4869,6 +5343,13 @@
             "type": "array",
             "title": "Registration Section Ids"
           },
+          "registration_team_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Team Ids"
+          },
           "registration_limit": {
             "anyOf": [
               {
@@ -4909,6 +5390,18 @@
               }
             ],
             "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
           },
           "section_ids": {
             "anyOf": [
@@ -5083,6 +5576,20 @@
             ],
             "title": "Registration Section Ids"
           },
+          "registration_team_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Team Ids"
+          },
           "registration_limit": {
             "anyOf": [
               {
@@ -5110,6 +5617,10 @@
           "title": {
             "type": "string",
             "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
           },
           "kind": {
             "type": "string",
@@ -5235,6 +5746,13 @@
             "type": "array",
             "title": "Registration Section Ids"
           },
+          "registration_team_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registration Team Ids"
+          },
           "registration_limit": {
             "anyOf": [
               {
@@ -5255,6 +5773,7 @@
         "required": [
           "id",
           "title",
+          "description",
           "kind",
           "section_ids",
           "gymnasium_id",
@@ -6687,6 +7206,32 @@
           "event_id"
         ],
         "title": "ThreadView"
+      },
+      "UnreadView": {
+        "properties": {
+          "messages": {
+            "type": "integer",
+            "title": "Messages"
+          },
+          "notifications": {
+            "type": "integer",
+            "title": "Notifications"
+          },
+          "threads": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Threads"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages",
+          "notifications",
+          "threads"
+        ],
+        "title": "UnreadView"
       },
       "UserInput": {
         "properties": {

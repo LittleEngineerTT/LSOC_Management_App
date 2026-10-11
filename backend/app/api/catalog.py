@@ -44,8 +44,13 @@ def update_section(identifier: str, body: NameInput, db: DB, actor: Admin) -> Se
 @router.delete("/sections/{identifier}", status_code=204)
 def delete_section(identifier: str, db: DB, actor: Admin) -> None:
     from app.persistence.models import Event
+    from app.services.events import lock_planning
 
-    if any(identifier in e.section_ids for e in db.scalars(select(Event))):
+    lock_planning(db)
+    if any(
+        identifier in e.section_ids or identifier in e.registration_section_ids
+        for e in db.scalars(select(Event))
+    ):
         raise HTTPException(409, "Section utilisée par des événements")
     db.delete(get(db, Section, identifier))
 
@@ -77,6 +82,12 @@ def update_team(identifier: str, body: TeamInput, db: DB, actor: Admin) -> Team:
 
 @router.delete("/teams/{identifier}", status_code=204)
 def delete_team(identifier: str, db: DB, actor: Admin) -> None:
+    from app.persistence.models import Event
+    from app.services.events import lock_planning
+
+    lock_planning(db)
+    if any(identifier in e.registration_team_ids for e in db.scalars(select(Event))):
+        raise HTTPException(409, "Équipe utilisée par des inscriptions d’événements")
     db.delete(get(db, Team, identifier))
 
 

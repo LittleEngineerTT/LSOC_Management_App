@@ -63,3 +63,28 @@ def test_series_follow_covers_future_occurrences(admin: TestClient) -> None:
     assert member.delete(f'/api/v1/series/{series}/follow').status_code==204
     assert admin.patch(f'/api/v1/events/{event}',json={'base_version':2,'changes':{'title':'Suivi individuel'}}).status_code==200
     assert len(member.get('/api/v1/notifications').json())==2
+
+
+def test_unread_counts_for_questions_answers_and_notifications(admin: TestClient) -> None:
+    add_user()
+    add_user('second', ['admin'])
+    member, second = login(), login('second')
+    section, gym = setup_planning(admin)
+    event = admin.post('/api/v1/events', json=payload(section, gym)).json()['id']
+    thread = member.post(f'/api/v1/events/{event}/questions', json={'body': 'Faut-il un ballon ?'}).json()['id']
+    assert member.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Et des chaussures ?'}).status_code == 201
+    counts = admin.get('/api/v1/unread').json()
+    assert (counts['messages'], counts['notifications'], counts['threads']) == (2, 2, [thread])
+    assert member.get('/api/v1/unread').json()['messages'] == 0
+    assert second.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Non, merci.'}).status_code == 201
+    assert admin.post(f'/api/v1/questions/{thread}/read').status_code == 204
+    # Lire le fil efface aussi les alertes de question, sans marquer la réponse d’un autre admin.
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': []}
+    # La boîte des admins est partagée : un fil lu par un admin l’est pour tous.
+    assert second.get('/api/v1/unread').json()['messages'] == 0
+    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread]}
+    assert member.post(f'/api/v1/questions/{thread}/read').status_code == 204
+    assert member.get('/api/v1/unread').json()['messages'] == 0
+    notification = second.get('/api/v1/notifications?unread_only=true').json()[0]['id']
+    assert second.post(f'/api/v1/notifications/{notification}/read').status_code == 200
+    assert second.get('/api/v1/unread').json()['notifications'] == 1

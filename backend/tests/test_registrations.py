@@ -48,7 +48,7 @@ def test_open_event_accepts_allowed_sections_until_limit(admin: TestClient) -> N
 
 
 def test_closed_cancelled_and_limit_rules(admin: TestClient) -> None:
-    section, gym = setup_planning(admin)
+    section, gym = setup_planning(admin, capacity=10)
     add_user()
     member_of(admin, 'member', section)
     member = login()
@@ -69,7 +69,7 @@ def test_closed_cancelled_and_limit_rules(admin: TestClient) -> None:
     add_user('late')
     member_of(admin, 'late', section)
     assert login('late').post(f'/api/v1/events/{event}/registration').json()['detail']['code'] == 'registration_closed'
-    past = admin.post('/api/v1/events', json=payload(section, gym) | {'registration_section_ids': [section], 'registration_limit': 5}).json()['id']
+    past = admin.post('/api/v1/events', json=payload(section, gym, start='2020-10-15T18:00:00+02:00', end='2020-10-15T20:00:00+02:00') | {'registration_section_ids': [section], 'registration_limit': 5}).json()['id']
     assert member.post(f'/api/v1/events/{past}/registration').status_code == 409
 
 
