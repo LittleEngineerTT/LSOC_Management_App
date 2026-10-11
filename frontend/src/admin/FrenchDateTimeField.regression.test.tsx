@@ -19,12 +19,12 @@ it('accepte une saisie ISO complète puis affiche le jour en français', async (
 it('conserve l’heure choisie avant la date et propose tous les horaires', async () => {
   render(<Field />);
   expect(screen.getByLabelText('Heure de Du').querySelectorAll('option')).toHaveLength(24);
-  expect(screen.getByLabelText('Minutes de Du').querySelectorAll('option')).toHaveLength(60);
+  expect([...screen.getByLabelText('Minutes de Du').querySelectorAll('option')].map((option) => option.textContent)).toEqual(['00', '15', '30', '45']);
   await userEvent.selectOptions(screen.getByLabelText('Heure de Du'), '23');
-  await userEvent.selectOptions(screen.getByLabelText('Minutes de Du'), '59');
+  await userEvent.selectOptions(screen.getByLabelText('Minutes de Du'), '45');
   await userEvent.type(screen.getByLabelText('Du'), '31/12/2026');
   expect(screen.getByLabelText('Du')).toHaveValue('31/12/2026');
-  expect(screen.getByLabelText('ISO')).toHaveTextContent('2026-12-31T23:59');
+  expect(screen.getByLabelText('ISO')).toHaveTextContent('2026-12-31T23:45');
 });
 
 it('refuse un jour inexistant et conserve les changements d’heure pour la validation Paris', async () => {
@@ -34,4 +34,11 @@ it('refuse un jour inexistant et conserve les changements d’heure pour la vali
   await userEvent.type(screen.getByLabelText('Du'), '31/02/2026');
   expect(screen.getByLabelText('Du')).toBeInvalid();
   expect(screen.getByLabelText('ISO')).toBeEmptyDOMElement();
+});
+
+it('n’altère pas un horaire existant hors quart d’heure', () => {
+  render(<Field initial="2026-10-20T20:10" />);
+  expect(screen.getByLabelText('Minutes de Du')).toHaveValue('10');
+  expect([...screen.getByLabelText('Minutes de Du').querySelectorAll('option')].map((option) => option.textContent)).toEqual(['00', '10', '15', '30', '45']);
+  expect(screen.getByLabelText('ISO')).toHaveTextContent('2026-10-20T20:10');
 });

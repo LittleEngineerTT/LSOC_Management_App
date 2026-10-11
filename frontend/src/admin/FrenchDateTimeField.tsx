@@ -15,7 +15,11 @@ function frenchDate(value: string) {
 }
 
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));
-const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
+const quarters = ['00', '15', '30', '45'];
+/** Quarts d’heure, plus la valeur actuelle si elle n’en est pas un (horaire FFVB, ancien événement). */
+function minuteOptions(current: string) {
+  return current && !quarters.includes(current) ? [...quarters, current].sort() : quarters;
+}
 
 /** Date seule (AAAA-MM-JJ en interne), saisie en jj/mm/aaaa ou choisie dans le calendrier. */
 export function FrenchDateField({
@@ -199,7 +203,7 @@ export function FrenchDateTimeField({
             value={minute}
             onChange={(event) => chooseTime('minute', event.target.value)}
           >
-            {minutes.map((item) => (
+            {minuteOptions(minute).map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -264,7 +268,7 @@ export function FrenchTimeField({
           onChange={(event) => choose('minute', event.target.value)}
         >
           {!minute && <option value="">--</option>}
-          {minutes.map((item) => (
+          {minuteOptions(minute).map((item) => (
             <option key={item} value={item}>
               {item}
             </option>
