@@ -29,6 +29,46 @@ const capacityLabel = (item: CapacitySlot, capacity: number, mode: CalendarMode)
       : 'Complet';
 };
 
+export function GymCalendarLegend({ mode }: { mode: CalendarMode }) {
+  return (
+    <>
+      <div className="calendar-legend" aria-label="Légende des disponibilités">
+        <span className="gym-free">
+          <i className="calendar-dot" />
+          Terrains libres
+        </span>
+        {mode === 'week' && (
+          <span className="gym-full">
+            <i className="calendar-dot" />
+            Complet
+          </span>
+        )}
+        <span className="gym-excess">
+          <i className="calendar-dot" />
+          Capacité dépassée
+        </span>
+        <span className="origin-ffvb">
+          <i className="calendar-dot" />
+          FFVB
+        </span>
+        <span className="origin-local">
+          <i className="calendar-dot" />
+          Local
+        </span>
+        <span className="gym-block">
+          <i className="calendar-dot" />
+          Indisponibilité
+        </span>
+      </div>
+      <p className="gym-calendar-help">
+        Horaires de Paris · nombre de terrains libres par créneau. Sélectionnez un jour pour tous
+        ses détails.{' '}
+        {mode === 'month' && 'La vue mois indique le minimum de terrains libres dans la journée.'}
+      </p>
+    </>
+  );
+}
+
 export function GymAvailabilityCalendar({
   availability,
   capacity,
@@ -81,39 +121,6 @@ export function GymAvailabilityCalendar({
   }
   return (
     <div className="gym-calendar">
-      <div className="calendar-legend" aria-label="Légende des disponibilités">
-        <span className="gym-free">
-          <i className="calendar-dot" />
-          Terrains libres
-        </span>
-        {mode === 'week' && (
-          <span className="gym-full">
-            <i className="calendar-dot" />
-            Complet
-          </span>
-        )}
-        <span className="gym-excess">
-          <i className="calendar-dot" />
-          Capacité dépassée
-        </span>
-        <span className="origin-ffvb">
-          <i className="calendar-dot" />
-          FFVB
-        </span>
-        <span className="origin-local">
-          <i className="calendar-dot" />
-          Local
-        </span>
-        <span className="gym-block">
-          <i className="calendar-dot" />
-          Indisponibilité
-        </span>
-      </div>
-      <p className="gym-calendar-help">
-        Horaires de Paris · nombre de terrains libres par créneau. Sélectionnez un jour pour tous
-        ses détails.{' '}
-        {mode === 'month' && 'La vue mois indique le minimum de terrains libres dans la journée.'}
-      </p>
       {mode === 'week' ? (
         <GymWeek
           days={days}

@@ -46,7 +46,6 @@ export function CalendarView({
   const segments = splitEvents(events, days);
   return (
     <>
-      <CalendarLegend />
       {!segments.length && <Empty>{empty}</Empty>}
       {mode === 'week' ? (
         <WeekCalendar key={days[0]} days={days} segments={placeSegments(segments)} />

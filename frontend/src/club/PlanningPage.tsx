@@ -7,7 +7,7 @@ import { addDays, mondayOf, rangeQuery, today, validDay, weekLabel } from './cal
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
-import { CalendarView } from './CalendarView';
+import { CalendarLegend, CalendarView } from './CalendarView';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
@@ -144,7 +144,6 @@ export function PlanningPage() {
         />
       )}
       {notice && <Notice>{notice}</Notice>}
-      <CalendarNavigation mode={mode} anchor={anchor} />
       <div className="admin-toolbar">
         <label>
           Section
@@ -185,6 +184,8 @@ export function PlanningPage() {
           </select>
         </label>
       </div>
+      <CalendarLegend />
+      <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
       {result.data && (
         <CalendarView

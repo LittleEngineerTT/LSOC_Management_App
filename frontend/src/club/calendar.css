@@ -1,10 +1,10 @@
 .calendar-navigation {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-bottom: 16px;
+  gap: 8px 12px;
+  margin-bottom: 8px;
 }
 .calendar-navigation .club-week,
 .calendar-navigation .admin-subtabs {
@@ -15,7 +15,7 @@
   flex-wrap: wrap;
   gap: 10px 20px;
   align-items: center;
-  margin: 8px 0 16px;
+  margin: 8px 0 12px;
   color: #526678;
   font-size: 12px;
 }

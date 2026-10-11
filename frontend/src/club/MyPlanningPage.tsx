@@ -7,7 +7,7 @@ import { Badge, Empty, LoadState, PanelHeading } from '../admin/ui';
 import { daysBetween, horizonEnd, horizonLabel, rangeQuery, today } from './calendar';
 import { isFollowed, useClub, useMySections } from './context';
 import { DetailHost } from './EventDetail';
-import { CalendarView } from './CalendarView';
+import { CalendarLegend, CalendarView } from './CalendarView';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 
 export type Reason = 'registered' | 'open' | 'followed' | 'referent' | 'section';
@@ -108,7 +108,6 @@ export function MyPlanningPage() {
           </button>
         ))}
       </div>
-      <CalendarNavigation mode={mode} anchor={anchor} />
       <div className="admin-toolbar">
         <label>
           Origine des événements
@@ -133,6 +132,8 @@ export function MyPlanningPage() {
           semaine pour les parcourir.
         </p>
       </div>
+      <CalendarLegend />
+      <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
       {result.data && (
         <CalendarView

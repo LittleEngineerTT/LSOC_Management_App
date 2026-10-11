@@ -5,7 +5,7 @@ import type { Block, Capacity, Event } from '../admin/types';
 import { Empty, LoadState, PanelHeading } from '../admin/ui';
 import { range, rangeQuery } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
-import { GymAvailabilityCalendar } from './GymAvailabilityCalendar';
+import { GymAvailabilityCalendar, GymCalendarLegend } from './GymAvailabilityCalendar';
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 
@@ -86,6 +86,7 @@ function GymWeek({ id, capacity }: { id: string; capacity: number }) {
   const result = useLoad(loader);
   return (
     <>
+      <GymCalendarLegend mode={mode} />
       <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
       {result.data && (
