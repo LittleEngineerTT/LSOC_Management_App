@@ -56,6 +56,10 @@ export interface Source {
   team_name: string;
   club_code: string;
   enabled: boolean;
+  /** Réglages propres à la source ; nul = configuration par défaut. */
+  before_minutes?: number | null;
+  after_minutes?: number | null;
+  courts?: number | null;
   interval_minutes: number;
   interval_days?: number;
   next_check_at: string;

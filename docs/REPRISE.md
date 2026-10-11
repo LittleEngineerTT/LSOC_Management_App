@@ -12,6 +12,7 @@ Frontend : [spécification authentification/accueil](superpowers/specs/2026-10-1
 - le bouton « Nouvel événement » du planning visible pour tout compte coach ou référent d’équipe ; sans équipe éligible, il explique comment le devenir ;
 - le report du référent d’équipe sur ses événements (migration 0009 de rattrapage) ;
 - Mon planning et Mes sections présents seulement dans la barre du haut, plus dans le menu du compte ;
+- FFVB : terrains et marges réglables par source (migration 0010), gymnases rattachés sans accents ni casse et par nom pour les rencontres reçues par « LSO COLOMBES », pages de poule à codes lettrés ;
 - des notifications qui disparaissent une fois marquées comme lues ;
 - la description des événements ;
 - une session déconnectée seulement après 7 jours d’inactivité (`LSOC_SESSION_IDLE_DAYS`). Le compte administrateur local demandé a été créé dans la base Compose ; ses identifiants ont été fournis dans la conversation, jamais ajoutés au code du frontend.
@@ -30,7 +31,7 @@ Stack demandée : backend Python FastAPI avec typage strict, frontend React Type
 
 ## Prochaine étape
 
-1. Les 86 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0009 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
+1. Les 96 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0010 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
 2. `backend/openapi.json` a été régénéré le 10 octobre. Vérifier les sections contre le backend Docker avec des données temporaires. Sous Node 26, lancer Vitest avec `NODE_OPTIONS=--no-webstorage` (Node 22 recommandé).
 3. Avant un déploiement, cadrer hébergement, HTTPS, SMTP réel et conservation des sauvegardes.
 

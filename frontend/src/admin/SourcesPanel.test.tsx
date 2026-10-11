@@ -35,7 +35,7 @@ it('crée directement depuis l’URL lorsque toutes les informations sont identi
   await userEvent.type(screen.getByLabelText('Fréquence de la nouvelle source (jours)'), '7');
   await userEvent.click(screen.getByRole('button', { name: 'Créer depuis l’URL' }));
   await screen.findByText('Source enregistrée.');
-  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/sources', expect.objectContaining({ method: 'POST', body: JSON.stringify({ team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, interval_days: 7 }) }));
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/sources', expect.objectContaining({ method: 'POST', body: JSON.stringify({ team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: null, after_minutes: null, interval_days: 7 }) }));
   expect(screen.queryByLabelText('Équipe locale')).not.toBeInTheDocument();
 });
 it('préremplit le formulaire si le rattachement local manque, avec le code du club grisé', async () => {
@@ -67,4 +67,18 @@ it('conserve le formulaire prérempli si la création automatique est refusée',
   expect(await screen.findByRole('alert')).toHaveTextContent('Référent devenu inactif');
   expect(screen.getByLabelText('Équipe locale')).toHaveValue('t');
   expect(screen.getByLabelText('Nom d’équipe FFVB')).toHaveValue('LSO COLOMBES');
+});
+
+it('règle les terrains et marges d’une source, vides pour suivre la configuration par défaut', async () => {
+  source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: 60, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
+  open();
+  expect(await screen.findByText('Réglages propres : 60 min avant')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  expect(screen.getByLabelText('Marge avant le coup d’envoi (minutes)')).toHaveValue(60);
+  await userEvent.type(screen.getByLabelText('Terrains réservés par match'), '2');
+  await userEvent.clear(screen.getByLabelText('Marge avant le coup d’envoi (minutes)'));
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await screen.findByText('Source enregistrée.');
+  const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/ffvb/sources/source') && init?.method === 'PUT');
+  expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ courts: 2, before_minutes: null, after_minutes: null });
 });

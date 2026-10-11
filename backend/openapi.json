@@ -5900,6 +5900,45 @@
             "title": "Enabled",
             "default": true
           },
+          "before_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Minutes"
+          },
+          "after_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Minutes"
+          },
+          "courts": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Courts"
+          },
           "interval_minutes": {
             "type": "integer",
             "maximum": 525600.0,
@@ -5973,6 +6012,39 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "before_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Minutes"
+          },
+          "after_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Minutes"
+          },
+          "courts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Courts"
+          },
           "interval_minutes": {
             "type": "integer",
             "title": "Interval Minutes"
@@ -6021,6 +6093,9 @@
           "team_name",
           "club_code",
           "enabled",
+          "before_minutes",
+          "after_minutes",
+          "courts",
           "interval_minutes",
           "interval_days",
           "next_check_at",

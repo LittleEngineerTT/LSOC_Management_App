@@ -69,6 +69,50 @@ class Venues:
         return True, gym
 
 
+def match_settings(db: Session, source: FFVBSource) -> tuple[int, int, int]:
+    """Marges avant/après et terrains effectifs d’une source : les siens, sinon ceux du club."""
+    config = defaults(db)
+    return (
+        config.before_minutes if source.before_minutes is None else source.before_minutes,
+        config.after_minutes if source.after_minutes is None else source.after_minutes,
+        config.courts if source.courts is None else source.courts,
+    )
+
+
+def apply_source_settings(
+    db: Session, source: FFVBSource, previous: tuple[int, int, int], actor: User
+) -> int:
+    """Reporte les réglages effectifs d’une source sur ses matchs à venir.
+
+    Une valeur modifiée à la main sur un match (différente de l’ancien réglage) est conservée.
+    """
+    current = match_settings(db, source)
+    if current == previous:
+        return 0
+    changed = 0
+    for state, event in db.execute(
+        select(FFVBMatchState, Event)
+        .join(Event, Event.ffvb_match_id == FFVBMatchState.id)
+        .where(FFVBMatchState.source_id == source.id, Event.kickoff_at > now())
+        .order_by(Event.kickoff_at, Event.id)
+    ):
+        values = (event.before_minutes, event.after_minutes, event.match_courts)
+        updated = tuple(
+            new if value == old else value
+            for value, old, new in zip(values, previous, current, strict=True)
+        )
+        if updated == values:
+            continue
+        lock_gyms(db, [event.gymnasium_id])
+        before = snapshot(event)
+        event.before_minutes, event.after_minutes, event.match_courts = updated
+        if apply_official(
+            db, event, state, state.official, actor=actor, action="source_settings", before=before
+        ):
+            changed += 1
+    return changed
+
+
 def remap_venues(db: Session) -> int:
     """Réapplique les gymnases aux matchs déjà importés ; renvoie le nombre de matchs changés."""
     lock_planning(db)
@@ -109,8 +153,11 @@ def apply_official(
     official: dict[str, Any],
     initial: bool = False,
     actor: User | None = None,
+    action: str | None = None,
+    before: dict[str, Any] | None = None,
 ) -> bool:
-    before = snapshot(event)
+    # `before` permet à l’appelant d’historiser une modification faite juste avant l’appel.
+    before = snapshot(event) if before is None else before
     for key in ("kickoff_at", "gymnasium_id", "location"):
         local = official_value(event, key)
         remote = official.get(key)
@@ -184,7 +231,7 @@ def apply_official(
             event,
             actor,
             {} if initial else before,
-            "import" if initial else ("ffvb_accept" if actor else "sync"),
+            action or ("import" if initial else ("ffvb_accept" if actor else "sync")),
             forced,
             origin="human" if actor else "ffvb",
         )
@@ -243,7 +290,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
         return False
     venues = Venues(db)
     seen: set[str] = set()
-    config = defaults(db)
+    before, after, courts = match_settings(db, source)
     for match in matches:
         seen.add(match.code)
         state = db.scalar(
@@ -294,14 +341,14 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                 gymnasium_id=official["gymnasium_id"],
                 location=location,
                 starts_at=match.kickoff_at,
-                ends_at=match.kickoff_at + timedelta(minutes=config.after_minutes),
-                courts=config.courts if official["gymnasium_id"] else 0,
+                ends_at=match.kickoff_at + timedelta(minutes=after),
+                courts=courts if official["gymnasium_id"] else 0,
                 referent_id=team.referent_id,
                 ffvb_match_id=state.id,
                 kickoff_at=match.kickoff_at,
-                before_minutes=config.before_minutes,
-                after_minutes=config.after_minutes,
-                match_courts=config.courts,
+                before_minutes=before,
+                after_minutes=after,
+                match_courts=courts,
             )
             db.add(event)
             db.flush()

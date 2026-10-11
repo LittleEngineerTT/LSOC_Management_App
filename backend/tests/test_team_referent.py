@@ -84,6 +84,6 @@ def test_migration_realigns_ffvb_matches_left_with_the_former_referent(admin: Te
     with engine.begin() as db:
         db.execute(text("UPDATE teams SET referent_id='next' WHERE id=:id"), {'id': team})
     run('stamp', '--purge', '0008_event_description')
-    run('upgrade', 'head')
+    run('upgrade', '0009_realign_team_referents')
     assert ffvb_referents() == {'next', 'special'}
     assert admin.get(f'/api/v1/events/{others[0].id}').json()['version'] == others[0].version + 1

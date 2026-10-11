@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import text
 
 from app.persistence.database import SessionFactory, engine
-from app.persistence.models import Base, FFVBSource, Section
+from app.persistence.models import Base, Section
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -36,7 +36,8 @@ def test_settings_migration_preserves_sources_and_locks_existing_club(legacy_sch
         db.flush()
         db.execute(text("INSERT INTO teams (id, name, section_id, referent_id) VALUES ('legacy-team', 'LSO COLOMBES', 'legacy-section', 'legacy-admin')"))
         db.flush()
-        db.add(FFVBSource(id='legacy-source', team_id='legacy-team', season='2026/2027', entity='PTIDF92', pool='BRC', team_number='6', team_name='LSO COLOMBES', club_code='0926620', interval_minutes=15))
+        # SQL brut : le modèle actuel a des colonnes que ce schéma ancien ne connaît pas.
+        db.execute(text("INSERT INTO ffvb_sources (id, team_id, season, entity, pool, team_number, team_name, club_code, enabled, interval_minutes, next_check_at) VALUES ('legacy-source', 'legacy-team', '2026/2027', 'PTIDF92', 'BRC', '6', 'LSO COLOMBES', '0926620', true, 15, CURRENT_TIMESTAMP)"))
     migrate('head')
     with engine.connect() as db:
         assert db.scalar(text('SELECT club_code FROM club_settings WHERE id=1')) == '0926620'

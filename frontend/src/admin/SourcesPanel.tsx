@@ -30,6 +30,17 @@ interface Preview {
   candidates: Candidate[];
   warning: string | null;
 }
+const optional = (values: FormValues, name: string) =>
+  str(values, name) ? num(values, name) : null;
+const setting = (value: number | null | undefined) => (value == null ? '' : String(value));
+function settingsLabel(source: Source) {
+  const own = [
+    source.courts != null && `${source.courts} terrain${source.courts > 1 ? 's' : ''}`,
+    source.before_minutes != null && `${source.before_minutes} min avant`,
+    source.after_minutes != null && `${source.after_minutes} min après`,
+  ].filter(Boolean);
+  return own.length ? `Réglages propres : ${own.join(', ')}` : 'Configuration par défaut';
+}
 const days = (source: Source) =>
   source.interval_days ?? Math.max(1, Math.ceil(source.interval_minutes / 1440));
 export function SourcesPanel({
@@ -93,6 +104,30 @@ export function SourcesPanel({
       max: 365,
     },
     {
+      name: 'courts',
+      label: 'Terrains réservés par match',
+      type: 'number',
+      min: 1,
+      max: 100,
+      hint: 'Laissez vide pour suivre la configuration par défaut (onglet Marges et terrains).',
+    },
+    {
+      name: 'before_minutes',
+      label: 'Marge avant le coup d’envoi (minutes)',
+      type: 'number',
+      min: 0,
+      max: 1440,
+      hint: 'Vide : configuration par défaut.',
+    },
+    {
+      name: 'after_minutes',
+      label: 'Marge après le coup d’envoi (minutes)',
+      type: 'number',
+      min: 1,
+      max: 1440,
+      hint: 'Vide : configuration par défaut. Un changement s’applique aux matchs à venir, sauf valeur modifiée à la main sur un match.',
+    },
+    {
       name: 'enabled',
       label: 'Activer la synchronisation périodique',
       type: 'checkbox',
@@ -125,6 +160,9 @@ export function SourcesPanel({
       team_name: str(values, 'team_name'),
       club_code: sourceClubCode,
       enabled: checked(values, 'enabled'),
+      courts: optional(values, 'courts'),
+      before_minutes: optional(values, 'before_minutes'),
+      after_minutes: optional(values, 'after_minutes'),
       interval_days: num(values, 'interval_days'),
     };
     await api.request(
@@ -276,6 +314,9 @@ export function SourcesPanel({
             team_name: item?.team_name ?? 'LSO COLOMBES',
             interval_days: String(item ? Math.ceil(days(item)) : 1),
             enabled: item?.enabled ?? true,
+            courts: setting(item?.courts),
+            before_minutes: setting(item?.before_minutes),
+            after_minutes: setting(item?.after_minutes),
             ...(!item ? initial : {}),
             club_code: item?.club_code ?? clubCode ?? '',
           }}
@@ -311,6 +352,7 @@ export function SourcesPanel({
               <p>
                 {source.season} · {source.entity} · {source.pool} · {days(source)} jour(s)
               </p>
+              <p>{settingsLabel(source)}</p>
               <Badge tone={source.enabled ? 'good' : ''}>
                 {source.enabled ? 'Activée' : 'Désactivée'}
               </Badge>

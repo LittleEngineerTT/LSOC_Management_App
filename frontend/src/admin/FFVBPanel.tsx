@@ -172,7 +172,7 @@ function MatchDefaults() {
       {notice && <Notice>{notice}</Notice>}
       {result.data && (
         <EntityForm
-          title="Réglages des futurs matchs à domicile"
+          title="Configuration par défaut des sources"
           fields={[
             {
               name: 'before_minutes',
@@ -216,13 +216,14 @@ function MatchDefaults() {
               signal,
             );
             setNotice(
-              'Réglages enregistrés pour les futurs matchs. Les matchs existants restent inchangés.',
+              'Configuration par défaut enregistrée. Elle s’appliquera aux prochains imports des sources sans réglage propre.',
             );
           }}
         >
           <p className="admin-hint">
-            Valeurs de démarrage : 75 minutes avant, 150 minutes après et 3 terrains. Les nouveaux
-            réglages s’appliquent uniquement aux futurs imports.
+            Valeurs de démarrage : 75 minutes avant, 150 minutes après et 3 terrains. Elles servent
+            aux sources sans réglage propre (Sources › Modifier), pour les matchs importés ensuite.
+            Les matchs existants restent inchangés.
           </p>
         </EntityForm>
       )}

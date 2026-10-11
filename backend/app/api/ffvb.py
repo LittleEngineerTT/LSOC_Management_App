@@ -33,7 +33,14 @@ from app.persistence.models import (
     User,
 )
 from app.services.events import lock_planning
-from app.services.ffvb import defaults, remap_venues, resolve, sync_source
+from app.services.ffvb import (
+    apply_source_settings,
+    defaults,
+    match_settings,
+    remap_venues,
+    resolve,
+    sync_source,
+)
 
 router = APIRouter(prefix="/ffvb", tags=["FFVB"])
 
@@ -161,9 +168,12 @@ def update_source(source_id: str, body: FFVBSourceInput, db: DB, actor: Admin) -
         raise HTTPException(
             409, "L’identité d’une source importée est immuable ; créer une nouvelle source"
         )
+    previous = match_settings(db, value)
     for key, item in body.model_dump().items():
         setattr(value, key, item)
     value.next_check_at = now()
+    db.flush()
+    apply_source_settings(db, value, previous, actor)
     return value
 
 

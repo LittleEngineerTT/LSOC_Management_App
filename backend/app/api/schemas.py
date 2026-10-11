@@ -448,6 +448,10 @@ class FFVBSourceInput(Input):
     team_name: str = Field(min_length=1, max_length=200)
     club_code: str = Field(pattern=r"^\d+$", max_length=30)
     enabled: bool = True
+    # Vide : la source suit la configuration par défaut des matchs.
+    before_minutes: int | None = Field(default=None, ge=0, le=1440)
+    after_minutes: int | None = Field(default=None, gt=0, le=1440)
+    courts: int | None = Field(default=None, gt=0, le=100)
     interval_minutes: int = Field(default=1440, ge=5, le=525600, deprecated=True)
     interval_days: int | None = Field(default=None, ge=1, le=365, exclude=True)
 
@@ -473,6 +477,9 @@ class FFVBSourceView(View):
     team_name: str
     club_code: str
     enabled: bool
+    before_minutes: int | None
+    after_minutes: int | None
+    courts: int | None
     interval_minutes: int
     interval_days: float
     next_check_at: datetime

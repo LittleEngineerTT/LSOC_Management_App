@@ -281,7 +281,15 @@ class EmailJob(Identity, Base):
 
 class FFVBSource(Identity, Base):
     __tablename__ = "ffvb_sources"
-    __table_args__ = (UniqueConstraint("team_id", "season"),)
+    __table_args__ = (
+        UniqueConstraint("team_id", "season"),
+        CheckConstraint(
+            "(before_minutes IS NULL OR before_minutes >= 0)"
+            " AND (after_minutes IS NULL OR after_minutes > 0)"
+            " AND (courts IS NULL OR courts > 0)",
+            name="ffvb_sources_match_settings_check",
+        ),
+    )
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), index=True)
     season: Mapped[str] = mapped_column(String(9))
     entity: Mapped[str] = mapped_column(String(30))
@@ -296,6 +304,10 @@ class FFVBSource(Identity, Base):
     )
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(200))
+    # Réglages des matchs de la source ; nul = configuration par défaut du club.
+    before_minutes: Mapped[int | None] = mapped_column(Integer)
+    after_minutes: Mapped[int | None] = mapped_column(Integer)
+    courts: Mapped[int | None] = mapped_column(Integer)
 
     @property
     def interval_days(self) -> float:
