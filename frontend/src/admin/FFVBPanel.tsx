@@ -70,6 +70,12 @@ function Mappings() {
           Associer un gymnase FFVB
         </button>
       </div>
+      <p className="admin-hint">
+        Les matchs reçus par le club (équipe à domicile commençant par « LSO COLOMBES ») sont
+        rattachés automatiquement au gymnase local de même nom. Une association n’est utile que si
+        le nom FFVB diffère du nom local. Accents et majuscules sont ignorés, et chaque changement
+        s’applique tout de suite aux matchs déjà importés.
+      </p>
       <LoadState result={result} />
       {editing && (
         <EntityForm

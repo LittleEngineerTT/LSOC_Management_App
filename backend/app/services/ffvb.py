@@ -17,6 +17,7 @@ from app.persistence.models import (
     FFVBMatchState,
     FFVBSource,
     GymMapping,
+    Gymnasium,
     Team,
     User,
 )
@@ -37,6 +38,63 @@ def defaults(db: Session) -> ClubSettings:
         db.add(value)
         db.flush()
     return value
+
+
+class Venues:
+    """Résolution du gymnase local d’un match FFVB.
+
+    Ordre : association FFVB explicite, puis gymnase local de même nom lorsque l’équipe qui
+    reçoit est du club (préfixe configuré). Les noms sont comparés sans accents ni casse.
+    """
+
+    def __init__(self, db: Session) -> None:
+        self.mapped = {
+            normalize(m.official_name): m.gymnasium_id for m in db.scalars(select(GymMapping))
+        }
+        self.local = {normalize(g.name): g.id for g in db.scalars(select(Gymnasium))}
+        self.prefix = normalize(settings.ffvb_home_prefix)
+
+    def club_hosts(self, home_team: str) -> bool:
+        return bool(self.prefix) and normalize(home_team).startswith(self.prefix)
+
+    def resolve(self, location: str, home_team: str, team_name: str) -> tuple[bool, str | None]:
+        club_hosts = self.club_hosts(home_team)
+        home = club_hosts or normalize(home_team) == normalize(team_name)
+        if not home:
+            return False, None
+        key = normalize(location)
+        gym = self.mapped.get(key)
+        if gym is None and club_hosts:
+            gym = self.local.get(key)
+        return True, gym
+
+
+def remap_venues(db: Session) -> int:
+    """Réapplique les gymnases aux matchs déjà importés ; renvoie le nombre de matchs changés."""
+    lock_planning(db)
+    venues = Venues(db)
+    changed = 0
+    for state in db.scalars(select(FFVBMatchState).order_by(FFVBMatchState.id)):
+        if state.disabled or (state.suspended_until is not None and state.suspended_until > now()):
+            continue
+        source = db.get(FFVBSource, state.source_id)
+        event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
+        if source is None or event is None:
+            continue
+        official = dict(state.official)
+        home, gym = venues.resolve(
+            str(official.get("location", "")),
+            str(official.get("home_team", "")),
+            source.team_name,
+        )
+        if official.get("gymnasium_id") == gym and official.get("home") == home:
+            continue
+        official["gymnasium_id"], official["home"] = gym, home
+        lock_gyms(db, [event.gymnasium_id, gym])
+        state.official = official
+        if apply_official(db, event, state, official):
+            changed += 1
+    return changed
 
 
 def official_value(event: Event, key: str) -> str | None:
@@ -183,7 +241,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     if referent is None or not referent.active:
         source.last_error = "Un référent actif doit être configuré sur l’équipe"
         return False
-    mapped = {normalize(m.official_name): m.gymnasium_id for m in db.scalars(select(GymMapping))}
+    venues = Venues(db)
     seen: set[str] = set()
     config = defaults(db)
     for match in matches:
@@ -202,7 +260,6 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
         if match.location is None and state is None:
             # Match déjà joué jamais importé : passé et sans lieu connu, il n’est pas créé.
             continue
-        home = normalize(match.home_team) == normalize(source.team_name)
         location = (
             match.location
             if match.location is not None
@@ -210,9 +267,10 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
             if state is not None
             else ""
         )
+        home, gym = venues.resolve(location, match.home_team, source.team_name)
         official: dict[str, Any] = {
             "kickoff_at": match.kickoff_at.isoformat(),
-            "gymnasium_id": mapped.get(normalize(location)) if home else None,
+            "gymnasium_id": gym,
             "location": location,
             "home_team": match.home_team,
             "away_team": match.away_team,

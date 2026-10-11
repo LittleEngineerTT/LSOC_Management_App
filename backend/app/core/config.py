@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     match_before_minutes: int = 75
     match_after_minutes: int = 150
     match_courts: int = 3
+    # Une rencontre dont l’équipe qui reçoit commence par ce nom se joue chez nous.
+    ffvb_home_prefix: str = "LSO COLOMBES"
 
     @model_validator(mode="after")
     def production(self) -> "Settings":

@@ -169,6 +169,8 @@ Configurer une fois le code du club avec `PUT /ffvb/club` (`{ "club_code": "0926
 }
 ```
 
+Gymnase local d’un match FFVB à domicile : l’association `/ffvb/gym-mappings` du nom officiel, sinon le gymnase local de même nom si l’équipe qui reçoit commence par `LSOC_FFVB_HOME_PREFIX` (« LSO COLOMBES » par défaut). Une telle rencontre compte comme jouée à domicile même si l’équipe suivie est l’équipe visiteuse. Les noms sont comparés sans accents, sans casse et à espaces près, et deux associations ne peuvent pas avoir la même clé (409). Créer, modifier ou supprimer une association, créer un gymnase ou en renommer un réapplique aussitôt ces règles aux matchs importés, sauf aux valeurs protégées par une modification locale, qui ouvrent un conflit.
+
 `POST /ffvb/sources/preview` accepte l’URL d’une poule ou d’une équipe, par exemple `…/vbspo_calendrier.php?saison=2026%2F2027&codent=LIIDF&poule=2MC&calend=COMPLET&equipe=9&x=6&y=9`. Avec `equipe`, seule cette équipe est proposée ; les autres paramètres sont ignorés. Les codes de match peuvent comporter une phase en lettres (`2MCA001`). Pour un match déjà joué, la FFVB affiche le score à la place du lieu : un match connu garde son lieu, un match joué jamais importé n’est pas créé.
 
 Association locale : `POST /ffvb/gym-mappings` avec `{"official_name":"GYMNASE AMBROISE PARE","gymnasium_id":"gymnasium-id"}`. Les autres sources restent configurables via l’API.

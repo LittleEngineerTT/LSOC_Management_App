@@ -33,7 +33,7 @@ from app.persistence.models import (
     User,
 )
 from app.services.events import lock_planning
-from app.services.ffvb import defaults, resolve, sync_source
+from app.services.ffvb import defaults, remap_venues, resolve, sync_source
 
 router = APIRouter(prefix="/ffvb", tags=["FFVB"])
 
@@ -184,9 +184,14 @@ def mappings(db: DB, actor: Admin) -> list[GymMapping]:
 def add_mapping(body: MappingInput, db: DB, actor: Admin) -> GymMapping:
     lock_planning(db)
     get(db, Gymnasium, body.gymnasium_id)
-    value = GymMapping(official_name=normalize(body.official_name), gymnasium_id=body.gymnasium_id)
+    key = normalize(body.official_name)
+    if any(normalize(m.official_name) == key for m in db.scalars(select(GymMapping))):
+        raise HTTPException(409, "Ce nom FFVB est déjà associé (accents et majuscules ignorés)")
+    value = GymMapping(official_name=key, gymnasium_id=body.gymnasium_id)
     db.add(value)
     db.flush()
+    # Les matchs déjà importés sont rattachés tout de suite, sans attendre la synchronisation.
+    remap_venues(db)
     return value
 
 
@@ -195,7 +200,15 @@ def edit_mapping(mapping_id: str, body: MappingInput, db: DB, actor: Admin) -> G
     lock_planning(db)
     get(db, Gymnasium, body.gymnasium_id)
     value = get(db, GymMapping, mapping_id)
-    value.official_name, value.gymnasium_id = normalize(body.official_name), body.gymnasium_id
+    key = normalize(body.official_name)
+    if any(
+        normalize(m.official_name) == key and m.id != mapping_id
+        for m in db.scalars(select(GymMapping))
+    ):
+        raise HTTPException(409, "Ce nom FFVB est déjà associé (accents et majuscules ignorés)")
+    value.official_name, value.gymnasium_id = key, body.gymnasium_id
+    db.flush()
+    remap_venues(db)
     return value
 
 
@@ -203,6 +216,8 @@ def edit_mapping(mapping_id: str, body: MappingInput, db: DB, actor: Admin) -> G
 def delete_mapping(mapping_id: str, db: DB, actor: Admin) -> None:
     lock_planning(db)
     db.delete(get(db, GymMapping, mapping_id))
+    db.flush()
+    remap_venues(db)
 
 
 @router.get("/matches", response_model=list[MatchView])

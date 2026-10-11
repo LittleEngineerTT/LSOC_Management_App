@@ -111,9 +111,13 @@ def gyms(db: DB, actor: Actor) -> list[Gymnasium]:
 
 @router.post("/gymnasiums", response_model=GymView, status_code=201)
 def create_gym(body: GymInput, db: DB, actor: Admin) -> Gymnasium:
+    from app.services.ffvb import remap_venues
+
     value = Gymnasium(**body.model_dump())
     db.add(value)
     db.flush()
+    # Un nouveau gymnase peut porter le nom d’un lieu FFVB de matchs à domicile.
+    remap_venues(db)
     return value
 
 
@@ -123,8 +127,14 @@ def update_gym(identifier: str, body: GymInput, db: DB, actor: Admin) -> Gymnasi
 
     lock_gyms(db, [identifier])
     value = get(db, Gymnasium, identifier)
+    renamed = value.name != body.name
     value.name, value.capacity = body.name, body.capacity
     db.flush()
+    if renamed:
+        from app.services.ffvb import remap_venues
+
+        # Le rattachement automatique des matchs à domicile dépend du nom du gymnase.
+        remap_venues(db)
     alert_capacity(db, identifier)
     return value
 

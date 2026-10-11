@@ -11,7 +11,10 @@ URL = "https://www.ffvbbeach.org/ffvbapp/resu/vbspo_calendrier.php"
 
 
 def normalize(value: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", value).upper().split())
+    """Clé de comparaison des noms FFVB : sans accents, sans casse, espaces réduits."""
+    decomposed = unicodedata.normalize("NFKD", value)
+    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(unicodedata.normalize("NFKC", bare).upper().split())
 
 
 @dataclass(frozen=True)
