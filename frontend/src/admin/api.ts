@@ -18,6 +18,7 @@ function errorMessage(status: number, detail: unknown): string {
       return 'La capacité du gymnase serait dépassée. Vérifiez les disponibilités ou confirmez explicitement le forçage.';
     if (detail.code === 'registration_full')
       return 'La séance est complète : la limite d’inscrits est atteinte.';
+    if (detail.code === 'no_courts' && 'message' in detail) return String(detail.message);
     if (detail.code === 'registration_closed' && 'message' in detail)
       return `Inscriptions fermées : ${String(detail.message).toLowerCase()}.`;
   }

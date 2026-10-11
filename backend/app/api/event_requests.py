@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
@@ -9,9 +9,13 @@ from app.api.schemas import CoachEventRequestInput, CoachEventRequestView, Decis
 from app.core.security import now
 from app.persistence.models import Assignment, CoachEventRequest, Event, Team, User
 from app.services.events import (
+    PARIS,
+    blocking,
     create_event,
     create_series_events,
     lock_planning,
+    no_court_left,
+    occurrences,
     series_days,
     validate_event,
 )
@@ -54,6 +58,41 @@ def coach_team(db: Session, actor: User, team_id: str) -> Team:
     return team
 
 
+def unavailability(db: Session, proposal: dict[str, object]) -> list[str]:
+    """Créneaux d’une proposition qu’une indisponibilité du gymnase priverait de terrains."""
+    gym = proposal.get("gymnasium_id")
+    courts = int(str(proposal.get("courts") or 0))
+    if not isinstance(gym, str) or courts <= 0:
+        return []
+    until = proposal.get("until")
+    weekdays = proposal.get("weekdays")
+    try:
+        slots = occurrences(
+            datetime.fromisoformat(str(proposal["starts_at"])),
+            datetime.fromisoformat(str(proposal["ends_at"])),
+            date.fromisoformat(str(until)) if until else None,
+            [int(day) for day in weekdays] if isinstance(weekdays, list) else None,
+        )
+    except (HTTPException, KeyError, ValueError):
+        return []
+    result = []
+    for start, end in slots:
+        # Événement transitoire, jamais ajouté à la session : il sert seulement au calcul.
+        probe = Event(gymnasium_id=gym, starts_at=start, ends_at=end, courts=courts)
+        probe.cancelled = False
+        block = blocking(db, probe)
+        if block is not None:
+            result.append(f"{start.astimezone(PARIS):%d/%m/%Y} : {block.title}")
+    return result
+
+
+def view(db: Session, value: CoachEventRequest) -> CoachEventRequestView:
+    result = CoachEventRequestView.model_validate(value)
+    if value.status == "pending":
+        result.unavailability = unavailability(db, value.proposal)
+    return result
+
+
 @router.post("/event-requests", response_model=CoachEventRequestView, status_code=201)
 def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventRequest:
     lock_planning(db)
@@ -77,6 +116,21 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
         stored |= {"until": body.until.isoformat(), "weekdays": sorted(body.weekdays or [])}
     elif body.weekdays:
         raise HTTPException(422, "Indiquez la fin de la récurrence")
+    # Gymnase déjà entièrement occupé par d’autres événements : refus immédiat au demandeur.
+    if proposal.gymnasium_id and proposal.courts > 0:
+        for start, end in occurrences(
+            proposal.starts_at, proposal.ends_at, body.until, body.weekdays
+        ):
+            if no_court_left(db, proposal.gymnasium_id, start, end):
+                local = start.astimezone(PARIS)
+                raise HTTPException(
+                    409,
+                    {
+                        "code": "no_courts",
+                        "message": f"Aucun terrain disponible le {local:%d/%m/%Y à %H:%M}. "
+                        "Choisissez un autre créneau ou un autre gymnase.",
+                    },
+                )
     value = CoachEventRequest(
         team_id=team.id,
         actor_id=actor.id,
@@ -112,27 +166,28 @@ def requests(
     status: str | None = "pending",
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> list[CoachEventRequest]:
+) -> list[CoachEventRequestView]:
     query = select(CoachEventRequest)
     if "admin" not in actor.roles:
         query = query.where(CoachEventRequest.actor_id == actor.id)
     if status:
         query = query.where(CoachEventRequest.status == status)
-    return list(
-        db.scalars(
+    return [
+        view(db, value)
+        for value in db.scalars(
             query.order_by(CoachEventRequest.created_at, CoachEventRequest.id)
             .offset(offset)
             .limit(limit)
         )
-    )
+    ]
 
 
 @router.get("/event-requests/{request_id}", response_model=CoachEventRequestView)
-def detail(request_id: str, db: DB, actor: Actor) -> CoachEventRequest:
+def detail(request_id: str, db: DB, actor: Actor) -> CoachEventRequestView:
     value = get(db, CoachEventRequest, request_id)
     if "admin" not in actor.roles and value.actor_id != actor.id:
         raise HTTPException(403, "Demande privée")
-    return value
+    return view(db, value)
 
 
 @router.post("/event-requests/{request_id}/decision", response_model=CoachEventRequestView)

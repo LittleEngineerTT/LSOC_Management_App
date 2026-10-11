@@ -7,6 +7,22 @@ import { dateLabel } from './time';
 import type { EventRequest } from './types';
 import { Badge, checked, Empty, EntityForm, LoadState, Notice, str } from './ui';
 
+/** Avertissement seul : l’acceptation reste possible, l’événement sera créé annulé. */
+function UnavailabilityWarning({ request }: { request: EventRequest }) {
+  if (!request.unavailability?.length) return null;
+  return (
+    <div className="admin-warning club-wide" role="note">
+      <strong>Gymnase indisponible sur ce créneau.</strong> Si vous acceptez, l’événement sera créé
+      annulé et ses participants prévenus :
+      <ul>
+        {request.unavailability.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function EventRequestsPanel({ status }: { status: string }) {
   const { api, catalog } = useAdmin();
   const result = useResource<EventRequest>(`/event-requests?status=${status}`, true);
@@ -52,6 +68,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
               name: 'force',
               label: 'Confirmer le dépassement de capacité si nécessaire',
               type: 'checkbox',
+              hint: 'Seulement si d’autres événements occupent déjà une partie des terrains. Une indisponibilité ne demande pas de confirmation.',
             },
           ]}
           initial={{ accept: '', reason: '', force: false }}
@@ -74,6 +91,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
             result.reload();
           }}
         >
+          <UnavailabilityWarning request={decision} />
           <h4>Proposition : {decision.proposal.title}</h4>
           <Changes values={decision.proposal} />
           {decision.note && <p className="club-wide">Commentaire : {decision.note}</p>}
@@ -122,6 +140,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
                 </button>
               )}
             </div>
+            <UnavailabilityWarning request={item} />
             <Changes values={item.proposal} />
             {item.note && <p>{item.note}</p>}
             {item.decided_at && (

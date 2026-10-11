@@ -298,6 +298,40 @@ def series_days(start: datetime, until: date, weekdays: list[int] | None) -> lis
     return days
 
 
+def occurrences(
+    starts_at: datetime, ends_at: datetime, until: date | None, weekdays: list[int] | None
+) -> list[tuple[datetime, datetime]]:
+    """Créneaux d’un événement, ou de chaque occurrence de sa série (heure de Paris conservée)."""
+    if until is None:
+        return [(starts_at, ends_at)]
+    start = starts_at.astimezone(PARIS)
+    end = ends_at.astimezone(PARIS)
+    span = (end.date() - start.date()).days
+    result = []
+    for day in series_days(start, until, weekdays):
+        cursor = datetime.combine(day, time(), tzinfo=PARIS)
+        result.append((wall_time(start, cursor), wall_time(end, cursor + timedelta(days=span))))
+    return result
+
+
+def no_court_left(db: Session, gym_id: str, start: datetime, end: datetime) -> bool:
+    """Les autres événements occupent tous les terrains à un moment du créneau.
+
+    Les indisponibilités sont exclues : elles annulent l’événement au lieu de le refuser.
+    """
+    gym = get(db, Gymnasium, gym_id)
+    events = db.scalars(
+        select(Event).where(
+            Event.gymnasium_id == gym_id,
+            Event.cancelled.is_(False),
+            Event.starts_at < end,
+            Event.ends_at > start,
+        )
+    )
+    reservations = [(e.starts_at, e.ends_at, e.courts) for e in events]
+    return any(s.available == 0 for s in capacity_segments(gym.capacity, start, end, reservations))
+
+
 def create_series_events(
     db: Session,
     template: EventInput,

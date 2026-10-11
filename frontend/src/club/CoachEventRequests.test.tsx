@@ -416,3 +416,24 @@ it('l’administrateur désigne plusieurs équipes organisatrices sans cocher de
   await waitFor(() => expect(mutations).toHaveLength(1));
   expect(mutations[0]).toMatchObject({ path: '/events', body: { section_ids: [], team_ids: ['t1', 't3'] } });
 });
+
+it('refuse au coach une demande sur un gymnase déjà complet, avec le message du serveur', async () => {
+  mutation = () =>
+    reply({ detail: { code: 'no_courts', message: 'Aucun terrain disponible le 15/10/2026 à 18:00. Choisissez un autre créneau ou un autre gymnase.' } }, 409);
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Équipes organisatrices' })).getByLabelText('Loisir 1'));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Séance');
+  await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
+  await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
+  expect(await screen.findByText(/Aucun terrain disponible le 15\/10\/2026 à 18:00/)).toBeInTheDocument();
+});
+
+it('avertit l’administrateur d’une demande sur une indisponibilité, sans exiger de forçage', async () => {
+  account = admin;
+  routes['/event-requests'] = [{ ...pending, unavailability: ['15/10/2026 : Travaux'] }];
+  open('/app/administration?tab=requests&type=events');
+  const warning = await screen.findByRole('note');
+  expect(warning).toHaveTextContent('Gymnase indisponible sur ce créneau.');
+  expect(warning).toHaveTextContent('15/10/2026 : Travaux');
+});

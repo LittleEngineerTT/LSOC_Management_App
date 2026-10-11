@@ -45,3 +45,47 @@ def test_event_created_on_unavailability_is_cancelled_instead_of_refused(admin: 
     other_day = payload(section, gym, start='2026-10-16T18:00:00+02:00', end='2026-10-16T20:00:00+02:00', courts=2)
     assert admin.post('/api/v1/events', json=other_day).status_code == 201
     assert admin.post('/api/v1/events', json=other_day).status_code == 409
+
+
+def coach_request(admin: TestClient, capacity: int) -> tuple[TestClient, str, dict[str, object]]:
+    section, gym = setup_planning(admin, capacity=capacity)
+    team = admin.post('/api/v1/teams', json={'name': 'Loisir 1', 'section_id': section}).json()['id']
+    add_user('coach', ['coach'])
+    assert admin.post('/api/v1/users/coach/assignments', json={'team_id': team, 'kind': 'coach'}).status_code == 201
+    body: dict[str, object] = {'team_id': team, 'title': 'Séance', 'kind': 'training', 'starts_at': '2026-10-15T18:00:00+02:00', 'ends_at': '2026-10-15T20:00:00+02:00', 'gymnasium_id': gym, 'courts': 2}
+    return login('coach'), gym, body | {'section': section}
+
+
+def test_request_on_a_full_gym_is_refused_to_its_author(admin: TestClient) -> None:
+    coach, gym, body = coach_request(admin, capacity=2)
+    section = str(body.pop('section'))
+    assert admin.post('/api/v1/events', json=payload(section, gym, courts=2)).status_code == 201
+    refused = coach.post('/api/v1/event-requests', json=body)
+    assert refused.status_code == 409
+    assert refused.json()['detail']['code'] == 'no_courts'
+    assert '15/10/2026 à 18:00' in refused.json()['detail']['message']
+
+
+def test_request_on_unavailability_only_warns_the_admin(admin: TestClient) -> None:
+    coach, gym, body = coach_request(admin, capacity=3)
+    body.pop('section')
+    assert admin.post('/api/v1/availability-blocks', json=BLOCK | {'gymnasium_id': gym, 'courts': 3}).status_code == 201
+    request = coach.post('/api/v1/event-requests', json=body)
+    assert request.status_code == 201, request.text
+    pending = admin.get('/api/v1/event-requests').json()[0]
+    assert pending['unavailability'] == ['15/10/2026 : Travaux']
+    accepted = admin.post(f"/api/v1/event-requests/{pending['id']}/decision", json={'accept': True})
+    assert accepted.status_code == 200, accepted.text
+    assert admin.get(f"/api/v1/events/{accepted.json()['event_id']}").json()['cancelled'] is True
+
+
+def test_partial_overbooking_still_asks_the_admin_to_force(admin: TestClient) -> None:
+    coach, gym, body = coach_request(admin, capacity=3)
+    section = str(body.pop('section'))
+    assert admin.post('/api/v1/events', json=payload(section, gym, courts=2)).status_code == 201
+    request = coach.post('/api/v1/event-requests', json=body)
+    assert request.status_code == 201, request.text
+    assert request.json()['unavailability'] == []
+    decision = f"/api/v1/event-requests/{request.json()['id']}/decision"
+    assert admin.post(decision, json={'accept': True}).status_code == 409
+    assert admin.post(decision, json={'accept': True, 'force': True}).status_code == 200

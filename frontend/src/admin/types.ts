@@ -189,6 +189,8 @@ export interface EventProposal extends Record<string, unknown> {
 }
 export interface EventRequest {
   id: string;
+  /** Demande en attente : créneaux sur une indisponibilité du gymnase (« jj/mm/aaaa : motif »). */
+  unavailability?: string[];
   team_id: string | null;
   actor_id: string | null;
   actor_name: string;

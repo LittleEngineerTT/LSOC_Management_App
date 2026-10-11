@@ -381,6 +381,8 @@ class CoachEventRequestInput(Interval):
 class CoachEventRequestView(View):
     id: str
     team_id: str | None
+    # Demande en attente : créneaux tombant sur une indisponibilité (l’événement serait annulé).
+    unavailability: list[str] = Field(default_factory=list)
     actor_id: str | None
     actor_name: str
     proposal: dict[str, object]
