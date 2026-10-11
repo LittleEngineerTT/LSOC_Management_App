@@ -169,6 +169,8 @@ Configurer une fois le code du club avec `PUT /ffvb/club` (`{ "club_code": "0926
 }
 ```
 
+`POST /ffvb/sources/preview` accepte l’URL d’une poule ou d’une équipe, par exemple `…/vbspo_calendrier.php?saison=2026%2F2027&codent=LIIDF&poule=2MC&calend=COMPLET&equipe=9&x=6&y=9`. Avec `equipe`, seule cette équipe est proposée ; les autres paramètres sont ignorés. Les codes de match peuvent comporter une phase en lettres (`2MCA001`). Pour un match déjà joué, la FFVB affiche le score à la place du lieu : un match connu garde son lieu, un match joué jamais importé n’est pas créé.
+
 Association locale : `POST /ffvb/gym-mappings` avec `{"official_name":"GYMNASE AMBROISE PARE","gymnasium_id":"gymnasium-id"}`. Les autres sources restent configurables via l’API.
 
 | Routes | Usage |

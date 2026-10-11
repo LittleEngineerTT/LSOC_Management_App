@@ -20,7 +20,8 @@ class Match:
     kickoff_at: datetime
     home_team: str
     away_team: str
-    location: str
+    # Absent d’un match déjà joué : la FFVB affiche alors le score à la place du lieu.
+    location: str | None
 
 
 def fetch(client: httpx.Client, season: str, entity: str, pool: str) -> bytes:
@@ -51,7 +52,8 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
         if first is None:
             continue
         code = first.get_text(" ", strip=True)
-        if re.fullmatch(re.escape(pool) + r"\d+", code) is None:
+        # Codes « BRC007 » ou, selon les poules, avec une phase en lettres : « 2MCA001 ».
+        if re.fullmatch(re.escape(pool) + r"[A-Z]*\d+", code) is None:
             continue
         found_calendar = True
         cells = row.find_all("td")
@@ -70,7 +72,13 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
             raise ValueError(f"Horaires FFVB inexploitables pour {code}") from exc
         if kickoff.year not in {int(year) for year in season.split("/")}:
             raise ValueError("Date FFVB hors saison")
-        matches.append(Match(code, kickoff.astimezone(UTC), home, away, values[7]))
+        played = (
+            len(values) >= 9
+            and all(re.fullmatch(r"\d+", value) for value in values[6:8])
+            and re.search(r"\d+:\d+", values[8]) is not None
+        )
+        location = None if played else values[7]
+        matches.append(Match(code, kickoff.astimezone(UTC), home, away, location))
     if not found_calendar:
         raise ValueError("Calendrier FFVB introuvable")
     return matches

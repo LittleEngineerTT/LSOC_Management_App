@@ -50,7 +50,9 @@ def club_candidates(
         for tag in row.find_all(["td", "input"]):
             if tag.name == "td" and "liengris_pt" in tag.get("class", []):
                 label = tag.get_text(" ", strip=True)
-                if label and not label.isdigit():
+                # Le classement mêle nom, rang (« 5. ») et ratios (« 0.936 ») : seul le nom
+                # contient des lettres.
+                if re.search(r"[^\W\d_]", label):
                     name = label
             elif tag.name == "input" and tag.get("name") == "equipe":
                 number = str(tag.get("value", ""))

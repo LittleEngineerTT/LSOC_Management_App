@@ -199,11 +199,21 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
             state.disabled or (state.suspended_until is not None and state.suspended_until > now())
         ):
             continue
+        if match.location is None and state is None:
+            # Match déjà joué jamais importé : passé et sans lieu connu, il n’est pas créé.
+            continue
         home = normalize(match.home_team) == normalize(source.team_name)
+        location = (
+            match.location
+            if match.location is not None
+            else str(state.official.get("location", ""))
+            if state is not None
+            else ""
+        )
         official: dict[str, Any] = {
             "kickoff_at": match.kickoff_at.isoformat(),
-            "gymnasium_id": mapped.get(normalize(match.location)) if home else None,
-            "location": match.location,
+            "gymnasium_id": mapped.get(normalize(location)) if home else None,
+            "location": location,
             "home_team": match.home_team,
             "away_team": match.away_team,
             "home": home,
@@ -224,7 +234,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                 kind="match",
                 section_ids=[team.section_id],
                 gymnasium_id=official["gymnasium_id"],
-                location=match.location,
+                location=location,
                 starts_at=match.kickoff_at,
                 ends_at=match.kickoff_at + timedelta(minutes=config.after_minutes),
                 courts=config.courts if official["gymnasium_id"] else 0,
