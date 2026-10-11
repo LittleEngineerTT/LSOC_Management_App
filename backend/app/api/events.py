@@ -31,8 +31,9 @@ from app.persistence.models import (
 )
 from app.services.events import (
     PARIS,
-    alert_capacity,
+    apply_unavailability,
     availability,
+    cancel_if_blocked,
     change_event,
     check_capacity,
     create_event,
@@ -326,7 +327,7 @@ def update_series(series_id: str, body: SeriesChange, db: DB, actor: Actor) -> l
     db.flush()
     conflicts = []
     for event in result:
-        if event.cancelled or not event.gymnasium_id:
+        if cancel_if_blocked(db, event, actor) or event.cancelled or not event.gymnasium_id:
             continue
         segments = [
             segment.model_dump(mode="json")
@@ -374,7 +375,7 @@ def create_block(body: BlockInput, db: DB, actor: Admin) -> AvailabilityBlock:
     value = AvailabilityBlock(**body.model_dump())
     db.add(value)
     db.flush()
-    alert_capacity(db, body.gymnasium_id)
+    apply_unavailability(db, value, actor)
     return value
 
 
@@ -386,7 +387,7 @@ def update_block(block_id: str, body: BlockInput, db: DB, actor: Admin) -> Avail
     for key, item in body.model_dump().items():
         setattr(value, key, item)
     db.flush()
-    alert_capacity(db, body.gymnasium_id)
+    apply_unavailability(db, value, actor)
     return value
 
 

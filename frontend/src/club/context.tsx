@@ -61,6 +61,8 @@ interface ClubContextValue extends Club {
   api: AdminApi;
   account: Account;
   admin: boolean;
+  /** Visite sans compte : seuls les matchs FFVB et les noms publics sont chargés. */
+  guest: boolean;
   reload: () => void;
   setFollows: (follows: Follow[]) => void;
 }
@@ -117,6 +119,7 @@ export function ClubProvider({ account, children }: { account: Account; children
         api,
         account,
         admin,
+        guest: false,
         reload: () => {
           setFollows(null);
           result.reload();
@@ -135,6 +138,79 @@ export function ClubProvider({ account, children }: { account: Account; children
         )}
         {children}
       </div>
+    </ClubContext.Provider>
+  );
+}
+
+/** Compte fictif des invités : aucun rôle, aucun identifiant réel. */
+export const guestAccount: Account = {
+  id: '',
+  username: null,
+  first_name: 'Invité',
+  category: '',
+  roles: [],
+  active: true,
+  email: null,
+  messaging_allowed: false,
+  followed_email: false,
+  referent_email: false,
+  admin_email: false,
+};
+
+/** Contexte club d’un invité, lu sur l’API publique : sections, équipes et noms des gymnases. */
+export function GuestClubProvider({ children }: { children: ReactNode }) {
+  const { csrfToken, clear } = useSession();
+  const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
+  const loader = useCallback(
+    async (signal: AbortSignal) => {
+      const [sections, teams, gymnasiums] = await Promise.all([
+        api.list<Section>('/public/sections', false, signal),
+        api.list<Pick<Team, 'id' | 'name' | 'section_id'>>('/public/teams', false, signal),
+        api.list<Pick<Gymnasium, 'id' | 'name'>>('/public/gymnasiums', false, signal),
+      ]);
+      return {
+        sections,
+        // Ni référent ni capacité ne sont publics ; aucune page invité ne les lit.
+        teams: teams.map((team) => ({ ...team, referent_id: null })),
+        gymnasiums: gymnasiums.map((gym) => ({ ...gym, capacity: 0 })),
+      };
+    },
+    [api],
+  );
+  const result = useLoad(loader);
+  if (!result.data)
+    return (
+      <div className="administration club">
+        {result.error ? (
+          <div className="admin-notice" role="alert">
+            {result.error}
+            <button className="admin-button" onClick={result.reload}>
+              Réessayer
+            </button>
+          </div>
+        ) : (
+          <p className="admin-loading" role="status">
+            Chargement…
+          </p>
+        )}
+      </div>
+    );
+  return (
+    <ClubContext.Provider
+      value={{
+        ...result.data,
+        follows: [],
+        assignments: [],
+        users: [],
+        api,
+        account: guestAccount,
+        admin: false,
+        guest: true,
+        reload: result.reload,
+        setFollows: () => undefined,
+      }}
+    >
+      <div className="administration club">{children}</div>
     </ClubContext.Provider>
   );
 }

@@ -204,11 +204,21 @@
   overflow-wrap: anywhere;
 }
 .calendar-event.cancelled {
+  border-color: #c62828;
   border-style: dashed;
-  background: #f5f5f5;
+  background: #fdecea;
+  color: #b71c1c;
 }
 .calendar-event.cancelled strong {
   text-decoration: line-through;
+}
+.calendar-cancelled {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #c62828;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .calendar-time-event {
   position: absolute;

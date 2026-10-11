@@ -91,8 +91,12 @@ export function EventRequestsPanel({ status }: { status: string }) {
                 <h3>{item.proposal.title}</h3>
                 <p>
                   Demande de {item.actor_name} ·{' '}
-                  {catalog.teams.find((team) => team.id === item.team_id)?.name ??
-                    'Équipe supprimée'}{' '}
+                  {(item.proposal.team_ids ?? [item.team_id])
+                    .map(
+                      (id) =>
+                        catalog.teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée',
+                    )
+                    .join(', ')}{' '}
                   · {dateLabel(item.created_at)}
                 </p>
                 <Badge>

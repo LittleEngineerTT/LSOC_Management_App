@@ -4,6 +4,9 @@ import { ApiError, authApi, csrfCookie, type Account, type LoginResult } from '.
 
 interface Session {
   account: Account | null;
+  /** Visite sans compte : accueil et matchs FFVB uniquement. Ignoré une fois connecté. */
+  guest: boolean;
+  continueAsGuest: () => void;
   state: 'idle' | 'loading' | 'ready' | 'error';
   error: string;
   retry: () => void;
@@ -14,6 +17,24 @@ interface Session {
 }
 const SessionContext = createContext<Session | null>(null);
 
+// Le choix « invité » vaut pour l’onglet : il survit à un rechargement, pas à la fermeture.
+const GUEST_KEY = 'lsoc_guest';
+function storedGuest() {
+  try {
+    return window.sessionStorage.getItem(GUEST_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function storeGuest(value: boolean) {
+  try {
+    if (value) window.sessionStorage.setItem(GUEST_KEY, '1');
+    else window.sessionStorage.removeItem(GUEST_KEY);
+  } catch {
+    // Stockage indisponible (navigation privée…) : le mode invité dure jusqu’au rechargement.
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const needsSession =
@@ -21,6 +42,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     location.pathname === '/login' ||
     location.pathname.startsWith('/app');
   const [account, setAccount] = useState<Account | null>(null);
+  const [guest, setGuest] = useState(storedGuest);
   const [csrf, setCsrf] = useState<string>();
   const [state, setState] = useState<Session['state']>('idle');
   const [error, setError] = useState('');
@@ -56,7 +78,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setCsrf(undefined);
     setState('ready');
   }, []);
+  const continueAsGuest = useCallback(() => {
+    storeGuest(true);
+    setGuest(true);
+  }, []);
   const connected = useCallback((result: LoginResult) => {
+    storeGuest(false);
+    setGuest(false);
     setAccount(result.user);
     setCsrf(result.csrf_token);
     setState('ready');
@@ -81,7 +109,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
   return (
     <SessionContext.Provider
-      value={{ account, state, error, retry, connected, clear, csrfToken, logout }}
+      value={{
+        account,
+        guest,
+        continueAsGuest,
+        state,
+        error,
+        retry,
+        connected,
+        clear,
+        csrfToken,
+        logout,
+      }}
     >
       {children}
     </SessionContext.Provider>

@@ -192,7 +192,7 @@ function CalendarEvent({
     >
       <span className="calendar-event-meta">
         <EventOrigin event={event} />
-        {event.cancelled && <span>Annulé</span>}
+        {event.cancelled && <span className="calendar-cancelled">Annulé</span>}
       </span>
       <strong>{event.title}</strong>
       <span className="calendar-event-hours">{timeRange(event.starts_at, event.ends_at)}</span>

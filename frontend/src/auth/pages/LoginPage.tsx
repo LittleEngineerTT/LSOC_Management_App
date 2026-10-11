@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/auth';
 import { ErrorNotice, Field, Heading, Icon, SessionStatus, Submit } from '../components';
 import { useSession } from '../session';
@@ -9,6 +9,7 @@ import { validUsername } from '../validation';
 export function LoginPage() {
   const session = useSession();
   const request = useRequest();
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({ username: '', password: '' });
@@ -67,6 +68,20 @@ export function LoginPage() {
           Se connecter
         </Submit>
       </form>
+      <div className="guest-access">
+        <span>Pas encore de compte ?</span>
+        <button
+          type="button"
+          className="guest-button"
+          onClick={() => {
+            session.continueAsGuest();
+            navigate('/app');
+          }}
+        >
+          Continuer en tant qu’invité
+        </button>
+        <p>Accès limité à l’accueil et aux matchs FFVB du club.</p>
+      </div>
       <div className="invitation-note">
         <span className="note-icon">
           <Icon name="shield" />

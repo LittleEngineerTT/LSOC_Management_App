@@ -145,16 +145,13 @@ afterEach(() => {
   document.cookie = 'lsoc_csrf=; Max-Age=0; path=/';
 });
 
-it('dépose une demande pour une seule équipe coachée, avec ouverture ciblée et sans créer un événement', async () => {
+it('dépose une demande pour plusieurs équipes coachées, avec ouverture ciblée et sans créer un événement', async () => {
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
-  const team = screen.getByLabelText('Équipe organisatrice');
-  expect(
-    within(team)
-      .getAllByRole('option')
-      .map((option) => option.textContent),
-  ).toEqual(['Choisir…', 'Loisir 1', 'Loisir 2']);
-  await userEvent.selectOptions(team, 't2');
+  const teams = screen.getByRole('group', { name: 'Équipes organisatrices' });
+  expect(within(teams).getAllByRole('checkbox').map((box) => box.parentElement?.textContent)).toEqual(['Loisir 1', 'Loisir 2']);
+  await userEvent.click(within(teams).getByLabelText('Loisir 2'));
+  await userEvent.click(within(teams).getByLabelText('Loisir 1'));
   await userEvent.type(screen.getByLabelText('Titre'), 'Stage interéquipes');
   await userEvent.type(screen.getByLabelText('Lieu extérieur'), 'Parc');
   await userEvent.click(
@@ -178,7 +175,8 @@ it('dépose une demande pour une seule équipe coachée, avec ouverture ciblée 
     {
       path: '/event-requests',
       body: {
-        team_id: 't2',
+        team_id: 't1',
+        team_ids: ['t2'],
         title: 'Stage interéquipes',
         description: 'Ateliers puis matchs.',
         kind: 'training',
@@ -368,7 +366,7 @@ it('un coach sans rattachement coach voit le bouton et apprend comment obtenir c
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(/référent d’une équipe ou y être rattaché comme coach/);
-  expect(screen.queryByLabelText('Équipe organisatrice')).not.toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: 'Équipes organisatrices' })).not.toBeInTheDocument();
 });
 
 it('un adhérent référent d’une équipe, sans rôle coach, peut demander un événement pour cette équipe', async () => {
@@ -380,17 +378,16 @@ it('un adhérent référent d’une équipe, sans rôle coach, peut demander un 
   ];
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
-  const team = await screen.findByLabelText('Équipe organisatrice');
-  expect(within(team).getAllByRole('option').map((option) => option.textContent)).toEqual([
-    'Choisir…',
-    'Loisir 2',
-  ]);
+  const teams = await screen.findByRole('group', { name: 'Équipes organisatrices' });
+  // Seule équipe possible : elle est cochée d’office.
+  expect(within(teams).getAllByRole('checkbox')).toHaveLength(1);
+  expect(within(teams).getByLabelText('Loisir 2')).toBeChecked();
 });
 
 it('un coach propose un entraînement récurrent par jours et heures', async () => {
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
-  await userEvent.selectOptions(screen.getByLabelText('Équipe organisatrice'), 't1');
+  await userEvent.click(within(screen.getByRole('group', { name: 'Équipes organisatrices' })).getByLabelText('Loisir 1'));
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement jeunes');
   await userEvent.type(screen.getByLabelText('Lieu extérieur'), 'Parc');
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
@@ -402,6 +399,20 @@ it('un coach propose un entraînement récurrent par jours et heures', async () 
   expect(await screen.findByText(/Demande envoyée aux administrateurs/)).toBeInTheDocument();
   expect(mutations[0]).toMatchObject({
     path: '/event-requests',
-    body: { team_id: 't1', weekdays: [1, 3], until: nextJuly31() },
+    body: { team_id: 't1', team_ids: [], weekdays: [1, 3], until: nextJuly31() },
   });
+});
+
+it('l’administrateur désigne plusieurs équipes organisatrices sans cocher de section', async () => {
+  account = admin;
+  mutation = () => reply(event, 201);
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Tournoi interne');
+  const teams = screen.getByRole('group', { name: 'Équipes organisatrices' });
+  await userEvent.click(within(teams).getByLabelText('Loisir 1'));
+  await userEvent.click(within(teams).getByLabelText('Compétition 1'));
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0]).toMatchObject({ path: '/events', body: { section_ids: [], team_ids: ['t1', 't3'] } });
 });

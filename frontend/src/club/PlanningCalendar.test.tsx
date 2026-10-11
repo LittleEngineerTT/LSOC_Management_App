@@ -81,3 +81,13 @@ it('passe au mois avec les bornes complètes du calendrier et navigue entre les 
   await userEvent.click(screen.getByRole('button', { name: /Mois suivant/ }));
   expect(screen.getByText('Novembre 2026')).toBeInTheDocument();
 });
+
+it('affiche par défaut un événement annulé, en rouge avec la mention Annulé', async () => {
+  const fetchMock = open('/app/planning?semaine=2026-10-12', [{ ...events[0]!, cancelled: true }]);
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  const event = await within(calendar).findByRole('link', { name: /Entraînement local.*annulé/ });
+  expect(event).toHaveClass('cancelled');
+  expect(within(event).getByText('Annulé')).toHaveClass('calendar-cancelled');
+  expect(screen.getByLabelText('Afficher les annulations')).toBeChecked();
+  expect(fetchMock.mock.calls.some(([input]) => String(input).includes('include_cancelled=true'))).toBe(true);
+});

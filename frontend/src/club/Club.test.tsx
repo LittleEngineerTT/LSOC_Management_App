@@ -34,7 +34,7 @@ beforeEach(() => {
     '/users/a1/assignments': [],
     '/users': [admin, member],
     '/events': [training],
-    '/events/e1': training,
+    '/events/e1': { ...training, team_ids: ['t1'] },
     '/profiles/a1': { id: 'a1', first_name: 'Alix', category: 'adult' },
   };
   document.cookie = 'lsoc_csrf=csrf; path=/';
@@ -58,6 +58,7 @@ it('affiche la semaine, ouvre le détail, suit l’événement et pose une quest
   await userEvent.click(await screen.findByRole('link', { name: /Entraînement loisir/ }));
   const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   expect(within(dialog).getByText('Gymnase Ambroise Paré')).toBeInTheDocument();
+  expect(within(dialog).getByText('Équipes organisatrices').nextElementSibling).toHaveTextContent('Loisir 1');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Suivre l’événement' }));
   expect(await within(dialog).findByRole('button', { name: 'Ne plus suivre' })).toHaveAttribute('aria-pressed', 'true');
   await userEvent.type(within(dialog).getByLabelText('Poser une question aux administrateurs'), 'Faut-il apporter un ballon ?');

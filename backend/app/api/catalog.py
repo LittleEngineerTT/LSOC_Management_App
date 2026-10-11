@@ -92,8 +92,13 @@ def delete_team(identifier: str, db: DB, actor: Admin) -> None:
     from app.services.events import lock_planning
 
     lock_planning(db)
-    if any(identifier in e.registration_team_ids for e in db.scalars(select(Event))):
+    events = list(db.scalars(select(Event)))
+    if any(identifier in e.registration_team_ids for e in events):
         raise HTTPException(409, "Équipe utilisée par des inscriptions d’événements")
+    # Les événements restent ; l’équipe disparaît seulement de leurs organisatrices.
+    for event in events:
+        if identifier in event.team_ids:
+            event.team_ids = [value for value in event.team_ids if value != identifier]
     db.delete(get(db, Team, identifier))
 
 

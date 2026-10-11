@@ -366,6 +366,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                 title=f"{match.home_team} / {match.away_team}"[:200],
                 kind="match",
                 section_ids=[team.section_id],
+                team_ids=[team.id],
                 gymnasium_id=official["gymnasium_id"],
                 location=location,
                 starts_at=match.kickoff_at,

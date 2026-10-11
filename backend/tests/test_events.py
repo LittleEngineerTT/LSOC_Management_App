@@ -79,9 +79,12 @@ def test_availability_block_and_restore(admin: TestClient) -> None:
     event = admin.post('/api/v1/events',json=payload(section,gym)).json()
     block = admin.post('/api/v1/availability-blocks',json={'gymnasium_id':gym,'title':'Travaux','courts':2,'starts_at':'2026-10-15T19:00:00+02:00','ends_at':'2026-10-15T21:00:00+02:00'})
     assert block.status_code == 201
-    assert any(n['kind']=='capacity_conflict' for n in admin.get('/api/v1/notifications').json())
+    # L’indisponibilité l’emporte : l’événement est annulé et son référent prévenu.
+    cancelled=admin.get(f"/api/v1/events/{event['id']}").json()
+    assert cancelled['cancelled'] is True and cancelled['version']==2
+    assert any(n['kind']=='event_cancelled' for n in admin.get('/api/v1/notifications').json())
     assert admin.delete(f"/api/v1/availability-blocks/{block.json()['id']}").status_code == 204
-    updated=admin.patch(f"/api/v1/events/{event['id']}",json={'base_version':1,'changes':{'title':'Modifié'}})
+    updated=admin.patch(f"/api/v1/events/{event['id']}",json={'base_version':2,'changes':{'title':'Modifié'}})
     assert updated.status_code==200
     revision=admin.get(f"/api/v1/events/{event['id']}/history").json()[-1]
-    assert admin.post(f"/api/v1/events/{event['id']}/history/{revision['id']}/restore",json={'base_version':2,'fields':['title']}).json()['title']=='Entraînement'
+    assert admin.post(f"/api/v1/events/{event['id']}/history/{revision['id']}/restore",json={'base_version':3,'fields':['title']}).json()['title']=='Entraînement'

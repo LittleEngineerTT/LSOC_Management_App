@@ -54,7 +54,8 @@ export function PlanningPage() {
   const firstDay = days[0]!;
   const section = search.get('section') ?? '';
   const gym = search.get('gymnase') ?? '';
-  const cancelled = search.get('annules') === '1';
+  // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
+  const cancelled = search.get('annules') !== '0';
   const origin = search.get('origine') ?? '';
   const [creating, setCreating] = useState(false);
   const [proposing, setProposing] = useState(false);
@@ -171,7 +172,7 @@ export function PlanningPage() {
           <input
             type="checkbox"
             checked={cancelled}
-            onChange={(change) => filter('annules', change.target.checked ? '1' : '')}
+            onChange={(change) => filter('annules', change.target.checked ? '' : '0')}
           />
           Afficher les annulations
         </label>

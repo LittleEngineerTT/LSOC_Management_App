@@ -4,7 +4,7 @@ import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
 import { dateLabel } from '../admin/time';
-import { Empty, LoadState } from '../admin/ui';
+import { Badge, Empty, LoadState } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
 import { useClub, type Notification } from './context';
 import { DetailHost } from './EventDetail';
@@ -39,8 +39,9 @@ export function HomePage() {
           )}
           <ul className="club-plain-list">
             {next.map((event) => (
-              <li key={event.id}>
-                <Link to={link(event.id)}>{event.title}</Link>
+              <li key={event.id} className={event.cancelled ? 'club-cancelled' : undefined}>
+                <Link to={link(event.id)}>{event.title}</Link>{' '}
+                {event.cancelled && <Badge tone="danger">Annulé</Badge>}
                 <span className="admin-hint">
                   {' '}
                   {dayLabel(parisDay(event.starts_at))}, {timeRange(event.starts_at, event.ends_at)}

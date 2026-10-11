@@ -89,6 +89,13 @@ export function EventEditor({
             type: 'choices' as const,
             options: sections.map((section) => ({ value: section.id, label: section.name })),
           },
+          {
+            name: 'team_ids',
+            label: 'Équipes organisatrices',
+            type: 'choices' as const,
+            options: teams.map((team) => ({ value: team.id, label: team.name })),
+            hint: 'Facultatif. Les sections des équipes cochées sont ajoutées automatiquement.',
+          },
         ]
       : []),
     ...(!ffvb || admin
@@ -201,6 +208,7 @@ export function EventEditor({
         title: event.title,
         description: event.description ?? '',
         section_ids: event.section_ids,
+        team_ids: event.team_ids ?? [],
         gymnasium_id: event.gymnasium_id ?? '',
         location: event.location,
         starts_at: toLocal(event.starts_at),
@@ -223,6 +231,7 @@ export function EventEditor({
         description: '',
         kind: 'training',
         section_ids: [],
+        team_ids: [],
         gymnasium_id: '',
         location: '',
         ...scheduleInitial(defaultDay),
@@ -248,6 +257,8 @@ export function EventEditor({
     text('location');
     if (admin && !sameList(choices(values, 'section_ids'), original.section_ids))
       result.section_ids = choices(values, 'section_ids');
+    if (admin && !sameList(choices(values, 'team_ids'), original.team_ids ?? []))
+      result.team_ids = choices(values, 'team_ids');
     if (fields.some((field) => field.name === 'gymnasium_id')) {
       const gym = str(values, 'gymnasium_id') || null;
       if (gym !== original.gymnasium_id) result.gymnasium_id = gym;
@@ -290,14 +301,15 @@ export function EventEditor({
         throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
       if (!event) {
         const gym = str(values, 'gymnasium_id') || null;
-        if (!choices(values, 'section_ids').length)
-          throw new Error('Sélectionnez au moins une section.');
+        if (!choices(values, 'section_ids').length && !choices(values, 'team_ids').length)
+          throw new Error('Sélectionnez au moins une section ou une équipe organisatrice.');
         const when = schedule(values);
         const body = {
           title: str(values, 'title'),
           description: str(values, 'description'),
           kind: str(values, 'kind'),
           section_ids: choices(values, 'section_ids'),
+          team_ids: choices(values, 'team_ids'),
           gymnasium_id: gym,
           location: str(values, 'location'),
           starts_at: when.starts_at,

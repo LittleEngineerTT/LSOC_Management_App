@@ -381,6 +381,29 @@
   .button:disabled {
     opacity: 0.72;
   }
+  .guest-access {
+    display: grid;
+    gap: 8px;
+    margin-top: 18px;
+    text-align: center;
+    font-size: 12px;
+    color: #5c6f7d;
+  }
+  .guest-access p {
+    margin: 0;
+  }
+  .guest-button {
+    min-height: 48px;
+    border: 1px solid #c7d2d8;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .guest-button:hover {
+    background: #edf1f2;
+  }
   .invitation-note {
     display: flex;
     align-items: flex-start;
@@ -652,6 +675,15 @@
   }
   .header-link svg {
     width: 17px;
+  }
+  .guest-signin {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .guest-signin svg {
+    width: 16px;
   }
   .header-separator {
     height: 28px;

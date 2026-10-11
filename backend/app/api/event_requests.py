@@ -58,8 +58,13 @@ def coach_team(db: Session, actor: User, team_id: str) -> Team:
 def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventRequest:
     lock_planning(db)
     team = coach_team(db, actor, body.team_id)
+    # L’équipe principale vient en tête ; chaque équipe ajoutée doit aussi être coachée.
+    team_ids = [team.id, *(i for i in dict.fromkeys(body.team_ids) if i != team.id)]
+    for identifier in team_ids[1:]:
+        coach_team(db, actor, identifier)
     proposal = EventInput(
-        **body.model_dump(exclude={"team_id", "note", "until", "weekdays"}),
+        **body.model_dump(exclude={"team_id", "team_ids", "note", "until", "weekdays"}),
+        team_ids=team_ids,
         section_ids=[team.section_id],
         referent_id=actor.id,
         direct_edit=False,
@@ -156,6 +161,8 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
             {key: item for key, item in value.proposal.items() if key not in recurrence}
             | {
                 "section_ids": [team.section_id],
+                # Une demande antérieure aux équipes multiples n’a que son équipe principale.
+                "team_ids": value.proposal.get("team_ids") or [team.id],
                 "referent_id": requester.id,
                 "direct_edit": False,
             }

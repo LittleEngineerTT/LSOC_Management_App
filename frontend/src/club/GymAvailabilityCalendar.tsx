@@ -365,7 +365,7 @@ function BookingCard({ slot, style }: { slot: GymDaySlot<Booking>; style?: CSSPr
           <span>Indisponible</span>
         )}
         {slot.item.type === 'event' && slot.item.value.cancelled && (
-          <span>Annulé · sans occupation</span>
+          <span className="calendar-cancelled">Annulé · sans occupation</span>
         )}
       </span>
       <strong>{item.title}</strong>

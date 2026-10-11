@@ -212,6 +212,8 @@ class Event(Identity, Base):
     # Séance ouverte : union des sections et équipes autorisées.
     registration_section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     registration_team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # Équipes organisatrices : leurs sections sont toujours concernées par l’événement.
+    team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     registration_limit: Mapped[int | None] = mapped_column(Integer)
     registration_count: Mapped[int] = column_property(
         select(func.count(Registration.id))

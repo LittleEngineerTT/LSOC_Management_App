@@ -12,6 +12,7 @@ from app.api import (
     events,
     ffvb,
     licenses,
+    public,
     registrations,
     social,
 )
@@ -30,6 +31,7 @@ app = FastAPI(
         {"name": "Planning"},
         {"name": "Messagerie et suivis"},
         {"name": "FFVB"},
+        {"name": "Invités"},
     ],
 )
 app.add_middleware(
@@ -65,5 +67,6 @@ for router in (
     licenses.router,
     social.router,
     ffvb.router,
+    public.router,
 ):
     app.include_router(router, prefix="/api/v1")

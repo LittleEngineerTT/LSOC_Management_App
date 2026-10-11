@@ -47,7 +47,10 @@ export function CoachEventRequests({ revision = 0 }: { revision?: number }) {
         {mine.map((item) => (
           <li key={item.id}>
             <strong>{item.proposal.title}</strong> ·{' '}
-            {teams.find((team) => team.id === item.team_id)?.name ?? 'Équipe supprimée'} ·{' '}
+            {(item.proposal.team_ids ?? [item.team_id])
+              .map((id) => teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée')
+              .join(', ')}{' '}
+            ·{' '}
             <Badge tone={statuses[item.status]?.tone}>
               {statuses[item.status]?.label ?? item.status}
             </Badge>

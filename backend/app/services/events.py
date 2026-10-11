@@ -26,7 +26,7 @@ from app.persistence.models import (
     Team,
     User,
 )
-from app.services.notifications import admins, event_changed, event_deleted
+from app.services.notifications import admins, event_changed, event_deleted, event_unavailable
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -71,10 +71,73 @@ def availability(db: Session, gym_id: str, start: datetime, end: datetime) -> Ca
     )
 
 
+def blocking(db: Session, event: Event) -> AvailabilityBlock | None:
+    """Indisponibilité qui ne laisse pas assez de terrains à l’événement.
+
+    Seules les indisponibilités comptent : un conflit entre événements reste une alerte de
+    capacité, tandis que l’indisponibilité est prioritaire et annule l’événement.
+    """
+    if event.cancelled or not event.gymnasium_id or event.courts <= 0:
+        return None
+    gym = get(db, Gymnasium, event.gymnasium_id)
+    blocks = list(
+        db.scalars(
+            select(AvailabilityBlock)
+            .where(
+                AvailabilityBlock.gymnasium_id == event.gymnasium_id,
+                AvailabilityBlock.starts_at < event.ends_at,
+                AvailabilityBlock.ends_at > event.starts_at,
+            )
+            .order_by(AvailabilityBlock.starts_at, AvailabilityBlock.id)
+        )
+    )
+    reservations = [(b.starts_at, b.ends_at, b.courts) for b in blocks]
+    reservations.append((event.starts_at, event.ends_at, event.courts))
+    segments = capacity_segments(gym.capacity, event.starts_at, event.ends_at, reservations)
+    return blocks[0] if blocks and any(s.excess for s in segments) else None
+
+
+def cancel_if_blocked(db: Session, event: Event, actor: User | None, record: bool = True) -> bool:
+    """Annule sans erreur un événement placé sur une indisponibilité et prévient ses membres.
+
+    `record=False` laisse l’appelant historiser l’annulation avec sa propre révision.
+    """
+    block = blocking(db, event)
+    if block is None:
+        return False
+    before = snapshot(event)
+    event.cancelled = True
+    if record:
+        event.version += 1
+        revision(db, event, actor, before, "unavailability_cancel", origin="unavailability")
+    db.flush()
+    event_unavailable(db, event, block)
+    return True
+
+
+def apply_unavailability(db: Session, block: AvailabilityBlock, actor: User) -> None:
+    """Annule les événements que l’indisponibilité prive de terrains, puis alerte le reste."""
+    for event in db.scalars(
+        select(Event)
+        .where(
+            Event.gymnasium_id == block.gymnasium_id,
+            Event.cancelled.is_(False),
+            Event.starts_at < block.ends_at,
+            Event.ends_at > block.starts_at,
+        )
+        .order_by(Event.starts_at, Event.id)
+    ):
+        cancel_if_blocked(db, event, actor)
+    alert_capacity(db, block.gymnasium_id)
+
+
 def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -> bool:
     if event.cancelled or not event.gymnasium_id:
         return False
     db.flush()
+    # L’indisponibilité l’emporte : l’événement est annulé plutôt que refusé.
+    if cancel_if_blocked(db, event, actor, record=False):
+        return False
     segments = availability(db, event.gymnasium_id, event.starts_at, event.ends_at).segments
     conflicts = [s.model_dump(mode="json") for s in segments if s.excess > 0]
     if conflicts:
@@ -107,6 +170,16 @@ def alert_capacity(db: Session, gym_id: str) -> None:
 def validate_event(db: Session, event: Event) -> None:
     if event.ends_at <= event.starts_at:
         raise HTTPException(422, "La fin doit suivre le début")
+    if len(set(event.team_ids)) != len(event.team_ids):
+        raise HTTPException(422, "Équipe organisatrice en double")
+    # Les sections des équipes organisatrices sont toujours concernées.
+    sections = list(event.section_ids)
+    for identifier in event.team_ids:
+        section = get(db, Team, identifier).section_id
+        if section not in sections:
+            sections.append(section)
+    if sections != event.section_ids:
+        event.section_ids = sections
     if not event.section_ids:
         raise HTTPException(422, "Au moins une section est requise")
     for identifier in event.section_ids:
@@ -291,6 +364,7 @@ def permission(
             "referent_id",
             "direct_edit",
             "section_ids",
+            "team_ids",
             "before_minutes",
             "after_minutes",
             "registration_section_ids",

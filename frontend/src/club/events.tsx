@@ -59,7 +59,7 @@ function atLimit(event: Event) {
 }
 
 export function EventRow({ event }: { event: Event }) {
-  const { follows, account } = useClub();
+  const { follows, account, guest } = useClub();
   const place = usePlace();
   const sectionNames = useSectionNames();
   const link = useEventLink();
@@ -80,9 +80,9 @@ export function EventRow({ event }: { event: Event }) {
         <span className="club-event-badges">
           {event.cancelled && <Badge tone="danger">Annulé</Badge>}
           <EventOrigin event={event} />
-          {event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
-          {event.referent_id === account.id && <Badge tone="good">Référent</Badge>}
-          {!event.referent_id && <Badge tone="warning">Sans référent</Badge>}
+          {!guest && event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
+          {!guest && event.referent_id === account.id && <Badge tone="good">Référent</Badge>}
+          {!guest && !event.referent_id && <Badge tone="warning">Sans référent</Badge>}
           {isFollowed(follows, event) && <Badge>Suivi</Badge>}
           {registrationOpen(event) && (
             <Badge tone={atLimit(event) ? 'warning' : 'good'}>

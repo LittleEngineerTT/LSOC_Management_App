@@ -140,6 +140,8 @@ export interface Event {
   registration_team_ids?: string[];
   registration_limit: number | null;
   registration_count: number;
+  /** Équipes organisatrices ; absentes des anciens contrats. */
+  team_ids?: string[];
 }
 export interface RegistrationSummary {
   event_id: string;
@@ -172,6 +174,8 @@ export interface EventProposal extends Record<string, unknown> {
   title: string;
   kind: Event['kind'];
   section_ids: string[];
+  /** Équipes organisatrices, la principale en tête ; absentes des anciennes demandes. */
+  team_ids?: string[];
   gymnasium_id: string | null;
   location: string;
   starts_at: string;

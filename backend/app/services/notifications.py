@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import cipher, now
 from app.persistence.models import (
+    Assignment,
+    AvailabilityBlock,
     EmailJob,
     Event,
     Follow,
@@ -150,6 +152,31 @@ def concerned(db: Session, event: Event) -> set[str]:
     return followed | set(
         db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
     )
+
+
+def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> None:
+    """Annulation due à une indisponibilité : référent, équipes organisatrices et inscrits."""
+    members = (
+        set(db.scalars(select(Assignment.user_id).where(Assignment.team_id.in_(event.team_ids))))
+        if event.team_ids
+        else set()
+    )
+    registered = set(
+        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
+    )
+    recipients = members | registered | ({event.referent_id} if event.referent_id else set())
+    day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+    for user in db.scalars(select(User).where(User.id.in_(recipients))):
+        notify(
+            db,
+            user,
+            f"unavailable:{event.id}:{event.version}",
+            "event_cancelled",
+            f"Événement annulé : {event.title} du {day}",
+            event.id,
+            user.followed_email or (user.id == event.referent_id and user.referent_email),
+            body=f"Le gymnase est indisponible sur ce créneau ({block.title}).",
+        )
 
 
 def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:

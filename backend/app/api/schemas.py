@@ -202,7 +202,9 @@ class EventInput(Interval):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
     kind: Literal["training", "match", "other"] = "training"
-    section_ids: list[str] = Field(min_length=1)
+    # Peut rester vide si des équipes organisatrices apportent leurs sections.
+    section_ids: list[str] = Field(default_factory=list)
+    team_ids: list[str] = Field(default_factory=list)
     gymnasium_id: str | None = None
     location: str = Field(default="", max_length=200)
     courts: int = Field(ge=0, le=100)
@@ -217,6 +219,7 @@ class EventPatch(Input):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     section_ids: list[str] | None = Field(default=None, min_length=1)
+    team_ids: list[str] | None = None
     gymnasium_id: str | None = None
     location: str | None = Field(default=None, max_length=200)
     starts_at: AwareDatetime | None = None
@@ -277,6 +280,30 @@ class EventView(View):
     registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None
     registration_count: int
+    team_ids: list[str] = Field(default_factory=list)
+
+
+class PublicTeamView(SectionView):
+    """Équipe visible sans compte : nom et section, sans référent."""
+
+    section_id: str
+
+
+class PublicEventView(View):
+    """Match FFVB visible sans compte : ni référent, ni inscriptions, ni description."""
+
+    id: str
+    title: str
+    kind: str
+    section_ids: list[str]
+    gymnasium_id: str | None
+    location: str
+    starts_at: datetime
+    ends_at: datetime
+    cancelled: bool
+    ffvb_match_id: str
+    kickoff_at: datetime | None
+    team_ids: list[str]
 
 
 class SeriesInput(Input):
@@ -325,6 +352,8 @@ class ChangeView(View):
 
 class CoachEventRequestInput(Interval):
     team_id: str
+    # Autres équipes organisatrices, toutes entraînées ou référencées par le demandeur.
+    team_ids: list[str] = Field(default_factory=list, max_length=20)
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
     kind: Literal["training", "match", "other"] = "training"

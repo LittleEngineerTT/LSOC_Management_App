@@ -129,6 +129,7 @@ function EventBody({
   const { admin, account } = useClub();
   const place = usePlace();
   const sectionNames = useSectionNames();
+  const teamNames = useTeamNames();
   const referent = event.referent_id === account.id;
   const [history, setHistory] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -171,6 +172,12 @@ function EventBody({
           <dt>Sections</dt>
           <dd>{sectionNames(event.section_ids).join(', ')}</dd>
         </div>
+        {(event.team_ids?.length ?? 0) > 0 && (
+          <div>
+            <dt>Équipes organisatrices</dt>
+            <dd>{teamNames(event.team_ids!).join(', ')}</dd>
+          </div>
+        )}
         <div>
           <dt>Référent</dt>
           <dd>
@@ -575,7 +582,11 @@ function Questions({ event }: { event: Event }) {
   );
 }
 
-const origins: Record<string, string> = { human: 'Action manuelle', ffvb: 'Synchronisation FFVB' };
+const origins: Record<string, string> = {
+  human: 'Action manuelle',
+  ffvb: 'Synchronisation FFVB',
+  unavailability: 'Annulation : gymnase indisponible',
+};
 function History({ event, onChanged }: { event: Event; onChanged: () => void }) {
   const { api, admin } = useClub();
   const loader = useCallback(

@@ -20,7 +20,8 @@ export function useMyEvents() {
       const first = today();
       return Promise.all([
         api.list<Event>(
-          `/events?${rangeQuery(first, daysBetween(first, horizonEnd(first)))}`,
+          // Un événement annulé reste affiché, en rouge, pour que chacun le sache.
+          `/events?${rangeQuery(first, daysBetween(first, horizonEnd(first)))}&include_cancelled=true`,
           true,
           signal,
         ),

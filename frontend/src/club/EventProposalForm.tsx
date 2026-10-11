@@ -4,7 +4,6 @@ import { useClub } from './context';
 import { kindLabels } from './events';
 import { schedule, scheduleFields, scheduleInitial } from './schedule';
 
-/** Une demande concerne une seule équipe actuellement coachée. */
 /** Équipes pour lesquelles le compte peut demander un événement : référent ou coach rattaché. */
 export function useCoachedTeams() {
   const { account, assignments, teams } = useClub();
@@ -35,12 +34,11 @@ export function EventProposalForm({
   const coached = useCoachedTeams();
   const fields: FormField[] = [
     {
-      name: 'team_id',
-      label: 'Équipe organisatrice',
-      type: 'select',
-      required: true,
+      name: 'team_ids',
+      label: 'Équipes organisatrices',
+      type: 'choices',
       options: coached.map((team) => ({ value: team.id, label: team.name })),
-      hint: 'La section organisatrice est celle de cette équipe. Vous serez le référent.',
+      hint: 'Une ou plusieurs équipes que vous entraînez ; leurs sections sont concernées. Vous serez le référent.',
     },
     { name: 'title', label: 'Titre', required: true, maxLength: 200 },
     {
@@ -108,9 +106,12 @@ export function EventProposalForm({
     },
   ];
   async function save(values: FormValues, signal: AbortSignal) {
-    const team_id = str(values, 'team_id');
-    if (!coached.some((team) => team.id === team_id))
-      throw new Error('Choisissez une équipe que vous coachez.');
+    // Ordre du formulaire : la première équipe cochée porte la demande.
+    const selected = coached
+      .filter((team) => choices(values, 'team_ids').includes(team.id))
+      .map((team) => team.id);
+    if (!selected.length) throw new Error('Cochez au moins une équipe que vous coachez.');
+    const [team_id, ...team_ids] = selected;
     const registration_section_ids = choices(values, 'registration_section_ids');
     const registration_team_ids = choices(values, 'registration_team_ids');
     const registration_limit = str(values, 'registration_limit')
@@ -131,6 +132,7 @@ export function EventProposalForm({
       'POST',
       {
         team_id,
+        team_ids,
         title: str(values, 'title'),
         description: str(values, 'description'),
         kind: str(values, 'kind'),
@@ -154,7 +156,7 @@ export function EventProposalForm({
       title="Demander un événement"
       fields={fields}
       initial={{
-        team_id: coached.length === 1 ? coached[0]!.id : '',
+        team_ids: coached.length === 1 ? [coached[0]!.id] : [],
         title: '',
         description: '',
         kind: 'training',
