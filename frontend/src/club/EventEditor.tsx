@@ -109,7 +109,7 @@ export function EventEditor({
             {
               name: 'kickoff_at',
               label: 'Coup d’envoi (Europe/Paris)',
-              type: 'datetime-local' as const,
+              type: 'datetime-fr' as const,
               required: true,
             },
             {
@@ -133,17 +133,17 @@ export function EventEditor({
             {
               name: 'starts_at',
               label: 'Début (Europe/Paris)',
-              type: 'datetime-local' as const,
+              type: 'datetime-fr' as const,
               required: true,
             },
             {
               name: 'ends_at',
               label: 'Fin (Europe/Paris)',
-              type: 'datetime-local' as const,
+              type: 'datetime-fr' as const,
               required: true,
             },
           ]
-        : scheduleFields('datetime-local')),
+        : scheduleFields()),
     {
       name: ffvb ? 'match_courts' : 'courts',
       label: ffvb ? 'Terrains réservés pour le match' : 'Terrains occupés',

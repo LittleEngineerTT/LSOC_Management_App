@@ -57,7 +57,7 @@ export function EventProposalForm({
       required: true,
       options: Object.entries(kindLabels).map(([value, label]) => ({ value, label })),
     },
-    ...scheduleFields('datetime-fr'),
+    ...scheduleFields(),
     {
       name: 'gymnasium_id',
       label: 'Gymnase du club',

@@ -16,6 +16,15 @@ function frenchDate(value: string) {
 const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));
 const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
 
+/** Ouvre le calendrier natif au toucher de tout le champ, pas seulement de son icône. */
+export function openPicker(input: HTMLInputElement) {
+  try {
+    input.showPicker?.();
+  } catch {
+    // Navigateur sans showPicker ou appel refusé : le comportement natif reste disponible.
+  }
+}
+
 export function FrenchDateTimeField({
   id,
   label,
@@ -101,6 +110,7 @@ export function FrenchDateTimeField({
             type="date"
             lang="fr"
             aria-label={`Choisir la date de ${controlLabel}`}
+            onClick={(event) => openPicker(event.currentTarget)}
             value={validDate(date) ? date : ''}
             onChange={(event) => chooseDate(event.target.value)}
           />
@@ -135,6 +145,70 @@ export function FrenchDateTimeField({
             ))}
           </select>
         </label>
+      </div>
+    </div>
+  );
+}
+
+/** Heure seule au format 24 heures (HH:MM), sans dépendre de la langue du navigateur. */
+export function FrenchTimeField({
+  id,
+  label,
+  value,
+  onChange,
+  required,
+  disabled,
+  describedBy,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  describedBy?: string;
+}) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)/.exec(value);
+  const hour = match?.[1] ?? '';
+  const minute = match?.[2] ?? '';
+  const common = { disabled, required, 'aria-describedby': describedBy };
+
+  function choose(part: 'hour' | 'minute', next: string) {
+    const time = { hour: hour || '00', minute: minute || '00', [part]: next };
+    onChange(next ? `${time.hour}:${time.minute}` : '');
+  }
+
+  return (
+    <div className="admin-datetime-fr">
+      <label htmlFor={id}>{label}</label>
+      <div className="admin-time-controls">
+        <select
+          {...common}
+          id={id}
+          value={hour}
+          onChange={(event) => choose('hour', event.target.value)}
+        >
+          {!hour && <option value="">--</option>}
+          {hours.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+        <span aria-hidden="true">h</span>
+        <select
+          {...common}
+          aria-label={`Minutes de ${label}`}
+          value={minute}
+          onChange={(event) => choose('minute', event.target.value)}
+        >
+          {!minute && <option value="">--</option>}
+          {minutes.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

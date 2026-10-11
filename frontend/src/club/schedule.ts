@@ -16,7 +16,7 @@ export const weekdayLabels = [
  * Bloc horaire d’un nouvel événement : dates et heures de début et de fin, ou, si
  * « Répéter chaque semaine » est coché, jours de la semaine, heures et fin de la récurrence.
  */
-export function scheduleFields(dateType: 'datetime-local' | 'datetime-fr'): FormField[] {
+export function scheduleFields(): FormField[] {
   return [
     {
       name: 'repeat',
@@ -27,14 +27,14 @@ export function scheduleFields(dateType: 'datetime-local' | 'datetime-fr'): Form
     {
       name: 'starts_at',
       label: 'Début (Europe/Paris)',
-      type: dateType,
+      type: 'datetime-fr',
       required: true,
       hiddenWhen: 'repeat',
     },
     {
       name: 'ends_at',
       label: 'Fin (Europe/Paris)',
-      type: dateType,
+      type: 'datetime-fr',
       required: true,
       hiddenWhen: 'repeat',
     },
