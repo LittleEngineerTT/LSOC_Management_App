@@ -105,19 +105,53 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   expect(mutations[1]).toMatchObject({ path: '/series', body: { until: addDays(day, 7), force: true, event: { title: 'Entraînement compétition', section_ids: ['s1'], gymnasium_id: 'g1', courts: 1, referent_id: 'a1' } } });
 });
 
-it('la messagerie affiche le fil, le marque comme lu et envoie une réponse', async () => {
+it('la messagerie affiche les pastilles, marque le fil comme lu sur demande et envoie une réponse', async () => {
+  let unreadCount = 1;
   routes['/questions'] = [{ id: 'q1', user_id: 'm1', event_id: 'e1' }];
   routes['/questions/q1/messages'] = [
     { id: 'x1', thread_id: 'q1', author_id: 'm1', body: 'Faut-il un ballon ?', created_at: at('10:00'), read_at: null },
     { id: 'x2', thread_id: 'q1', author_id: 'a1', body: 'Non, merci !', created_at: at('11:00'), read_at: null },
   ];
-  mutation = () => reply({}, 201);
+  Object.defineProperty(routes, '/unread', { enumerable: true, get: () => ({ messages: unreadCount, notifications: 0, threads: unreadCount ? ['q1'] : [], thread_counts: unreadCount ? { q1: unreadCount } : {} }) });
+  mutation = (path) => {
+    if (path === '/questions/q1/read') unreadCount = 0;
+    return reply({}, path.endsWith('/read') ? 204 : 201);
+  };
   open('/app/messagerie?thread=q1');
   expect(await screen.findByText('Non, merci !')).toBeInTheDocument();
-  await waitFor(() => expect(mutations).toContainEqual({ path: '/questions/q1/read', method: 'POST', body: {} }));
+  const list = screen.getByRole('navigation', { name: 'Conversations' });
+  expect(await within(list).findByLabelText('1 réponse non lue')).toBeInTheDocument();
+  const menu = screen.getByRole('navigation', { name: 'Applications' });
+  expect(within(menu).getByLabelText('1 réponse non lue')).toBeInTheDocument();
+  // Ouvrir le fil ne suffit plus : la lecture est explicite.
+  expect(mutations).toEqual([]);
+  expect(screen.getByText('Non, merci !').closest('li')).toHaveClass('unread');
+  await userEvent.click(screen.getByRole('button', { name: 'Marquer comme lu' }));
+  await waitFor(() => expect(within(list).queryByLabelText('1 réponse non lue')).not.toBeInTheDocument());
+  expect(within(menu).queryByLabelText('1 réponse non lue')).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText('Votre message'), 'Parfait');
   await userEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
   await waitFor(() => expect(mutations).toContainEqual({ path: '/questions/q1/messages', method: 'POST', body: { body: 'Parfait' } }));
+  expect(mutations[0]).toEqual({ path: '/questions/q1/read', method: 'POST', body: {} });
+});
+
+it('la messagerie marque toutes les questions comme lues', async () => {
+  account = admin;
+  let unreadCount = 2;
+  routes['/questions'] = [{ id: 'q1', user_id: 'm1', event_id: 'e1' }];
+  routes['/questions/q1/messages'] = [];
+  Object.defineProperty(routes, '/unread', { enumerable: true, get: () => ({ messages: unreadCount, notifications: 0, threads: unreadCount ? ['q1'] : [], thread_counts: unreadCount ? { q1: unreadCount } : {} }) });
+  mutation = () => {
+    unreadCount = 0;
+    return reply({}, 204);
+  };
+  open('/app/messagerie');
+  const list = await screen.findByRole('navigation', { name: 'Conversations' });
+  expect(await within(list).findByLabelText('2 questions non lues')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Tout marquer comme lu' }));
+  await waitFor(() => expect(within(list).queryByLabelText('2 questions non lues')).not.toBeInTheDocument());
+  expect(mutations).toEqual([{ path: '/questions/read', method: 'POST', body: {} }]);
+  expect(screen.queryByRole('button', { name: 'Tout marquer comme lu' })).not.toBeInTheDocument();
 });
 
 it('les gymnases signalent un dépassement et mes sections présentent mon rôle', async () => {

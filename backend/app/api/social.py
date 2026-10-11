@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import ColumnElement, delete, func, or_, select
+from sqlalchemy import ColumnElement, delete, func, or_, select, true
+from sqlalchemy.orm import Session
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
@@ -71,6 +72,7 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         messages=sum(counts.values()),
         notifications=notifications or 0,
         threads=list(counts),
+        thread_counts=counts,
     )
 
 
@@ -177,6 +179,8 @@ def post_message(thread_id: str, body: MessageInput, db: DB, actor: Actor) -> Qu
     thread = get(db, QuestionThread, thread_id)
     can_write(thread, actor)
     value = QuestionMessage(thread_id=thread_id, author_id=actor.id, body=body.body)
+    # Répondre dans un fil vaut lecture des messages reçus.
+    read_messages(db, actor, thread_id)
     db.add(value)
     db.flush()
     if actor.id == thread.user_id:
@@ -189,27 +193,43 @@ def post_message(thread_id: str, body: MessageInput, db: DB, actor: Actor) -> Qu
 def mark_thread_read(thread_id: str, db: DB, actor: Actor) -> None:
     thread = get(db, QuestionThread, thread_id)
     access(thread, actor)
+    read_messages(db, actor, thread_id)
+
+
+@router.post("/questions/read", status_code=204)
+def mark_all_questions_read(db: DB, actor: Actor) -> None:
+    # unread_for limite déjà la lecture aux fils accessibles au compte.
+    read_messages(db, actor, None)
+
+
+def read_messages(db: Session, actor: User, thread_id: str | None) -> None:
+    """Marque comme lus les messages reçus d’un fil, ou de tous les fils si `thread_id` est nul."""
+    scope = true() if thread_id is None else QuestionMessage.thread_id == thread_id
     # Un admin ne marque lus que les messages de l’adhérent : la réponse d’un autre admin
     # doit rester non lue pour l’adhérent.
-    read = list(
-        db.scalars(
-            select(QuestionMessage)
-            .join(QuestionThread, QuestionThread.id == QuestionMessage.thread_id)
-            .where(QuestionMessage.thread_id == thread_id, unread_for(actor))
-        )
-    )
-    for message in read:
+    for message in db.scalars(
+        select(QuestionMessage)
+        .join(QuestionThread, QuestionThread.id == QuestionMessage.thread_id)
+        .where(scope, unread_for(actor))
+    ):
         message.read_at = now()
-    if read:
-        # Les alertes « nouvelle question » correspondantes deviennent lues elles aussi.
-        for notification in db.scalars(
-            select(Notification).where(
-                Notification.user_id == actor.id,
-                Notification.read_at.is_(None),
-                Notification.dedupe_key.in_([f"question:{message.id}" for message in read]),
+    # Les alertes « nouvelle question » du fil deviennent lues elles aussi, même si un autre
+    # admin avait déjà lu les messages.
+    alerts = select(Notification).where(
+        Notification.user_id == actor.id,
+        Notification.read_at.is_(None),
+        Notification.kind == "question",
+    )
+    if thread_id is not None:
+        keys = [
+            f"question:{identifier}"
+            for identifier in db.scalars(
+                select(QuestionMessage.id).where(QuestionMessage.thread_id == thread_id)
             )
-        ):
-            notification.read_at = now()
+        ]
+        alerts = alerts.where(Notification.dedupe_key.in_(keys))
+    for notification in db.scalars(alerts):
+        notification.read_at = now()
 
 
 @router.get("/notifications", response_model=list[NotificationView])

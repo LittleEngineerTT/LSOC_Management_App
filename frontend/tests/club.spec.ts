@@ -54,7 +54,7 @@ async function prepare(page: Page) {
       ],
       '/events/event-1/registrations': { event_id: 'event-1', open: true, limit: 12, count: 5, registered: false, eligible: true, participants: null },
       '/events/event-2/registrations': { event_id: 'event-2', open: false, limit: null, count: 0, registered: false, eligible: false, participants: null },
-      '/unread': { messages: 1, notifications: 1, threads: ['thread-1'] },
+      '/unread': { messages: 1, notifications: 1, threads: ['thread-1'], thread_counts: { 'thread-1': 1 } },
       '/notifications': [{ id: 'notification-1', kind: 'event_changed', title: 'Modification : Entraînement loisir du mercredi soir', event_id: 'event-1', read_at: null, created_at: at(0, '11:00') }],
       '/gymnasiums/gym-1/availability': { gymnasium_id: 'gym-1', capacity: 3, segments: [
         { starts_at: at(2, '19:00'), ends_at: at(2, '21:00'), occupied: 2, available: 1, excess: 0 },

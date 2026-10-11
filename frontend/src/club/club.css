@@ -475,3 +475,16 @@
   overflow-wrap: anywhere;
   line-height: 1.55;
 }
+.club-messages li.unread {
+  box-shadow: inset 3px 0 0 #f56761;
+  background: #fff4f2;
+}
+.club-messages li.unread .club-message-meta::after {
+  content: ' · non lu';
+  color: #c2413b;
+  font-weight: 650;
+}
+.club-threads a .club-unread {
+  color: #fff;
+  font-size: 11px;
+}

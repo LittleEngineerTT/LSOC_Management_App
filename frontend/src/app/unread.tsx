@@ -16,6 +16,8 @@ export interface Unread {
   notifications: number;
   /** Fils contenant au moins un message non lu. */
   threads: string[];
+  /** Messages non lus par fil ; absent d’une API antérieure. */
+  thread_counts?: Record<string, number>;
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;

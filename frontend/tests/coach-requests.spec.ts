@@ -45,7 +45,7 @@ async function prepare(page: Page) {
 test('un coach multiéquipes propose une séance ouverte puis l’admin accepte et le coach voit la décision', async ({ page }) => {
   const { mutations, asAdmin } = await prepare(page);
   await page.goto('/app/planning?semaine=2026-10-12');
-  await page.getByRole('button', { name: 'Demander un événement', exact: true }).click();
+  await page.getByRole('button', { name: 'Nouvel événement', exact: true }).click();
   const team = page.getByLabel('Équipe organisatrice');
   await expect(team.locator('option')).toHaveCount(3);
   await team.selectOption('t2');
@@ -84,7 +84,7 @@ test('le formulaire coach reste contenu sur téléphone, tablette et ordinateur'
   for (const [width, height] of [[320,568],[390,844],[768,1024],[1440,900],[2560,1440]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto('/app/planning?semaine=2026-10-12');
-    await page.getByRole('button', { name: 'Demander un événement', exact: true }).click();
+    await page.getByRole('button', { name: 'Nouvel événement', exact: true }).click();
     await expect(page.getByLabel('Équipe organisatrice')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Demande ${width}px`).toBe(true);
   }

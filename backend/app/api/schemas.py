@@ -419,6 +419,8 @@ class UnreadView(View):
     messages: int
     notifications: int
     threads: list[str]
+    # Nombre de messages non lus par fil, pour les pastilles de la messagerie.
+    thread_counts: dict[str, int]
 
 
 class FollowView(View):

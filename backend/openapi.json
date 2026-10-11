@@ -3503,6 +3503,25 @@
         }
       }
     },
+    "/api/v1/questions/read": {
+      "post": {
+        "tags": [
+          "Messagerie et suivis"
+        ],
+        "summary": "Mark All Questions Read",
+        "operationId": "mark_all_questions_read_api_v1_questions_read_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -7223,13 +7242,21 @@
             },
             "type": "array",
             "title": "Threads"
+          },
+          "thread_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Thread Counts"
           }
         },
         "type": "object",
         "required": [
           "messages",
           "notifications",
-          "threads"
+          "threads",
+          "thread_counts"
         ],
         "title": "UnreadView"
       },

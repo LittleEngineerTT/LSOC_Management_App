@@ -16,7 +16,8 @@ interface Conversation extends Thread {
 
 export function MessagingPage() {
   const { api, admin } = useClub();
-  const { threads: unreadThreads } = useUnread();
+  const { thread_counts: counts = {}, messages: unreadTotal, refresh } = useUnread();
+  const request = useRequest();
   const [search] = useSearchParams();
   const loader = useCallback(
     async (signal: AbortSignal): Promise<Conversation[]> => {
@@ -53,6 +54,24 @@ export function MessagingPage() {
             : 'Vos questions aux administrateurs. Pour en poser une nouvelle, ouvrez l’événement concerné dans le planning.'
         }
       />
+      {unreadTotal > 0 && (
+        <div className="admin-actions club-notifications-all">
+          <button
+            type="button"
+            className="admin-button"
+            disabled={request.pending}
+            onClick={() =>
+              void request.run(async (signal) => {
+                await api.request('/questions/read', 'POST', {}, signal);
+                refresh();
+              })
+            }
+          >
+            Tout marquer comme lu
+          </button>
+        </div>
+      )}
+      <ErrorNotice message={request.error} />
       <LoadState result={result} />
       {result.data && !conversations.length && (
         <Empty>
@@ -77,9 +96,12 @@ export function MessagingPage() {
               >
                 <strong>
                   {item.event?.title ?? 'Événement indisponible'}
-                  {unreadThreads.includes(item.id) && item.id !== selected?.id && (
-                    <span className="club-unread">
-                      {admin ? 'Nouvelle question' : 'Nouvelle réponse'}
+                  {(counts[item.id] ?? 0) > 0 && (
+                    <span
+                      className="club-unread"
+                      aria-label={`${counts[item.id]} ${admin ? 'question' : 'réponse'}${counts[item.id]! > 1 ? 's' : ''} non lue${counts[item.id]! > 1 ? 's' : ''}`}
+                    >
+                      {counts[item.id]}
                     </span>
                   )}
                 </strong>
@@ -108,7 +130,8 @@ export function MessagingPage() {
 
 function ThreadView({ conversation }: { conversation: Conversation }) {
   const { api, account, admin } = useClub();
-  const { refresh } = useUnread();
+  const { refresh, thread_counts: counts = {} } = useUnread();
+  const marking = useRequest();
   const loader = useCallback(
     (signal: AbortSignal) =>
       api.list<Message>(`/questions/${conversation.id}/messages`, true, signal),
@@ -119,20 +142,16 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
   const [body, setBody] = useState('');
   const end = useRef<HTMLDivElement>(null);
   const messages = result.data ?? [];
-  const unread = messages.some((message) => message.author_id !== account.id && !message.read_at);
+  // Seuls les messages reçus non lus comptent ; la pastille du serveur fait foi pour le fil.
+  const unreadCount = counts[conversation.id] ?? 0;
+  const received = (message: Message) =>
+    !message.read_at &&
+    message.author_id !== account.id &&
+    (conversation.user_id === account.id || message.author_id === conversation.user_id);
   const canWrite = admin || (account.roles.includes('member') && account.messaging_allowed);
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'nearest' });
   }, [messages.length]);
-  useEffect(() => {
-    if (!unread) return;
-    const controller = new AbortController();
-    api
-      .request(`/questions/${conversation.id}/read`, 'POST', {}, controller.signal)
-      .then(refresh)
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [api, conversation.id, unread, refresh]);
   return (
     <section className="club-thread" aria-label="Conversation">
       <header>
@@ -140,6 +159,22 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
           <span aria-hidden="true">←</span> Conversations
         </Link>
         <h3>{conversation.event?.title ?? 'Événement indisponible'}</h3>
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            className="admin-button"
+            disabled={marking.pending}
+            onClick={() =>
+              void marking.run(async (signal) => {
+                await api.request(`/questions/${conversation.id}/read`, 'POST', {}, signal);
+                refresh();
+                result.reload();
+              })
+            }
+          >
+            Marquer comme lu
+          </button>
+        )}
         {conversation.event && (
           <Link
             to={`/app/planning?semaine=${parisDay(conversation.event.starts_at)}&event=${conversation.event.id}`}
@@ -148,12 +183,16 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
           </Link>
         )}
       </header>
+      <ErrorNotice message={marking.error} />
       <LoadState result={result} />
       <ol className="club-messages">
         {messages.map((message) => {
           const mine = message.author_id === account.id;
           return (
-            <li key={message.id} className={mine ? 'mine' : ''}>
+            <li
+              key={message.id}
+              className={`${mine ? 'mine' : ''}${unreadCount > 0 && received(message) ? ' unread' : ''}`}
+            >
               <span className="club-message-meta">
                 {mine ? (
                   'Vous'
@@ -186,6 +225,8 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
                 signal,
               );
               setBody('');
+              // Répondre vaut lecture du fil côté serveur.
+              refresh();
               result.reload();
             });
           }}

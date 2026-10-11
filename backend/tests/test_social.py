@@ -74,17 +74,37 @@ def test_unread_counts_for_questions_answers_and_notifications(admin: TestClient
     thread = member.post(f'/api/v1/events/{event}/questions', json={'body': 'Faut-il un ballon ?'}).json()['id']
     assert member.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Et des chaussures ?'}).status_code == 201
     counts = admin.get('/api/v1/unread').json()
-    assert (counts['messages'], counts['notifications'], counts['threads']) == (2, 2, [thread])
+    assert (counts['messages'], counts['notifications'], counts['threads'], counts['thread_counts']) == (2, 2, [thread], {thread: 2})
     assert member.get('/api/v1/unread').json()['messages'] == 0
     assert second.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Non, merci.'}).status_code == 201
     assert admin.post(f'/api/v1/questions/{thread}/read').status_code == 204
     # Lire le fil efface aussi les alertes de question, sans marquer la réponse d’un autre admin.
-    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': []}
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}}
     # La boîte des admins est partagée : un fil lu par un admin l’est pour tous.
     assert second.get('/api/v1/unread').json()['messages'] == 0
-    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread]}
+    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread], 'thread_counts': {thread: 1}}
     assert member.post(f'/api/v1/questions/{thread}/read').status_code == 204
     assert member.get('/api/v1/unread').json()['messages'] == 0
-    notification = second.get('/api/v1/notifications?unread_only=true').json()[0]['id']
-    assert second.post(f'/api/v1/notifications/{notification}/read').status_code == 200
-    assert second.get('/api/v1/unread').json()['notifications'] == 1
+    # Le second admin a répondu : ses alertes de question sur ce fil sont lues.
+    assert second.get('/api/v1/unread').json()['notifications'] == 0
+
+
+def test_reply_and_mark_all_read_clear_question_counters(admin: TestClient) -> None:
+    add_user()
+    add_user('other')
+    member, other = login(), login('other')
+    section, gym = setup_planning(admin)
+    first = admin.post('/api/v1/events', json=payload(section, gym)).json()['id']
+    second = admin.post('/api/v1/events', json=payload(section, gym, start='2026-10-16T18:00:00+02:00', end='2026-10-16T20:00:00+02:00')).json()['id']
+    thread = member.post(f'/api/v1/events/{first}/questions', json={'body': 'Question 1'}).json()['id']
+    other.post(f'/api/v1/events/{second}/questions', json={'body': 'Question 2'})
+    assert admin.get('/api/v1/unread').json()['messages'] == 2
+    # Répondre vaut lecture du fil concerné, sans toucher aux autres.
+    assert admin.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Réponse'}).status_code == 201
+    assert admin.get('/api/v1/unread').json()['messages'] == 1
+    # Tout marquer comme lu ne concerne que les fils accessibles au compte.
+    assert member.post('/api/v1/questions/read').status_code == 204
+    assert member.get('/api/v1/unread').json()['messages'] == 0
+    assert admin.get('/api/v1/unread').json()['messages'] == 1
+    assert admin.post('/api/v1/questions/read').status_code == 204
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}}

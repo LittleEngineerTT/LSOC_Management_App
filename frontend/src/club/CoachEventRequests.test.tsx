@@ -147,7 +147,7 @@ afterEach(() => {
 
 it('dépose une demande pour une seule équipe coachée, avec ouverture ciblée et sans créer un événement', async () => {
   open();
-  await userEvent.click(await screen.findByRole('button', { name: 'Demander un événement' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   const team = screen.getByLabelText('Équipe organisatrice');
   expect(
     within(team)
@@ -200,7 +200,7 @@ it('masque la demande de création sans rôle coach ou sans rattachement coach',
   account = { ...coach, roles: ['member'] };
   open();
   await screen.findByRole('heading', { name: 'Planning du club' });
-  expect(screen.queryByRole('button', { name: 'Demander un événement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Nouvel événement' })).not.toBeInTheDocument();
 });
 
 it('conserve le suivi des demandes acceptées et refusées avec motif et lien vers l’événement créé', async () => {
@@ -231,7 +231,7 @@ it('permet à un auteur dont le rôle coach a été retiré de suivre la décisi
   routes['/event-requests'] = [{ ...pending, status: 'rejected', decision: 'Rattachement retiré' }];
   open();
   expect(await screen.findByText(/Rattachement retiré/)).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Demander un événement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Nouvel événement' })).not.toBeInTheDocument();
 });
 
 it.each([
@@ -360,4 +360,12 @@ it('l’administrateur ouvre un événement à une équipe avec une limite oblig
     path: '/events',
     body: { registration_team_ids: ['t3'], registration_section_ids: [], registration_limit: 12 },
   });
+});
+
+it('un coach sans rattachement coach voit le bouton et apprend comment obtenir ce rattachement', async () => {
+  routes[`/users/${coach.id}/assignments`] = [];
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/rattaché comme coach à une équipe/);
+  expect(screen.queryByLabelText('Équipe organisatrice')).not.toBeInTheDocument();
 });

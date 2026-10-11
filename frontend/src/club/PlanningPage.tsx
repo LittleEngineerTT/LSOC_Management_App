@@ -44,8 +44,10 @@ export function useWeek(): string {
 }
 
 export function PlanningPage() {
-  const { api, admin, sections, gymnasiums } = useClub();
+  const { api, admin, account, sections, gymnasiums } = useClub();
   const coached = useCoachedTeams();
+  // Le bouton dépend du rôle ; le formulaire exige en plus un rattachement coach à une équipe.
+  const coach = !admin && account.roles.includes('coach');
   const [search, setSearch] = useSearchParams();
   const { mode, anchor, days } = useCalendarPeriod();
   const firstDay = days[0]!;
@@ -95,7 +97,7 @@ export function PlanningPage() {
             Nouvel événement
           </button>
         )}
-        {!admin && coached.length > 0 && (
+        {coach && (
           <button
             className="admin-button primary"
             onClick={() => {
@@ -103,10 +105,19 @@ export function PlanningPage() {
               setProposing(true);
             }}
           >
-            Demander un événement
+            Nouvel événement
           </button>
         )}
       </PanelHeading>
+      {proposing && coach && !coached.length && (
+        <div className="admin-notice" role="alert">
+          Pour proposer un événement, vous devez être rattaché comme coach à une équipe. Demandez à
+          un administrateur d’ajouter ce rattachement dans Administration › Utilisateurs.
+          <button type="button" className="admin-button" onClick={() => setProposing(false)}>
+            Fermer
+          </button>
+        </div>
+      )}
       {proposing && coached.length > 0 && (
         <EventProposalForm
           defaultDay={anchor}
