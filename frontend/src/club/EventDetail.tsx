@@ -105,6 +105,10 @@ export function EventDetail({
               result.reload();
               onChanged();
             }}
+            onDeleted={() => {
+              onChanged();
+              onClose();
+            }}
           />
         ))}
     </dialog>
@@ -115,16 +119,19 @@ function EventBody({
   event,
   onEdit,
   onChanged,
+  onDeleted,
 }: {
   event: Event;
   onEdit: () => void;
   onChanged: () => void;
+  onDeleted: () => void;
 }) {
   const { admin, account } = useClub();
   const place = usePlace();
   const sectionNames = useSectionNames();
   const referent = event.referent_id === account.id;
   const [history, setHistory] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   return (
     <>
       <div className="club-detail-badges">
@@ -186,10 +193,71 @@ function EventBody({
         <button type="button" className="admin-button" onClick={() => setHistory(!history)}>
           {history ? 'Masquer l’historique' : 'Historique'}
         </button>
+        {admin && !event.ffvb_match_id && (
+          <button type="button" className="admin-button danger" onClick={() => setDeleting(true)}>
+            Supprimer
+          </button>
+        )}
       </div>
+      {deleting && (
+        <DeleteEvent event={event} onClose={() => setDeleting(false)} onDeleted={onDeleted} />
+      )}
       <Questions event={event} />
       {history && <History event={event} onChanged={onChanged} />}
     </>
+  );
+}
+
+function DeleteEvent({
+  event,
+  onClose,
+  onDeleted,
+}: {
+  event: Event;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const { api } = useClub();
+  const [scope, setScope] = useState<'event' | 'following'>('event');
+  return (
+    <Confirm
+      title={`Supprimer « ${event.title} » ?`}
+      label="Supprimer"
+      onClose={onClose}
+      onConfirm={async (signal) => {
+        await api.request(`/events/${event.id}?scope=${scope}`, 'DELETE', undefined, signal);
+        onDeleted();
+      }}
+    >
+      {event.series_id && (
+        <fieldset className="admin-choice-group">
+          <legend>Que supprimer ?</legend>
+          <label>
+            <input
+              type="radio"
+              name="delete-scope"
+              checked={scope === 'event'}
+              onChange={() => setScope('event')}
+            />
+            Cet événement uniquement
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="delete-scope"
+              checked={scope === 'following'}
+              onChange={() => setScope('following')}
+            />
+            Cet événement et tous les suivants de la série
+          </label>
+        </fieldset>
+      )}
+      <p>
+        La suppression est définitive : historique, questions, suivis et inscriptions sont effacés.
+        Les personnes qui suivent l’événement ou y sont inscrites sont prévenues. Pour garder une
+        trace, préférez « Événement annulé » dans la modification.
+      </p>
+    </Confirm>
   );
 }
 

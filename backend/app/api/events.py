@@ -1,5 +1,5 @@
-from datetime import UTC, timedelta
-from typing import Annotated
+from datetime import UTC, datetime, time, timedelta
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AwareDatetime
@@ -36,6 +36,7 @@ from app.services.events import (
     change_event,
     check_capacity,
     create_event,
+    delete_event,
     lock_gyms,
     lock_planning,
     permission,
@@ -239,17 +240,53 @@ def create_series(body: SeriesInput, db: DB, actor: Admin) -> list[Event]:
     db.add(series)
     db.flush()
     result: list[Event] = []
-    cursor = start
-    days = (end.date() - start.date()).days
-    while cursor.date() <= body.until:
-        values = body.event.model_dump()
-        values["starts_at"] = wall_time(start, cursor)
-        values["ends_at"] = wall_time(end, cursor + timedelta(days=days))
-        result.append(
-            create_event(db, EventInput.model_validate(values), actor, body.force, series.id)
-        )
-        cursor += timedelta(days=7)
+    weekdays = sorted(body.weekdays or [start.weekday()])
+    span = (end.date() - start.date()).days
+    week = start.date() - timedelta(days=start.weekday())
+    while week <= body.until:
+        for weekday in weekdays:
+            day = week + timedelta(days=weekday)
+            if day < start.date() or day > body.until:
+                continue
+            cursor = datetime.combine(day, time(), tzinfo=PARIS)
+            values = body.event.model_dump()
+            values["starts_at"] = wall_time(start, cursor)
+            values["ends_at"] = wall_time(end, cursor + timedelta(days=span))
+            result.append(
+                create_event(db, EventInput.model_validate(values), actor, body.force, series.id)
+            )
+        week += timedelta(days=7)
+    if not result:
+        raise HTTPException(422, "Aucune occurrence entre le début et la fin de la série")
     return result
+
+
+@router.delete("/events/{event_id}", status_code=204)
+def remove(
+    event_id: str, db: DB, actor: Admin, scope: Literal["event", "following"] = "event"
+) -> None:
+    """Supprime un événement, ou celui-ci et les suivants de sa série."""
+    lock_planning(db)
+    event = get(db, Event, event_id)
+    targets = [event]
+    if scope == "following":
+        if event.series_id is None:
+            raise HTTPException(422, "Cet événement n’appartient à aucune série")
+        targets = list(
+            db.scalars(
+                select(Event)
+                .where(Event.series_id == event.series_id, Event.starts_at >= event.starts_at)
+                .order_by(Event.starts_at, Event.id)
+            )
+        )
+    if any(target.ffvb_match_id for target in targets):
+        raise HTTPException(409, "Un match FFVB se supprime avec sa source ; vous pouvez l’annuler")
+    series_id = event.series_id
+    for target in targets:
+        delete_event(db, target, actor)
+    db.flush()
+    if series_id and not db.scalar(select(Event.id).where(Event.series_id == series_id)):
+        db.delete(get(db, EventSeries, series_id))
 
 
 @router.patch("/series/{series_id}", response_model=list[EventView])

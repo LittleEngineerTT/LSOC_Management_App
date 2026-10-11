@@ -30,6 +30,11 @@ export function range(firstDay: string, days: number) {
 export function horizonEnd(day: string): string {
   return `${Number(day.slice(0, 4)) + 1}-09-01`;
 }
+/** Prochain 31 juillet (fin de saison) : date de fin par défaut d’une récurrence. */
+export function nextJuly31(day: string = today()): string {
+  const year = Number(day.slice(0, 4));
+  return day <= `${year}-07-31` ? `${year}-07-31` : `${year + 1}-07-31`;
+}
 export function horizonLabel(): string {
   return `31 août ${horizonEnd(today()).slice(0, 4)}`;
 }

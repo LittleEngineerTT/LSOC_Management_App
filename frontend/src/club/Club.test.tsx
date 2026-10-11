@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { AuthApp } from '../auth/AuthApp';
-import { addDays, mondayOf, today } from './calendar';
+import { addDays, mondayOf, nextJuly31, today } from './calendar';
 
 const member = { id: 'm1', username: 'camille', first_name: 'Camille', category: 'adult', roles: ['member'], active: true, email: null, messaging_allowed: true, followed_email: true, referent_email: true, admin_email: true };
 const admin = { ...member, id: 'a1', username: 'admin', first_name: 'Alix', roles: ['admin'] };
@@ -95,7 +95,11 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement compétition');
   await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
   await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
-  await userEvent.type(screen.getByLabelText(/Répéter chaque semaine/), addDays(day, 7));
+  expect(screen.queryByLabelText('Fin de la récurrence')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
+  expect(screen.getByLabelText('Fin de la récurrence')).toHaveValue(nextJuly31(day > today() ? day : today()));
+  await userEvent.clear(screen.getByLabelText('Fin de la récurrence'));
+  await userEvent.type(screen.getByLabelText('Fin de la récurrence'), addDays(day, 7));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Capacité dépassée')).toBeInTheDocument();
   await userEvent.click(screen.getByLabelText(/Forcer le dépassement/));
@@ -237,4 +241,35 @@ it('affiche les pastilles du menu et retire une notification marquée comme lue'
   await waitFor(() => expect(within(card).queryByText('Événement modifié : Entraînement loisir')).not.toBeInTheDocument());
   expect(await within(menu).findByLabelText('1 notification non lue')).toBeInTheDocument();
   expect(mutations).toEqual([{ path: '/notifications/n2/read', method: 'POST', body: {} }]);
+});
+
+it('un administrateur crée un entraînement les mardis et jeudis jusqu’à la date choisie', async () => {
+  account = admin;
+  mutation = () => reply([training], 201);
+  open('/app/planning');
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement loisir');
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
+  await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
+  const days = screen.getByRole('group', { name: 'Jours de répétition' });
+  await userEvent.click(within(days).getByLabelText('Jeudi'));
+  await userEvent.click(within(days).getByLabelText('Mardi'));
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0]).toMatchObject({ path: '/series', body: { weekdays: [1, 3], until: nextJuly31(day > today() ? day : today()) } });
+});
+
+it('un administrateur supprime une occurrence et les suivantes de la série', async () => {
+  account = admin;
+  routes['/events/e1'] = { ...training, series_id: 'serie' };
+  mutation = () => reply({}, 204);
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer' }));
+  const confirm = await screen.findByRole('dialog', { name: /Supprimer « Entraînement loisir »/ });
+  await userEvent.click(within(confirm).getByLabelText('Cet événement et tous les suivants de la série'));
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Supprimer' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/events/e1', method: 'DELETE', body: undefined }]));
+  expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/events/e1?scope=following'))).toBe(true);
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Entraînement loisir' })).not.toBeInTheDocument());
 });

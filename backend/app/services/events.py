@@ -3,7 +3,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -12,18 +12,20 @@ from app.core.security import token
 from app.domain.capacity import capacity_segments
 from app.persistence.models import (
     AvailabilityBlock,
+    ChangeRequest,
     CoachEventRequest,
     Event,
     EventRevision,
     FFVBMatchState,
     FFVBSource,
     Gymnasium,
+    QuestionThread,
     Registration,
     Section,
     Team,
     User,
 )
-from app.services.notifications import admins, event_changed
+from app.services.notifications import admins, event_changed, event_deleted
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -200,6 +202,19 @@ def reassign_team_events(db: Session, team: Team, previous: str | None, actor: U
         db.flush()
         revision(db, event, actor, before, "update")
         event_changed(db, event, actor.id)
+
+
+def delete_event(db: Session, event: Event, actor: User) -> None:
+    """Supprime définitivement un événement local et ses données attachées.
+
+    Suivis, inscriptions et notifications disparaissent en cascade ; historique, demandes de
+    modification et questions sont effacés ici. Les personnes concernées sont prévenues.
+    """
+    event_deleted(db, event, actor.id)
+    db.execute(delete(EventRevision).where(EventRevision.event_id == event.id))
+    db.execute(delete(ChangeRequest).where(ChangeRequest.event_id == event.id))
+    db.execute(delete(QuestionThread).where(QuestionThread.event_id == event.id))
+    db.delete(event)
 
 
 def create_event(

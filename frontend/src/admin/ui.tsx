@@ -30,6 +30,8 @@ export interface FormField {
   pattern?: string;
   hint?: string;
   disabled?: boolean;
+  /** Nom d’une case à cocher : le champ n’apparaît que lorsqu’elle est cochée. */
+  visibleWhen?: string;
 }
 export type FormValues = Record<string, string | boolean | string[]>;
 export const str = (values: FormValues, name: string) => String(values[name] ?? '').trim();
@@ -74,6 +76,7 @@ export function EntityForm({
       <h3>{title}</h3>
       <fieldset disabled={request.pending} className="admin-fields">
         {fields.map((field) => {
+          if (field.visibleWhen && values[field.visibleWhen] !== true) return null;
           const fieldId = `${id}-${field.name}`;
           const common = {
             id: fieldId,

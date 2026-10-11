@@ -1,10 +1,13 @@
 import json
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import false, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.security import cipher
 from app.persistence.models import EmailJob, Event, Follow, Notification, Registration, User
+
+PARIS = ZoneInfo("Europe/Paris")
 
 
 def email(db: Session, user: User, key: str, subject: str, body: str) -> None:
@@ -46,6 +49,40 @@ def admins(db: Session, key: str, kind: str, title: str, event_id: str | None = 
     for user in db.scalars(select(User).where(User.active.is_(True))):
         if "admin" in user.roles:
             notify(db, user, key, kind, title, event_id, user.admin_email)
+
+
+def concerned(db: Session, event: Event) -> set[str]:
+    """Comptes qui suivent l’événement ou sa série, ou y sont inscrits."""
+    followed = set(
+        db.scalars(
+            select(Follow.user_id).where(
+                or_(
+                    Follow.event_id == event.id,
+                    Follow.series_id == event.series_id if event.series_id else false(),
+                )
+            )
+        )
+    )
+    return followed | set(
+        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
+    )
+
+
+def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
+    # Sans lien vers l’événement : la notification survit à sa suppression.
+    recipients = concerned(db, event) | ({event.referent_id} if event.referent_id else set())
+    day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+    for user in db.scalars(select(User).where(User.id.in_(recipients - {actor_id}))):
+        email_wanted = user.followed_email or (user.id == event.referent_id and user.referent_email)
+        notify(
+            db,
+            user,
+            f"deleted:{event.id}",
+            "event_deleted",
+            f"Événement supprimé : {event.title} du {day}",
+            None,
+            email_wanted,
+        )
 
 
 def event_changed(db: Session, event: Event, actor_id: str | None) -> None:

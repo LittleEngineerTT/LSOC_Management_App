@@ -1758,6 +1758,59 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "Planning"
+        ],
+        "summary": "Remove",
+        "description": "Supprime un événement, ou celui-ci et les suivants de sa série.",
+        "operationId": "remove_api_v1_events__event_id__delete",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "event",
+                "following"
+              ],
+              "type": "string",
+              "default": "event",
+              "title": "Scope"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/events/{event_id}/history": {
@@ -7430,6 +7483,22 @@
             "type": "string",
             "format": "date",
             "title": "Until"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 7,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
           },
           "force": {
             "type": "boolean",

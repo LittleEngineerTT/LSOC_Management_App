@@ -95,7 +95,8 @@ Types : `training`, `match`, `other`. Un événement extérieur utilise `gymnasi
 | `POST /change-requests/{id}/decision` | Admin : `{accept,reason,force,acknowledge_ffvb}` ; décision datée et attribuée |
 | `GET /events/{id}/history` | Révisions, valeurs avant/après, origine, auteur, forçage et décisions |
 | `POST /events/{id}/history/{revision}/restore` | Admin : `base_version` et liste explicite `fields` à restaurer |
-| `POST /series` | `{event,until,force}` ; occurrences hebdomadaires matérialisées, deux ans maximum |
+| `POST /series` | `{event,until,weekdays?,force}` ; occurrences hebdomadaires matérialisées aux jours `weekdays` (0 = lundi … 6 = dimanche, par défaut le jour du premier événement), heure locale de Paris conservée, deux ans maximum |
+| `DELETE /events/{id}?scope=event|following` | Admin : supprime l’événement, ou celui-ci et les suivants de sa série ; une série vidée disparaît. Historique, demandes, questions, suivis et inscriptions sont effacés ; les personnes qui suivent l’événement ou y sont inscrites et le référent sont notifiés. Un match FFVB renvoie 409 : il s’annule, ou disparaît avec sa source |
 | `PATCH /series/{id}` | `from_event_id`, `base_version`, `changes`, `include_exceptions`, `force` |
 | `GET/POST /availability-blocks`, `PUT/DELETE /availability-blocks/{id}` | Indisponibilités partielles ou totales ; admin pour les mutations |
 | `GET /gymnasiums/{id}/availability?starts_at=…&ends_at=…` | Capacité et segments d’occupation de la période |

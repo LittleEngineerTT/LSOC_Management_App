@@ -279,7 +279,18 @@ class EventView(View):
 class SeriesInput(Input):
     event: EventInput
     until: date
+    # Jours de la semaine (0 = lundi … 6 = dimanche) ; par défaut, celui du premier événement.
+    weekdays: list[int] | None = Field(default=None, min_length=1, max_length=7)
     force: bool = False
+
+    @field_validator("weekdays")
+    @classmethod
+    def days(cls, value: list[int] | None) -> list[int] | None:
+        if value is not None and (
+            len(set(value)) != len(value) or any(d not in range(7) for d in value)
+        ):
+            raise ValueError("Jours de la semaine invalides")
+        return value
 
 
 class SeriesChange(ChangeInput):

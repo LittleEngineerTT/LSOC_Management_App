@@ -11,11 +11,12 @@ import {
   type FormField,
   type FormValues,
 } from '../admin/ui';
-import { timeRange } from './calendar';
+import { nextJuly31, timeRange, today } from './calendar';
 import { useClub } from './context';
 import { kindLabels } from './events';
 
 type Scope = 'event' | 'following';
+const weekdayLabels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 interface CapacityProblem {
   segments: { starts_at: string; ends_at: string; occupied: number; excess: number }[];
 }
@@ -195,10 +196,26 @@ export function EventEditor({
     ...(!event
       ? [
           {
+            name: 'repeat',
+            label: 'Répéter chaque semaine',
+            type: 'checkbox' as const,
+            hint: 'Pour un entraînement régulier, aux mêmes jours et horaires chaque semaine.',
+          },
+          {
+            name: 'weekdays',
+            label: 'Jours de répétition',
+            type: 'choices' as const,
+            visibleWhen: 'repeat',
+            options: weekdayLabels.map((label, index) => ({ value: String(index), label })),
+            hint: 'Aucun jour coché : le jour du début.',
+          },
+          {
             name: 'until',
-            label: 'Répéter chaque semaine jusqu’au (facultatif)',
+            label: 'Fin de la récurrence',
             type: 'date' as const,
-            hint: 'Crée une série hebdomadaire, deux ans au maximum.',
+            required: true,
+            visibleWhen: 'repeat',
+            hint: 'Par défaut, le prochain 31 juillet. Deux ans au maximum.',
           },
         ]
       : []),
@@ -240,7 +257,9 @@ export function EventEditor({
         registration_section_ids: [],
         registration_team_ids: [],
         registration_limit: '',
-        until: '',
+        repeat: false,
+        weekdays: [],
+        until: nextJuly31(defaultDay && defaultDay > today() ? defaultDay : today()),
       };
 
   function changes(values: FormValues, original: Event) {
@@ -318,11 +337,18 @@ export function EventEditor({
           registration_limit: registrationLimit(values),
         };
         if (body.ends_at <= body.starts_at) throw new Error('La fin doit suivre le début.');
-        if (str(values, 'until')) {
+        if (checked(values, 'repeat')) {
+          if (!str(values, 'until')) throw new Error('Indiquez la fin de la récurrence.');
+          const weekdays = choices(values, 'weekdays').map(Number);
           const created = await api.request<Event[]>(
             '/series',
             'POST',
-            { event: body, until: str(values, 'until'), force },
+            {
+              event: body,
+              until: str(values, 'until'),
+              ...(weekdays.length ? { weekdays: weekdays.sort() } : {}),
+              force,
+            },
             signal,
           );
           onDone(
