@@ -78,6 +78,8 @@ function Notifications() {
   const [read, setRead] = useState<Set<string>>(new Set());
   const link = useEventLink();
   const items = (result.data ?? []).filter((item) => !item.read_at && !read.has(item.id));
+  // Chaque notification mène à l’action attendue : lien explicite, sinon l’événement.
+  const target = (item: Notification) => item.link ?? (item.event_id ? link(item.event_id) : null);
   const count = Math.max(total, items.length);
   function markRead(ids: string[]) {
     void request.run(async (signal) => {
@@ -109,18 +111,28 @@ function Notifications() {
       <ul className="club-plain-list club-notifications">
         {items.map((item) => (
           <li key={item.id} className="unread">
-            <span>
-              {item.event_id ? <Link to={link(item.event_id)}>{item.title}</Link> : item.title}
-              <span className="admin-hint"> · {dateLabel(item.created_at)}</span>
+            <span className="club-notification-copy">
+              <span>
+                {target(item) ? <Link to={target(item)!}>{item.title}</Link> : item.title}
+                <span className="admin-hint"> · {dateLabel(item.created_at)}</span>
+              </span>
+              {item.body && <span className="club-notification-body">{item.body}</span>}
             </span>
-            <button
-              type="button"
-              className="admin-button"
-              disabled={request.pending}
-              onClick={() => markRead([item.id])}
-            >
-              Marquer comme lu
-            </button>
+            <span className="club-notification-actions">
+              {actionLabel(item) && (
+                <Link className="admin-button primary" to={target(item)!}>
+                  {actionLabel(item)}
+                </Link>
+              )}
+              <button
+                type="button"
+                className="admin-button"
+                disabled={request.pending}
+                onClick={() => markRead([item.id])}
+              >
+                Marquer comme lu
+              </button>
+            </span>
           </li>
         ))}
       </ul>
@@ -154,4 +166,10 @@ function AdminSummary() {
       </Link>
     </div>
   );
+}
+
+function actionLabel(item: Notification): string | null {
+  if (item.link?.includes('tab=requests')) return 'Examiner la demande';
+  if (item.link?.startsWith('/app/messagerie')) return 'Voir le message';
+  return null;
 }

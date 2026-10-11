@@ -262,7 +262,9 @@ class QuestionThread(Identity, Base):
     __tablename__ = "question_threads"
     __table_args__ = (UniqueConstraint("user_id", "event_id"),)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    event_id: Mapped[str] = mapped_column(ForeignKey("events.id"))
+    # Sans événement (demande refusée…), la conversation porte un sujet.
+    event_id: Mapped[str | None] = mapped_column(ForeignKey("events.id"))
+    subject: Mapped[str] = mapped_column(String(200), default="", server_default="")
 
 
 class QuestionMessage(Identity, Base):
@@ -282,6 +284,9 @@ class Notification(Identity, Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     kind: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(200))
+    # Message libre (motif d’une décision…) et lien interne vers l’écran à ouvrir.
+    body: Mapped[str] = mapped_column(Text, default="", server_default="")
+    link: Mapped[str | None] = mapped_column(String(300))
     event_id: Mapped[str | None] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
     dedupe_key: Mapped[str] = mapped_column(String(200))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

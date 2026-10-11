@@ -7034,6 +7034,21 @@
             "type": "string",
             "title": "Title"
           },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link"
+          },
           "event_id": {
             "anyOf": [
               {
@@ -7068,6 +7083,8 @@
           "id",
           "kind",
           "title",
+          "body",
+          "link",
           "event_id",
           "read_at",
           "created_at"
@@ -7723,15 +7740,27 @@
             "title": "User Id"
           },
           "event_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Event Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
           }
         },
         "type": "object",
         "required": [
           "id",
           "user_id",
-          "event_id"
+          "event_id",
+          "subject"
         ],
         "title": "ThreadView"
       },

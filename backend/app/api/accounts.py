@@ -100,7 +100,12 @@ def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
         if role not in user.roles:
             db.delete(assignment)
     notify(
-        db, user, f"account:{issue_marker()}", "account_changed", "Votre compte a été mis à jour"
+        db,
+        user,
+        f"account:{issue_marker()}",
+        "account_changed",
+        "Votre compte a été mis à jour",
+        link="/app/profil",
     )
     return user
 
@@ -177,6 +182,7 @@ def delete_user(user_id: str, db: DB, actor: Admin) -> None:
             f"team-orphan:{team.id}:{issue_marker()}",
             "referent_missing",
             f"Référent d’équipe à réattribuer : {team.name}",
+            link="/app/administration?tab=teams",
         )
     db.execute(delete(LoginSession).where(LoginSession.user_id == user_id))
     db.delete(user)

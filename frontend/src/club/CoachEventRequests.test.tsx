@@ -255,7 +255,7 @@ it.each([
     expect(screen.getByText('Compétition 1')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Examiner' }));
     await userEvent.selectOptions(screen.getByLabelText('Décision'), accept);
-    await userEvent.type(screen.getByLabelText('Motif de la décision'), 'Décision motivée');
+    await userEvent.type(screen.getByLabelText('Message au référent'), 'Décision motivée');
     if (force) await userEvent.click(screen.getByLabelText(/Confirmer le dépassement/));
     await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la décision' }));
     expect(await screen.findByText('Décision enregistrée.')).toBeInTheDocument();
@@ -281,10 +281,10 @@ it('préserve la proposition et le motif si la capacité empêche l’acceptatio
   await userEvent.click(await screen.findByRole('button', { name: 'Nouveaux événements' }));
   await userEvent.click(await screen.findByRole('button', { name: 'Examiner' }));
   await userEvent.selectOptions(screen.getByLabelText('Décision'), 'yes');
-  await userEvent.type(screen.getByLabelText('Motif de la décision'), 'À revoir');
+  await userEvent.type(screen.getByLabelText('Message au référent'), 'À revoir');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la décision' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('capacité');
-  expect(screen.getByLabelText('Motif de la décision')).toHaveValue('À revoir');
+  expect(screen.getByLabelText('Message au référent')).toHaveValue('À revoir');
   expect(screen.getByRole('button', { name: 'Enregistrer la décision' })).toBeEnabled();
 });
 

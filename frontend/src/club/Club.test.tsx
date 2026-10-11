@@ -273,3 +273,24 @@ it('un administrateur supprime une occurrence et les suivantes de la série', as
   expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes('/events/e1?scope=following'))).toBe(true);
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Entraînement loisir' })).not.toBeInTheDocument());
 });
+
+it('chaque notification mène à son action : examen d’une demande ou message de l’admin', async () => {
+  routes['/notifications'] = [
+    { id: 'n1', kind: 'decision', title: 'Modification refusée : Entraînement loisir', body: 'Gymnase indisponible.', link: '/app/messagerie?thread=q9', event_id: 'e1', read_at: null, created_at: at('10:00') },
+    { id: 'n2', kind: 'license', title: 'Licence : Active', body: '', link: '/app/profil', event_id: null, read_at: null, created_at: at('11:00') },
+  ];
+  open('/app');
+  const card = (await screen.findByRole('heading', { name: /Notifications/ })).closest('section')!;
+  expect(await within(card).findByText('Gymnase indisponible.')).toBeInTheDocument();
+  expect(within(card).getByRole('link', { name: 'Voir le message' })).toHaveAttribute('href', '/app/messagerie?thread=q9');
+  expect(within(card).getByRole('link', { name: 'Licence : Active' })).toHaveAttribute('href', '/app/profil');
+});
+
+it('la messagerie affiche une conversation sans événement par son sujet', async () => {
+  routes['/questions'] = [{ id: 'q9', user_id: 'm1', event_id: null, subject: 'Demande d’événement : Stage' }];
+  routes['/questions/q9/messages'] = [{ id: 'x9', thread_id: 'q9', author_id: 'a1', body: 'Demande refusée : Stage\n\nCréneau déjà pris.', created_at: at('10:00'), read_at: null }];
+  open('/app/messagerie?thread=q9');
+  expect(await screen.findByRole('heading', { name: 'Demande d’événement : Stage' })).toBeInTheDocument();
+  expect(await screen.findByText(/Créneau déjà pris/)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Voir l’événement' })).not.toBeInTheDocument();
+});

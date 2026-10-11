@@ -35,6 +35,7 @@ it('recharge les événements après décision et sur Actualiser', async () => {
   open('requests');
   await userEvent.click(await screen.findByRole('button', { name: 'Examiner' }));
   await userEvent.selectOptions(screen.getByLabelText('Décision'), 'yes');
+  await userEvent.type(screen.getByLabelText('Message au référent'), 'Validé.');
   await userEvent.click(screen.getByRole('button', { name: 'Enregistrer la décision' }));
   await screen.findByText('Décision enregistrée.');
   expect(eventReads).toBe(2);
@@ -62,4 +63,30 @@ it('retire le résultat précédent lorsque la consultation suivante échoue', a
   await userEvent.click(screen.getByRole('button', { name: 'Consulter' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Lecture impossible');
   expect(screen.queryByText('1 occupé(s) · 2 disponible(s)')).not.toBeInTheDocument();
+});
+it('le lien d’une notification ouvre directement la décision de la demande', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    if (path.endsWith('/auth/me')) return reply(admin);
+    if (path.endsWith('/users')) return reply([admin]);
+    if (path.endsWith('/events')) return reply([{ id: 'e', title: 'Entraînement du jeudi', version: 1 }]);
+    if (path.endsWith('/change-requests')) return reply([{ id: 'r1', event_id: 'e', actor_name: 'Camille', base_version: 1, changes: { title: 'Nouveau titre' }, status: 'pending', created_at: '2026-10-10T10:00:00Z' }]);
+    if (path.endsWith('/event-requests')) return reply([{ id: 'x1', team_id: null, actor_id: 'c', actor_name: 'Coach', proposal: { title: 'Stage' }, note: '', status: 'pending', decision: '', decider_name: null, decided_at: null, created_at: '2026-10-10T10:00:00Z', event_id: null }]);
+    return reply([]);
+  }));
+  open('requests&demande=r1');
+  expect(await screen.findByRole('heading', { name: 'Décision pour la demande de Camille' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Message au référent')).toBeRequired();
+});
+it('le lien d’une création d’événement ouvre l’onglet et la décision correspondants', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    if (path.endsWith('/auth/me')) return reply(admin);
+    if (path.endsWith('/users')) return reply([admin]);
+    if (path.endsWith('/event-requests')) return reply([{ id: 'x1', team_id: null, actor_id: 'c', actor_name: 'Coach', proposal: { title: 'Stage' }, note: '', status: 'pending', decision: '', decider_name: null, decided_at: null, created_at: '2026-10-10T10:00:00Z', event_id: null }]);
+    return reply([]);
+  }));
+  open('requests&type=events&demande=x1');
+  expect(await screen.findByRole('heading', { name: 'Décision pour la demande de Coach' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Nouveaux événements' })).toHaveAttribute('aria-pressed', 'true');
 });

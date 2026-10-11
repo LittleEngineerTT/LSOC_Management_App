@@ -183,7 +183,7 @@ test('validation motivée et relance d’un e-mail', async ({ page }) => {
   await tab(page, 'Validations');
   await page.getByRole('button', { name: 'Examiner', exact: true }).click();
   await page.getByLabel('Décision', { exact: true }).selectOption('no');
-  await page.getByLabel('Motif de la décision').fill('Gymnase fermé');
+  await page.getByLabel('Message au référent').fill('Gymnase fermé');
   await page.getByRole('button', { name: 'Enregistrer la décision' }).click();
   expect(mutations.find((item) => item.path.endsWith('/decision'))?.body).toEqual({ accept: false, reason: 'Gymnase fermé', force: false, acknowledge_ffvb: false });
   await tab(page, 'E-mails');

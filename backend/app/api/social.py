@@ -23,7 +23,7 @@ from app.persistence.models import (
     QuestionThread,
     User,
 )
-from app.services.notifications import admins
+from app.services.notifications import admins, thread_link
 
 router = APIRouter(tags=["Messagerie et suivis"])
 
@@ -184,8 +184,15 @@ def post_message(thread_id: str, body: MessageInput, db: DB, actor: Actor) -> Qu
     db.add(value)
     db.flush()
     if actor.id == thread.user_id:
-        event = get(db, Event, thread.event_id)
-        admins(db, f"question:{value.id}", "question", f"Question sur : {event.title}", event.id)
+        subject = get(db, Event, thread.event_id).title if thread.event_id else thread.subject
+        admins(
+            db,
+            f"question:{value.id}",
+            "question",
+            f"Question sur : {subject}",
+            thread.event_id,
+            link=thread_link(thread.id),
+        )
     return value
 
 
@@ -215,10 +222,11 @@ def read_messages(db: Session, actor: User, thread_id: str | None) -> None:
         message.read_at = now()
     # Les alertes « nouvelle question » du fil deviennent lues elles aussi, même si un autre
     # admin avait déjà lu les messages.
+    # Alertes de nouvelles questions et décisions écrites dans ces fils.
     alerts = select(Notification).where(
         Notification.user_id == actor.id,
         Notification.read_at.is_(None),
-        Notification.kind == "question",
+        or_(Notification.kind == "question", Notification.link.like("/app/messagerie?thread=%")),
     )
     if thread_id is not None:
         keys = [
@@ -227,7 +235,9 @@ def read_messages(db: Session, actor: User, thread_id: str | None) -> None:
                 select(QuestionMessage.id).where(QuestionMessage.thread_id == thread_id)
             )
         ]
-        alerts = alerts.where(Notification.dedupe_key.in_(keys))
+        alerts = alerts.where(
+            or_(Notification.dedupe_key.in_(keys), Notification.link == thread_link(thread_id))
+        )
     for notification in db.scalars(alerts):
         notification.read_at = now()
 

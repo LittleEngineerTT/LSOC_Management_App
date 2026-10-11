@@ -24,7 +24,9 @@ export interface Follow {
 export interface Thread {
   id: string;
   user_id: string;
-  event_id: string;
+  /** Nul pour une conversation sans événement (décision sur une demande refusée…). */
+  event_id: string | null;
+  subject?: string;
 }
 export interface Message {
   id: string;
@@ -38,6 +40,10 @@ export interface Notification {
   id: string;
   kind: string;
   title: string;
+  /** Message de l’auteur (motif d’une décision…) ; absent des anciennes API. */
+  body?: string;
+  /** Écran à ouvrir, par exemple la validation d’une demande. */
+  link?: string | null;
   event_id: string | null;
   read_at: string | null;
   created_at: string;

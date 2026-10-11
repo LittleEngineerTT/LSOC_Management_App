@@ -70,7 +70,7 @@ test('un coach multiéquipes propose une séance ouverte puis l’admin accepte 
   await expect(page.getByRole('heading', { name: 'Stage ouvert' })).toBeVisible();
   await page.getByRole('button', { name: 'Examiner', exact: true }).click();
   await page.getByLabel('Décision', { exact: true }).selectOption('yes');
-  await page.getByLabel('Motif de la décision').fill('Créneau validé');
+  await page.getByLabel('Message au référent').fill('Créneau validé');
   await page.getByRole('button', { name: 'Enregistrer la décision', exact: true }).click();
   await expect(page.getByText('Décision enregistrée.', { exact: true })).toBeVisible();
   await page.getByLabel('État des demandes').selectOption('accepted');

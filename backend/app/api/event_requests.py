@@ -7,7 +7,7 @@ from app.api.schemas import CoachEventRequestInput, CoachEventRequestView, Decis
 from app.core.security import now
 from app.persistence.models import Assignment, CoachEventRequest, Event, Team, User
 from app.services.events import create_event, lock_planning, validate_event
-from app.services.notifications import admins, notify
+from app.services.notifications import admins, decision_message, notify, resolve_admin_alerts
 
 router = APIRouter(tags=["Planning"])
 
@@ -67,7 +67,13 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
     )
     db.add(value)
     db.flush()
-    admins(db, f"event-request:{value.id}", "event_request", f"Événement à valider : {body.title}")
+    admins(
+        db,
+        f"event-request:{value.id}",
+        "event_request",
+        f"Événement à valider : {body.title}",
+        link=f"/app/administration?tab=requests&type=events&demande={value.id}",
+    )
     notify(
         db,
         actor,
@@ -75,6 +81,7 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
         "event_request",
         f"Demande enregistrée : {body.title}",
         send_email=actor.referent_email,
+        link="/app/planning",
     )
     return value
 
@@ -144,18 +151,19 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
     value.decider_name = actor.first_name
     value.decided_at = now()
     title = f"Demande {'acceptée' if body.accept else 'refusée'} : {value.proposal['title']}"
-    key = f"event-request-decided:{value.id}"
-    admins(db, key, "event_request_decided", title, value.event_id)
-    if value.actor_id is not None:
-        requester = get(db, User, value.actor_id)
-        notify(
-            db,
-            requester,
-            key,
-            "event_request_decided",
-            title,
-            value.event_id,
-            requester.referent_email,
-        )
+    resolve_admin_alerts(db, f"event-request:{value.id}")
+    # Le demandeur est le référent proposé de l’événement ; la décision va dans sa messagerie.
+    referent = value.proposal.get("referent_id")
+    decision_message(
+        db,
+        {value.actor_id, str(referent) if referent else None},
+        f"event-request-decided:{value.id}",
+        title,
+        body.reason,
+        value.event_id,
+        actor,
+        subject=f"Demande d’événement : {value.proposal['title']}",
+        kind="event_request_decided",
+    )
     db.flush()
     return value

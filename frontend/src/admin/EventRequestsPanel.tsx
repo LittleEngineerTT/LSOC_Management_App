@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDecisionTarget } from './decisionTarget';
 import { Link } from 'react-router-dom';
 import { Changes } from './changes';
 import { useAdmin, useResource } from './data';
@@ -9,7 +10,7 @@ import { Badge, checked, Empty, EntityForm, LoadState, Notice, str } from './ui'
 export function EventRequestsPanel({ status }: { status: string }) {
   const { api, catalog } = useAdmin();
   const result = useResource<EventRequest>(`/event-requests?status=${status}`, true);
-  const [decision, setDecision] = useState<EventRequest | null>(null);
+  const { decision, open, close, alreadyDecided } = useDecisionTarget(result.data);
   const [notice, setNotice] = useState('');
   return (
     <>
@@ -18,6 +19,9 @@ export function EventRequestsPanel({ status }: { status: string }) {
         Actualiser
       </button>
       {notice && <Notice>{notice}</Notice>}
+      {alreadyDecided && (
+        <p className="admin-hint">Cette demande a déjà été traitée par un administrateur.</p>
+      )}
       {result.loaded && !result.data?.length && !result.error && (
         <Empty>Aucune demande dans cet état.</Empty>
       )}
@@ -36,7 +40,14 @@ export function EventRequestsPanel({ status }: { status: string }) {
                 { value: 'no', label: 'Refuser' },
               ],
             },
-            { name: 'reason', label: 'Motif de la décision', type: 'textarea', maxLength: 2000 },
+            {
+              name: 'reason',
+              label: 'Message au référent',
+              type: 'textarea',
+              required: true,
+              maxLength: 2000,
+              hint: 'Envoyé au référent de l’événement avec la décision.',
+            },
             {
               name: 'force',
               label: 'Confirmer le dépassement de capacité si nécessaire',
@@ -45,7 +56,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
           ]}
           initial={{ accept: '', reason: '', force: false }}
           submit="Enregistrer la décision"
-          onCancel={() => setDecision(null)}
+          onCancel={() => close()}
           onSave={async (values, signal) => {
             await api.request(
               `/event-requests/${decision.id}/decision`,
@@ -58,7 +69,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
               },
               signal,
             );
-            setDecision(null);
+            close();
             setNotice('Décision enregistrée.');
             result.reload();
           }}
@@ -100,7 +111,7 @@ export function EventRequestsPanel({ status }: { status: string }) {
                   className="admin-button"
                   onClick={() => {
                     setNotice('');
-                    setDecision(item);
+                    open(item);
                   }}
                 >
                   Examiner

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useDecisionTarget } from './decisionTarget';
 import { useAdmin, useResource } from './data';
 import type { ChangeRequest, EmailJob, Event } from './types';
 import { dateLabel } from './time';
@@ -86,8 +88,12 @@ function EmailList({ status }: { status: string }) {
   );
 }
 export function RequestsPanel() {
+  const [search] = useSearchParams();
   const [status, setStatus] = useState('pending');
-  const [kind, setKind] = useState<'changes' | 'events'>('changes');
+  // Le lien d’une notification de création d’événement ouvre directement le bon onglet.
+  const [kind, setKind] = useState<'changes' | 'events'>(
+    search.get('type') === 'events' ? 'events' : 'changes',
+  );
   return (
     <>
       <PanelHeading
@@ -134,7 +140,7 @@ function RequestList({ status }: { status: string }) {
   const { api } = useAdmin();
   const result = useResource<ChangeRequest>(`/change-requests?status=${status}`, true);
   const events = useResource<Event>('/events?include_cancelled=true', true);
-  const [decision, setDecision] = useState<ChangeRequest | null>(null);
+  const { decision, open, close, alreadyDecided } = useDecisionTarget(result.data);
   const [notice, setNotice] = useState('');
   return (
     <>
@@ -150,6 +156,9 @@ function RequestList({ status }: { status: string }) {
         Actualiser
       </button>
       {notice && <Notice>{notice}</Notice>}
+      {alreadyDecided && (
+        <p className="admin-hint">Cette demande a déjà été traitée par un administrateur.</p>
+      )}
       {result.loaded && !result.data?.length && <Empty>Aucune demande dans cet état.</Empty>}
       {decision && (
         <EntityForm
@@ -166,7 +175,14 @@ function RequestList({ status }: { status: string }) {
                 { value: 'no', label: 'Refuser' },
               ],
             },
-            { name: 'reason', label: 'Motif de la décision', type: 'textarea', maxLength: 2000 },
+            {
+              name: 'reason',
+              label: 'Message au référent',
+              type: 'textarea',
+              required: true,
+              maxLength: 2000,
+              hint: 'Envoyé au référent de l’événement avec la décision.',
+            },
             {
               name: 'force',
               label: 'Confirmer le dépassement de capacité si nécessaire',
@@ -180,7 +196,7 @@ function RequestList({ status }: { status: string }) {
           ]}
           initial={{ accept: '', reason: '', force: false, acknowledge_ffvb: false }}
           submit="Enregistrer la décision"
-          onCancel={() => setDecision(null)}
+          onCancel={() => close()}
           onSave={async (values, signal) => {
             await api.request(
               `/change-requests/${decision.id}/decision`,
@@ -193,7 +209,7 @@ function RequestList({ status }: { status: string }) {
               },
               signal,
             );
-            setDecision(null);
+            close();
             setNotice('Décision enregistrée.');
             result.reload();
             events.reload();
@@ -254,7 +270,7 @@ function RequestList({ status }: { status: string }) {
                 </Badge>
               </div>
               {item.status === 'pending' && (
-                <button className="admin-button" onClick={() => setDecision(item)}>
+                <button className="admin-button" onClick={() => open(item)}>
                   Examiner
                 </button>
               )}

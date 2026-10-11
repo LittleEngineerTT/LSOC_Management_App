@@ -13,6 +13,9 @@ import { useUnread } from '../app/unread';
 interface Conversation extends Thread {
   event: Event | null;
 }
+function conversationTitle(conversation: Conversation) {
+  return conversation.event?.title ?? (conversation.subject || 'Événement indisponible');
+}
 
 export function MessagingPage() {
   const { api, admin } = useClub();
@@ -22,7 +25,9 @@ export function MessagingPage() {
   const loader = useCallback(
     async (signal: AbortSignal): Promise<Conversation[]> => {
       const threads = await api.list<Thread>('/questions', true, signal);
-      const ids = [...new Set(threads.map((thread) => thread.event_id))];
+      const ids = [
+        ...new Set(threads.flatMap((thread) => (thread.event_id ? [thread.event_id] : []))),
+      ];
       const events = new Map(
         await Promise.all(
           ids.map(async (id) => {
@@ -34,7 +39,10 @@ export function MessagingPage() {
         ),
       );
       return threads
-        .map((thread) => ({ ...thread, event: events.get(thread.event_id) ?? null }))
+        .map((thread) => ({
+          ...thread,
+          event: thread.event_id ? (events.get(thread.event_id) ?? null) : null,
+        }))
         .sort((left, right) =>
           (right.event?.starts_at ?? '').localeCompare(left.event?.starts_at ?? ''),
         );
@@ -95,7 +103,7 @@ export function MessagingPage() {
                 aria-current={item.id === selected?.id ? 'page' : undefined}
               >
                 <strong>
-                  {item.event?.title ?? 'Événement indisponible'}
+                  {conversationTitle(item)}
                   {(counts[item.id] ?? 0) > 0 && (
                     <span
                       className="club-unread"
@@ -158,7 +166,7 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
         <Link className="club-back admin-button" to="?">
           <span aria-hidden="true">←</span> Conversations
         </Link>
-        <h3>{conversation.event?.title ?? 'Événement indisponible'}</h3>
+        <h3>{conversationTitle(conversation)}</h3>
         {unreadCount > 0 && (
           <button
             type="button"

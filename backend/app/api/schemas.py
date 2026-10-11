@@ -400,7 +400,8 @@ class MessageView(View):
 class ThreadView(View):
     id: str
     user_id: str
-    event_id: str
+    event_id: str | None
+    subject: str
 
 
 class RegistrationView(View):
@@ -479,6 +480,8 @@ class NotificationView(View):
     id: str
     kind: str
     title: str
+    body: str
+    link: str | None
     event_id: str | None
     read_at: datetime | None
     created_at: datetime

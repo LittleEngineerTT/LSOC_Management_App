@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { useCallback, useState } from 'react';
 import { useAdmin, useLoad, useResource } from './data';
 import type { Conflict, Defaults, Mapping, Match } from './types';
@@ -7,7 +8,9 @@ import { Changes, fieldLabels } from './changes';
 import { SourcesPanel, ClubPanel } from './SourcesPanel';
 
 export function FFVBPanel() {
-  const [view, setView] = useState('sources');
+  const [search] = useSearchParams();
+  // Les notifications FFVB ouvrent directement la bonne sous-vue (?vue=mappings…).
+  const [view, setView] = useState(search.get('vue') ?? 'sources');
   const { api } = useAdmin();
   const clubLoader = useCallback(
     (signal: AbortSignal) =>

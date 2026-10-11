@@ -118,6 +118,7 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
             "license",
             f"Licence : {LABELS[body.status]}",
             send_email=False,
+            link="/app/profil",
         )
     mine = list(db.scalars(select(Assignment).where(Assignment.user_id == user_id)))
     return view(user, value, mine)

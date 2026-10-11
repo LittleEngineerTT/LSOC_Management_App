@@ -488,3 +488,23 @@
   color: #fff;
   font-size: 11px;
 }
+.club-notification-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.club-notification-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 6px 10px;
+  border-left: 3px solid #d7e1e8;
+  background: #fff;
+  border-radius: 4px;
+  color: #33475a;
+}
+.club-notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}

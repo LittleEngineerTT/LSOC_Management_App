@@ -44,7 +44,7 @@ from app.services.events import (
     snapshot,
     wall_time,
 )
-from app.services.notifications import admins
+from app.services.notifications import admins, decision_message, resolve_admin_alerts
 
 router = APIRouter(tags=["Planning"])
 
@@ -169,6 +169,7 @@ def request_change(event_id: str, body: ChangeInput, db: DB, actor: Actor) -> Ch
         "change_request",
         f"Modification à valider : {event.title}",
         event_id,
+        link=f"/app/administration?tab=requests&demande={value.id}",
     )
     return value
 
@@ -226,6 +227,16 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> Change
     request.decided_at = now()
     request.status = "accepted" if body.accept else "rejected"
     request.decision = body.reason
+    resolve_admin_alerts(db, f"request:{request.id}")
+    decision_message(
+        db,
+        {event.referent_id, request.actor_id},
+        f"request-decided:{request.id}",
+        f"Modification {'acceptée' if body.accept else 'refusée'} : {event.title}",
+        body.reason,
+        event.id,
+        actor,
+    )
     return request
 
 
