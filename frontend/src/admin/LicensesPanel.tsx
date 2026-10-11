@@ -4,14 +4,18 @@ import { dateLabel } from './time';
 import { Badge, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from './ui';
 
 export type LicenseStatus = 'none' | 'in_progress' | 'payment_pending' | 'active';
+type Kind = 'player' | 'coach';
 export interface License {
   user_id: string;
   first_name: string;
   username: string | null;
+  /** Numéro unique de la personne, commun aux licences joueur et coach. */
   number: string | null;
   status: LicenseStatus;
+  coach_status: LicenseStatus;
   updated_at: string | null;
-  teams: { team_id: string; kind: 'player' | 'coach' }[];
+  teams: { team_id: string; kind: Kind }[];
+  coach: boolean;
   missing: boolean;
 }
 
@@ -27,17 +31,28 @@ export const licenseTones: Record<LicenseStatus, string> = {
   payment_pending: 'warning',
   active: 'good',
 };
-const order: LicenseStatus[] = ['none', 'in_progress', 'payment_pending', 'active'];
+// La licence coach n’a pas d’étape de paiement.
+const steps: Record<Kind, LicenseStatus[]> = {
+  player: ['none', 'in_progress', 'payment_pending', 'active'],
+  coach: ['none', 'in_progress', 'active'],
+};
+const beforeActive: Record<Kind, LicenseStatus> = {
+  player: 'payment_pending',
+  coach: 'in_progress',
+};
+const field: Record<Kind, 'status' | 'coach_status'> = { player: 'status', coach: 'coach_status' };
 
 /** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. */
 export function LicensesPanel() {
   const { api, catalog } = useAdmin();
+  const [kind, setKind] = useState<Kind>('player');
   const [section, setSection] = useState('');
   const [team, setTeam] = useState('');
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState<License | null>(null);
   const [notice, setNotice] = useState('');
   const query = new URLSearchParams();
+  if (kind === 'coach') query.set('kind', 'coach');
   if (section) query.set('section_id', section);
   if (team) query.set('team_id', team);
   if (missing) query.set('missing', 'true');
@@ -50,8 +65,24 @@ export function LicensesPanel() {
     <>
       <PanelHeading
         title="Licences"
-        description="Numéros et statuts des licences. Une licence manque pour un joueur rattaché à une équipe tant qu’elle n’est pas active."
+        description="Un numéro par personne, commun à ses licences joueur et coach. Une licence manque pour un joueur ou un coach rattaché à une équipe tant qu’elle n’est pas active."
       />
+      <div className="admin-subtabs" role="group" aria-label="Type de licence">
+        {(['player', 'coach'] as const).map((value) => (
+          <button
+            key={value}
+            className={`admin-button${kind === value ? ' selected' : ''}`}
+            aria-pressed={kind === value}
+            onClick={() => {
+              setKind(value);
+              setEditing(null);
+              setNotice('');
+            }}
+          >
+            {value === 'player' ? 'Joueurs' : 'Coachs'}
+          </button>
+        ))}
+      </div>
       <div className="admin-toolbar">
         <label>
           Section
@@ -95,8 +126,8 @@ export function LicensesPanel() {
           <strong>{missingCount}</strong> licence{missingCount > 1 ? 's' : ''} manquante
           {missingCount > 1 ? 's' : ''}
           {!missing &&
-            order.map((status) => {
-              const count = rows.filter((item) => item.status === status).length;
+            steps[kind].map((status) => {
+              const count = rows.filter((item) => item[field[kind]] === status).length;
               return count ? (
                 <span key={status}>
                   {' · '}
@@ -111,33 +142,36 @@ export function LicensesPanel() {
       {editing && (
         <EntityForm
           key={editing.user_id}
-          title={`Licence de ${editing.first_name}`}
+          title={`Licence ${kind === 'coach' ? 'coach' : 'joueur'} de ${editing.first_name}`}
           fields={[
             {
               name: 'number',
               label: 'Numéro de licence',
               maxLength: 40,
               pattern: '[A-Za-z0-9\\-]+',
-              hint: 'Obligatoire pour une licence active. Lettres, chiffres et tirets.',
+              hint: 'Commun aux licences joueur et coach ; obligatoire pour une licence active.',
             },
             {
               name: 'status',
               label: 'Statut',
               type: 'select',
               required: true,
-              // « Active » n’est proposé qu’après « Paiement en attente ».
-              options: order
+              // « Active » n’est proposé qu’après l’étape qui la précède.
+              options: steps[kind]
                 .filter(
                   (status) =>
                     status !== 'active' ||
-                    editing.status === 'payment_pending' ||
-                    editing.status === 'active',
+                    editing[field[kind]] === beforeActive[kind] ||
+                    editing[field[kind]] === 'active',
                 )
                 .map((status) => ({ value: status, label: licenseLabels[status] })),
-              hint: 'Étapes : en cours, paiement en attente, puis active.',
+              hint:
+                kind === 'coach'
+                  ? 'Étapes : en cours, puis active (sans paiement).'
+                  : 'Étapes : en cours, paiement en attente, puis active.',
             },
           ]}
-          initial={{ number: editing.number ?? '', status: editing.status }}
+          initial={{ number: editing.number ?? '', status: editing[field[kind]] }}
           onCancel={() => setEditing(null)}
           onSave={async (values, signal) => {
             const status = str(values, 'status') as LicenseStatus;
@@ -146,7 +180,7 @@ export function LicensesPanel() {
             await api.request(
               `/licenses/${editing.user_id}`,
               'PUT',
-              { number: str(values, 'number') || null, status },
+              { number: str(values, 'number') || null, [field[kind]]: status },
               signal,
             );
             setNotice(`Licence de ${editing.first_name} : ${licenseLabels[status]}.`);
@@ -156,7 +190,13 @@ export function LicensesPanel() {
         />
       )}
       {result.loaded && !rows.length && (
-        <Empty>{missing ? 'Aucune licence manquante.' : 'Aucun adhérent dans ce périmètre.'}</Empty>
+        <Empty>
+          {missing
+            ? 'Aucune licence manquante.'
+            : kind === 'coach'
+              ? 'Aucun coach dans ce périmètre.'
+              : 'Aucun adhérent dans ce périmètre.'}
+        </Empty>
       )}
       <div className="admin-list">
         {rows.map((item) => (
@@ -177,9 +217,21 @@ export function LicensesPanel() {
                   : 'Aucune équipe'}
               </p>
               <p>
-                <Badge tone={licenseTones[item.status]}>{licenseLabels[item.status]}</Badge>
+                <Badge tone={licenseTones[item[field[kind]]]}>
+                  {licenseLabels[item[field[kind]]]}
+                </Badge>
                 {item.missing && <Badge tone="danger">Licence manquante</Badge>}
                 {item.number ? ` N° ${item.number}` : ' Sans numéro'}
+                {kind === 'player' && item.coach && (
+                  <span className="admin-hint">
+                    {' · '}licence coach : {licenseLabels[item.coach_status].toLowerCase()}
+                  </span>
+                )}
+                {kind === 'coach' && (
+                  <span className="admin-hint">
+                    {' · '}licence joueur : {licenseLabels[item.status].toLowerCase()}
+                  </span>
+                )}
                 {item.updated_at && (
                   <span className="admin-hint"> · mise à jour {dateLabel(item.updated_at)}</span>
                 )}

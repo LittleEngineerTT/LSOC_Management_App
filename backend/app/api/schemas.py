@@ -436,11 +436,16 @@ class UnreadView(View):
 
 
 LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]
+# La licence coach n’a pas d’étape de paiement.
+CoachLicenseStatus = Literal["none", "in_progress", "active"]
 
 
 class LicenseInput(Input):
+    """Numéro commun aux deux licences ; un statut absent reste inchangé."""
+
     number: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9-]+$")
-    status: LicenseStatus
+    status: LicenseStatus | None = None
+    coach_status: CoachLicenseStatus | None = None
 
     @field_validator("number", mode="before")
     @classmethod
@@ -450,6 +455,9 @@ class LicenseInput(Input):
 
 class MyLicenseView(View):
     status: LicenseStatus
+    coach_status: CoachLicenseStatus
+    # Le compte est concerné par la licence coach (rôle ou rattachement coach).
+    coach: bool
 
 
 class LicenseTeamView(View):
@@ -463,9 +471,14 @@ class LicenseView(View):
     username: str | None
     number: str | None
     status: LicenseStatus
+    coach_status: CoachLicenseStatus
     updated_at: datetime | None
     teams: list[LicenseTeamView]
-    # Joueur rattaché à au moins une équipe sans licence active.
+    coach: bool
+    # Joueur (resp. coach) rattaché à une équipe du périmètre sans licence active.
+    missing_player: bool
+    missing_coach: bool
+    # Manque pour le type de licence consulté.
     missing: bool
 
 

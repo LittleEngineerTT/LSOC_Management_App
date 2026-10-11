@@ -3055,7 +3055,7 @@
           "Licences"
         ],
         "summary": "Licenses",
-        "description": "Licences des comptes actifs, filtrables par section, équipe ou licences manquantes.\n\nUne licence manque pour un joueur rattaché à une équipe du périmètre sans licence active.",
+        "description": "Licences joueur ou coach des comptes actifs, par section, équipe ou manquantes.\n\nUne licence manque pour un joueur (resp. coach) rattaché à une équipe du périmètre dont\nla licence du même type n’est pas active. La liste coach ne montre que les comptes\nconcernés : rôle coach ou rattachement coach.",
         "operationId": "licenses_api_v1_licenses_get",
         "security": [
           {
@@ -3063,6 +3063,20 @@
           }
         ],
         "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "player",
+                "coach"
+              ],
+              "type": "string",
+              "default": "player",
+              "title": "Kind"
+            }
+          },
           {
             "name": "section_id",
             "in": "query",
@@ -6512,22 +6526,43 @@
             "title": "Number"
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "none",
-              "in_progress",
-              "payment_pending",
-              "active"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "in_progress",
+                  "payment_pending",
+                  "active"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "Status"
+          },
+          "coach_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "in_progress",
+                  "active"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Status"
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "LicenseInput"
+        "title": "LicenseInput",
+        "description": "Numéro commun aux deux licences ; un statut absent reste inchangé."
       },
       "LicenseTeamView": {
         "properties": {
@@ -6589,6 +6624,15 @@
             ],
             "title": "Status"
           },
+          "coach_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "in_progress",
+              "active"
+            ],
+            "title": "Coach Status"
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -6608,6 +6652,18 @@
             "type": "array",
             "title": "Teams"
           },
+          "coach": {
+            "type": "boolean",
+            "title": "Coach"
+          },
+          "missing_player": {
+            "type": "boolean",
+            "title": "Missing Player"
+          },
+          "missing_coach": {
+            "type": "boolean",
+            "title": "Missing Coach"
+          },
           "missing": {
             "type": "boolean",
             "title": "Missing"
@@ -6620,8 +6676,12 @@
           "username",
           "number",
           "status",
+          "coach_status",
           "updated_at",
           "teams",
+          "coach",
+          "missing_player",
+          "missing_coach",
           "missing"
         ],
         "title": "LicenseView"
@@ -6996,11 +7056,26 @@
               "active"
             ],
             "title": "Status"
+          },
+          "coach_status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "in_progress",
+              "active"
+            ],
+            "title": "Coach Status"
+          },
+          "coach": {
+            "type": "boolean",
+            "title": "Coach"
           }
         },
         "type": "object",
         "required": [
-          "status"
+          "status",
+          "coach_status",
+          "coach"
         ],
         "title": "MyLicenseView"
       },

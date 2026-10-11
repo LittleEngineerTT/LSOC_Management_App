@@ -48,7 +48,10 @@ class User(Identity, Base):
 
 
 class License(Base):
-    """Licence d’un adhérent ; l’absence de ligne vaut « pas de licence »."""
+    """Licence d’un adhérent ; l’absence de ligne vaut « pas de licence ».
+
+    Un seul numéro par personne ; le statut joueur et le statut coach évoluent séparément.
+    """
 
     __tablename__ = "licenses"
     __table_args__ = (
@@ -57,12 +60,20 @@ class License(Base):
             name="licenses_status_check",
         ),
         CheckConstraint("status <> 'active' OR number IS NOT NULL", name="licenses_active_number"),
+        CheckConstraint(
+            "coach_status IN ('none','in_progress','active')", name="licenses_coach_status_check"
+        ),
+        CheckConstraint(
+            "coach_status <> 'active' OR number IS NOT NULL", name="licenses_coach_active_number"
+        ),
     )
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     number: Mapped[str | None] = mapped_column(String(40), unique=True)
     status: Mapped[str] = mapped_column(String(20), default="none")
+    # Licence d’encadrement : pas d’étape de paiement.
+    coach_status: Mapped[str] = mapped_column(String(20), default="none", server_default="none")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 

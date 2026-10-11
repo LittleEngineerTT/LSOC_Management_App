@@ -126,9 +126,9 @@ Un événement porte une `description` libre (2000 caractères, vide par défaut
 | --- | --- |
 | `GET /licenses/me` | Statut de sa licence (`none`, `in_progress`, `payment_pending`, `active`), sans numéro |
 | `GET /licenses?section_id=&team_id=&missing=true` | Admin : comptes actifs avec numéro, statut, équipes et `missing` |
-| `PUT /licenses/{user_id}` | Admin : `{number, status}` |
+| `PUT /licenses/{user_id}` | Admin : `{number, status?, coach_status?}` |
 
-Une licence ne devient `active` qu’après `payment_pending` et avec un numéro. Les retours en arrière restent possibles pour corriger. Le numéro est unique (409). Un filtre de section ou d’équipe limite la liste aux comptes rattachés à ce périmètre. `missing` signale un joueur rattaché à une équipe du périmètre dont la licence n’est pas active ; coachs et comptes sans équipe n’en ont pas. L’adhérent reçoit une notification, sans e-mail, à chaque changement de statut. La suppression d’un compte efface sa licence (migration 0011).
+Chaque personne a un seul numéro, commun à ses deux licences : `status` (joueur) et `coach_status` (coach). `PUT` accepte `{number, status?, coach_status?}`, et un statut absent reste inchangé. La licence joueur ne devient `active` qu’après `payment_pending` ; la licence coach, sans paiement, qu’après `in_progress`. Une licence active exige un numéro. `GET /licenses?kind=coach` ne liste que les comptes avec le rôle ou un rattachement coach ; `missing` y signale un coach rattaché sans licence coach active. `GET /licenses/me` renvoie `{status, coach_status, coach}`. Les retours en arrière restent possibles pour corriger. Le numéro est unique (409). Un filtre de section ou d’équipe limite la liste aux comptes rattachés à ce périmètre. `missing` signale un joueur rattaché à une équipe du périmètre dont la licence n’est pas active ; coachs et comptes sans équipe n’en ont pas. L’adhérent reçoit une notification, sans e-mail, à chaque changement de statut. La suppression d’un compte efface sa licence (migration 0011).
 
 ## Séances ouvertes et inscriptions
 

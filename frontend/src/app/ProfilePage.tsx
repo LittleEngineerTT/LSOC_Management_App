@@ -93,23 +93,35 @@ function MyLicense() {
   const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
   const loader = useCallback(
     (signal: AbortSignal) =>
-      api.request<{ status: LicenseStatus }>('/licenses/me', 'GET', undefined, signal),
+      api.request<{ status: LicenseStatus; coach_status?: LicenseStatus; coach?: boolean }>(
+        '/licenses/me',
+        'GET',
+        undefined,
+        signal,
+      ),
     [api],
   );
   const result = useLoad(loader);
+  const data = result.data;
   return (
     <section className="admin-card" aria-labelledby="my-license">
       <h2 id="my-license">Ma licence</h2>
       <LoadState result={result} />
-      {result.data && (
+      {data && (
         <p>
-          Statut :{' '}
-          <Badge tone={licenseTones[result.data.status]}>{licenseLabels[result.data.status]}</Badge>
+          Licence joueur :{' '}
+          <Badge tone={licenseTones[data.status]}>{licenseLabels[data.status]}</Badge>
+        </p>
+      )}
+      {data?.coach && data.coach_status && (
+        <p>
+          Licence coach :{' '}
+          <Badge tone={licenseTones[data.coach_status]}>{licenseLabels[data.coach_status]}</Badge>
         </p>
       )}
       <p className="admin-hint">
-        La licence est gérée par les administrateurs du club. Étapes : en cours, paiement en
-        attente, puis active.
+        Les licences sont gérées par les administrateurs du club. Joueur : en cours, paiement en
+        attente, puis active. Coach : en cours, puis active.
       </p>
     </section>
   );

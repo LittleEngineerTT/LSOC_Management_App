@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import select, text
 
@@ -20,14 +22,29 @@ LABELS = {
     "payment_pending": "Paiement en attente",
     "active": "Active",
 }
+# Étape obligatoire avant « active » : le paiement pour un joueur, « en cours » pour un coach.
+BEFORE_ACTIVE = {"status": "payment_pending", "coach_status": "in_progress"}
 
 
 def lock_licenses(db: DB) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(781014)"))
 
 
-def view(user: User, record: License | None, mine: list[Assignment]) -> LicenseView:
+def concerned_coach(user: User, assignments: list[Assignment]) -> bool:
+    return "coach" in user.roles or any(item.kind == "coach" for item in assignments)
+
+
+def view(
+    user: User,
+    record: License | None,
+    mine: list[Assignment],
+    coach: bool,
+    kind: Literal["player", "coach"] = "player",
+) -> LicenseView:
     status = record.status if record else "none"
+    coach_status = record.coach_status if record else "none"
+    missing_player = status != "active" and any(item.kind == "player" for item in mine)
+    missing_coach = coach_status != "active" and any(item.kind == "coach" for item in mine)
     return LicenseView.model_validate(
         {
             "user_id": user.id,
@@ -35,31 +52,45 @@ def view(user: User, record: License | None, mine: list[Assignment]) -> LicenseV
             "username": user.username,
             "number": record.number if record else None,
             "status": status,
+            "coach_status": coach_status,
             "updated_at": record.updated_at if record else None,
             "teams": [LicenseTeamView(team_id=item.team_id, kind=item.kind) for item in mine],
-            "missing": status != "active" and any(item.kind == "player" for item in mine),
+            "coach": coach,
+            "missing_player": missing_player,
+            "missing_coach": missing_coach,
+            "missing": missing_coach if kind == "coach" else missing_player,
         }
     )
 
 
 @router.get("/licenses/me", response_model=MyLicenseView)
 def mine(db: DB, actor: Actor) -> MyLicenseView:
-    # Un adhérent ne voit que le statut ; le numéro reste réservé aux administrateurs.
+    # Un adhérent ne voit que les statuts ; le numéro reste réservé aux administrateurs.
     value = db.get(License, actor.id)
-    return MyLicenseView.model_validate({"status": value.status if value else "none"})
+    assignments = list(db.scalars(select(Assignment).where(Assignment.user_id == actor.id)))
+    return MyLicenseView.model_validate(
+        {
+            "status": value.status if value else "none",
+            "coach_status": value.coach_status if value else "none",
+            "coach": concerned_coach(actor, assignments),
+        }
+    )
 
 
 @router.get("/licenses", response_model=list[LicenseView])
 def licenses(
     db: DB,
     actor: Admin,
+    kind: Literal["player", "coach"] = "player",
     section_id: str | None = None,
     team_id: str | None = None,
     missing: bool = False,
 ) -> list[LicenseView]:
-    """Licences des comptes actifs, filtrables par section, équipe ou licences manquantes.
+    """Licences joueur ou coach des comptes actifs, par section, équipe ou manquantes.
 
-    Une licence manque pour un joueur rattaché à une équipe du périmètre sans licence active.
+    Une licence manque pour un joueur (resp. coach) rattaché à une équipe du périmètre dont
+    la licence du même type n’est pas active. La liste coach ne montre que les comptes
+    concernés : rôle coach ou rattachement coach.
     """
     teams = {team.id: team for team in db.scalars(select(Team))}
     scope = {
@@ -77,10 +108,16 @@ def licenses(
     for user in db.scalars(
         select(User).where(User.active.is_(True)).order_by(User.first_name, User.id)
     ):
-        mine = [item for item in assignments.get(user.id, []) if item.team_id in scope]
+        every = assignments.get(user.id, [])
+        coach = concerned_coach(user, every)
+        if kind == "coach" and not coach:
+            continue
+        mine = [item for item in every if item.team_id in scope]
+        if kind == "coach" and filtered:
+            mine = [item for item in mine if item.kind == "coach"]
         if filtered and not mine:
             continue
-        item = view(user, records.get(user.id), mine)
+        item = view(user, records.get(user.id), mine, coach, kind)
         if missing and not item.missing:
             continue
         result.append(item)
@@ -92,13 +129,22 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
     lock_licenses(db)
     user = get(db, User, user_id)
     value = db.get(License, user_id)
-    current = value.status if value else "none"
-    # « Paiement en attente » est l’étape obligatoire avant une licence active.
-    if body.status == "active" and current not in {"payment_pending", "active"}:
-        raise HTTPException(
-            422, "Une licence devient active uniquement après « Paiement en attente »"
-        )
-    if body.status == "active" and not body.number:
+    current: dict[str, str] = {
+        "status": value.status if value else "none",
+        "coach_status": value.coach_status if value else "none",
+    }
+    wanted: dict[str, str] = {
+        "status": body.status or current["status"],
+        "coach_status": body.coach_status or current["coach_status"],
+    }
+    for field, required in BEFORE_ACTIVE.items():
+        if wanted[field] == "active" and current[field] not in {required, "active"}:
+            kind = "coach" if field == "coach_status" else "joueur"
+            raise HTTPException(
+                422,
+                f"Une licence {kind} devient active uniquement après « {LABELS[required]} »",
+            )
+    if "active" in wanted.values() and not body.number:
         raise HTTPException(422, "Un numéro de licence est requis pour une licence active")
     if body.number and db.scalar(
         select(License.user_id).where(License.number == body.number, License.user_id != user_id)
@@ -107,18 +153,21 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
     if value is None:
         value = License(user_id=user_id)
         db.add(value)
-    value.number, value.status = body.number, body.status
+    value.number = body.number
+    value.status, value.coach_status = wanted["status"], wanted["coach_status"]
     value.updated_at, value.updated_by = now(), actor.id
     db.flush()
-    if body.status != current and user.id != actor.id:
-        notify(
-            db,
-            user,
-            f"license:{user.id}:{token()}",
-            "license",
-            f"Licence : {LABELS[body.status]}",
-            send_email=False,
-            link="/app/profil",
-        )
+    if user.id != actor.id:
+        for field, label in (("status", "Licence joueur"), ("coach_status", "Licence coach")):
+            if wanted[field] != current[field]:
+                notify(
+                    db,
+                    user,
+                    f"license:{user.id}:{field}:{token()}",
+                    "license",
+                    f"{label} : {LABELS[wanted[field]]}",
+                    send_email=False,
+                    link="/app/profil",
+                )
     mine = list(db.scalars(select(Assignment).where(Assignment.user_id == user_id)))
-    return view(user, value, mine)
+    return view(user, value, mine, concerned_coach(user, mine))
