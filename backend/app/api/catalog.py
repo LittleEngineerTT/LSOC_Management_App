@@ -72,11 +72,17 @@ def create_team(body: TeamInput, db: DB, actor: Admin) -> Team:
 
 @router.put("/teams/{identifier}", response_model=TeamView)
 def update_team(identifier: str, body: TeamInput, db: DB, actor: Admin) -> Team:
+    from app.services.events import lock_planning, reassign_team_events
+
     get(db, Section, body.section_id)
     active_referent(db, body.referent_id)
+    lock_planning(db)
     value = get(db, Team, identifier)
+    previous = value.referent_id
     for key, item in body.model_dump().items():
         setattr(value, key, item)
+    if body.referent_id is not None and body.referent_id != previous:
+        reassign_team_events(db, value, previous, actor)
     return value
 
 

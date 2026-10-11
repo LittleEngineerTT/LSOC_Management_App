@@ -366,6 +366,22 @@ it('un coach sans rattachement coach voit le bouton et apprend comment obtenir c
   routes[`/users/${coach.id}/assignments`] = [];
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent(/rattaché comme coach à une équipe/);
+  expect(await screen.findByRole('alert')).toHaveTextContent(/référent d’une équipe ou y être rattaché comme coach/);
   expect(screen.queryByLabelText('Équipe organisatrice')).not.toBeInTheDocument();
+});
+
+it('un adhérent référent d’une équipe, sans rôle coach, peut demander un événement pour cette équipe', async () => {
+  account = { ...coach, roles: ['member'] };
+  routes['/users/coach/assignments'] = [{ id: 'a9', user_id: 'coach', team_id: 't1', kind: 'player' }];
+  routes['/teams'] = [
+    { id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null },
+    { id: 't2', name: 'Loisir 2', section_id: 's1', referent_id: 'coach' },
+  ];
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  const team = await screen.findByLabelText('Équipe organisatrice');
+  expect(within(team).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choisir…',
+    'Loisir 2',
+  ]);
 });

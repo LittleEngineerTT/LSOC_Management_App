@@ -5,18 +5,21 @@ import { useClub } from './context';
 import { kindLabels } from './events';
 
 /** Une demande concerne une seule équipe actuellement coachée. */
+/** Équipes pour lesquelles le compte peut demander un événement : référent ou coach rattaché. */
 export function useCoachedTeams() {
   const { account, assignments, teams } = useClub();
-  return account.roles.includes('coach')
-    ? teams.filter((team) =>
+  const coach = account.roles.includes('coach');
+  return teams.filter(
+    (team) =>
+      team.referent_id === account.id ||
+      (coach &&
         assignments.some(
           (assignment) =>
             assignment.user_id === account.id &&
             assignment.team_id === team.id &&
             assignment.kind === 'coach',
-        ),
-      )
-    : [];
+        )),
+  );
 }
 
 export function EventProposalForm({

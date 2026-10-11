@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -140,6 +140,12 @@ describe('session et connexion', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Mon planning' })).toBeInTheDocument();
     expect(await screen.findByText(/Rien de prévu/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mes sections' })).toBeInTheDocument();
+    // Mon planning et Mes sections restent dans la barre du haut, plus dans le menu du compte.
+    await userEvent.click(screen.getByRole('button', { name: /Options du profil/ }));
+    const options = document.getElementById('profile-options')!;
+    expect(within(options).getByRole('link', { name: 'Mon profil' })).toBeInTheDocument();
+    expect(within(options).queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();
+    expect(within(options).queryByRole('link', { name: 'Mes sections' })).not.toBeInTheDocument();
   });
 
   it('masque l’entrée administration pour un adhérent', async () => {

@@ -9,7 +9,9 @@ Entrées de reprise : [README](../README.md), [guide API frontend](backend-api.m
 Frontend : [spécification authentification/accueil](superpowers/specs/2026-10-10-frontend-auth-design.md) et [plan/compte rendu](superpowers/plans/2026-10-10-frontend-auth.md). Suites : [administration](superpowers/specs/2026-10-10-administration-design.md), [identifiant de connexion](superpowers/specs/2026-10-10-username-auth-design.md) (l'identifiant peut être une adresse e-mail, jamais vérifiée), [sections de l'espace club](superpowers/specs/2026-10-10-club-sections-design.md) [séances ouvertes/inscriptions](superpowers/specs/2026-10-10-event-registrations-design.md) et [calendrier/demandes des coachs](superpowers/specs/2026-10-11-calendar-coach-design.md). Le 11 octobre ont aussi été ajoutés :
 
 - les pastilles de non-lus dans le menu (Accueil : notifications ; Messagerie : questions ou réponses non lues) et par conversation, avec « Marquer comme lu » et « Tout marquer comme lu » dans la messagerie ;
-- le bouton « Nouvel événement » du planning visible pour tout compte coach : sans rattachement coach à une équipe, il explique comment l’obtenir ;
+- le bouton « Nouvel événement » du planning visible pour tout compte coach ou référent d’équipe ; sans équipe éligible, il explique comment le devenir ;
+- le report du référent d’équipe sur ses événements (migration 0009 de rattrapage) ;
+- Mon planning et Mes sections présents seulement dans la barre du haut, plus dans le menu du compte ;
 - des notifications qui disparaissent une fois marquées comme lues ;
 - la description des événements ;
 - une session déconnectée seulement après 7 jours d’inactivité (`LSOC_SESSION_IDLE_DAYS`). Le compte administrateur local demandé a été créé dans la base Compose ; ses identifiants ont été fournis dans la conversation, jamais ajoutés au code du frontend.
@@ -28,7 +30,7 @@ Stack demandée : backend Python FastAPI avec typage strict, frontend React Type
 
 ## Prochaine étape
 
-1. Les 83 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0008 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
+1. Les 86 tests backend passent sur la base de test (11 octobre, migrations 0005 à 0009 comprises). `scripts/verify.py` reste la commande de référence ; elle exige le venv hôte `backend/.venv`.
 2. `backend/openapi.json` a été régénéré le 10 octobre. Vérifier les sections contre le backend Docker avec des données temporaires. Sous Node 26, lancer Vitest avec `NODE_OPTIONS=--no-webstorage` (Node 22 recommandé).
 3. Avant un déploiement, cadrer hébergement, HTTPS, SMTP réel et conservation des sauvegardes.
 

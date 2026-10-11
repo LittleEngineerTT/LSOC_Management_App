@@ -224,14 +224,6 @@ function Workspace({ account, section }: { account: Account; section: string }) 
                     <Icon name="profile" />
                     Mon profil
                   </Link>
-                  <Link to="/app/sections">
-                    <Icon name="layers" />
-                    Mes sections
-                  </Link>
-                  <Link to="/app/mon-planning">
-                    <Icon name="calendar" />
-                    Mon planning
-                  </Link>
                   <div className="popover-divider" />
                   <button
                     type="button"

@@ -22,20 +22,27 @@ def refresh_user(db: Session, actor: User) -> User:
 
 
 def coach_team(db: Session, actor: User, team_id: str) -> Team:
+    """Équipe pour laquelle le compte peut demander un événement.
+
+    Le référent de l’équipe le peut toujours ; un coach, s’il y est rattaché comme coach.
+    """
     actor = refresh_user(db, actor)
-    if not actor.active or "coach" not in actor.roles:
-        raise HTTPException(403, "Un coach actif est requis")
+    if not actor.active:
+        raise HTTPException(403, "Un compte actif est requis")
     team = db.scalar(select(Team).where(Team.id == team_id).with_for_update())
     if team is None:
         raise HTTPException(404, "Équipe introuvable")
-    if not db.scalar(
+    coaching = "coach" in actor.roles and db.scalar(
         select(Assignment.id).where(
             Assignment.user_id == actor.id,
             Assignment.team_id == team.id,
             Assignment.kind == "coach",
         )
-    ):
-        raise HTTPException(403, "Demande réservée aux équipes que vous entraînez")
+    )
+    if team.referent_id != actor.id and not coaching:
+        raise HTTPException(
+            403, "Demande réservée aux équipes dont vous êtes référent ou que vous entraînez"
+        )
     return team
 
 

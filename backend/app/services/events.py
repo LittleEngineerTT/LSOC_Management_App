@@ -12,9 +12,11 @@ from app.core.security import token
 from app.domain.capacity import capacity_segments
 from app.persistence.models import (
     AvailabilityBlock,
+    CoachEventRequest,
     Event,
     EventRevision,
     FFVBMatchState,
+    FFVBSource,
     Gymnasium,
     Registration,
     Section,
@@ -160,6 +162,44 @@ def revision(
             forced=forced,
         )
     )
+
+
+def team_events(db: Session, team: Team) -> list[Event]:
+    """Événements d’une équipe : ses matchs FFVB et ceux nés de ses demandes de coach."""
+    ffvb = (
+        select(Event.id)
+        .join(FFVBMatchState, FFVBMatchState.id == Event.ffvb_match_id)
+        .join(FFVBSource, FFVBSource.id == FFVBMatchState.source_id)
+        .where(FFVBSource.team_id == team.id)
+    )
+    requested = select(CoachEventRequest.event_id).where(
+        CoachEventRequest.team_id == team.id, CoachEventRequest.event_id.is_not(None)
+    )
+    return list(
+        db.scalars(
+            select(Event)
+            .where(Event.id.in_(ffvb.union(requested)))
+            .order_by(Event.starts_at, Event.id)
+        )
+    )
+
+
+def reassign_team_events(db: Session, team: Team, previous: str | None, actor: User) -> None:
+    """Reporte le nouveau référent d’équipe sur ses événements, passés compris.
+
+    Un événement confié par un admin à un autre référent que celui de l’équipe garde
+    ce choix explicite.
+    """
+    for event in team_events(db, team):
+        if event.referent_id not in (previous, None) or event.referent_id == team.referent_id:
+            continue
+        before = snapshot(event)
+        event.referent_id = team.referent_id
+        event.direct_edit = False
+        event.version += 1
+        db.flush()
+        revision(db, event, actor, before, "update")
+        event_changed(db, event, actor.id)
 
 
 def create_event(

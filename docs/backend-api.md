@@ -62,6 +62,8 @@ Rôles cumulables : `member`, `coach`, `admin`. Catégories : `M18`, `M21`, `adu
 
 Les suppressions de sections, équipes et gymnases encore utilisés sont refusées par 409. Les comptes sont supprimés avec purge des données privées, des rattachements, suivis et travaux d’e-mail. Les événements deviennent sans référent et sont signalés aux admins ; les actions historiques conservent seulement le prénom de leur auteur.
 
+Changer le référent d’une équipe (`PUT /teams/{id}`) le reporte sur ses événements, passés compris. Sont concernés ses matchs FFVB et les événements nés de ses demandes, lorsqu’ils avaient l’ancien référent ou aucun ; un référent choisi explicitement pour un événement est conservé. Chaque report est historisé et notifié. La migration 0009 rattrape les matchs FFVB restés sur un ancien référent.
+
 ## Planning et validation
 
 `GET /events` accepte `starts_at`, `ends_at`, `gymnasium_id`, `section_id`, `series_id`, `include_cancelled`, `limit` et `offset`. Les deux dates filtrent les événements chevauchant la période. Les listes paginées acceptent un maximum de 500 éléments et retournent un tableau. L’ordre du planning est chronologique.
@@ -106,7 +108,7 @@ Un blocage comporte `gymnasium_id`, `title`, `starts_at`, `ends_at`, `courts`. I
 
 ## Demandes de création des coachs
 
-Un coach actif peut proposer un événement pour l’une de ses équipes (rattachement `kind="coach"`). Le serveur déduit la section et le référent ; la demande ne crée aucun événement ni réservation avant validation.
+Un compte actif peut proposer un événement pour une équipe dont il est référent, ou, avec le rôle coach, à laquelle il est rattaché comme coach (`kind="coach"`). Le serveur déduit la section et le référent ; la demande ne crée aucun événement ni réservation avant validation.
 
 | Routes | Usage |
 | --- | --- |
