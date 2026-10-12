@@ -174,6 +174,80 @@
 .admin-row-copy {
   min-width: 0;
 }
+/* Section dépliable : ses équipes apparaissent à l’ouverture. */
+.admin-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 22px;
+  cursor: pointer;
+  list-style: none;
+}
+.admin-section > summary::-webkit-details-marker {
+  display: none;
+}
+.admin-section > summary::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+.admin-section[open] > summary::before {
+  transform: rotate(45deg);
+}
+.admin-section > summary:focus-visible {
+  outline: 2px solid #356079;
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+.admin-section > summary h3 {
+  margin: 0;
+}
+.admin-section > summary .admin-hint {
+  margin-left: auto;
+}
+.admin-section[open] {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+/* Les boutons de la section se détachent de ses équipes. */
+.admin-section > .admin-actions + .admin-row {
+  margin-top: 10px;
+}
+.admin-section > .admin-actions,
+.admin-section > .admin-row,
+.admin-section > .admin-empty {
+  margin: 0 16px;
+}
+/* Section sans équipe : pas de dépliage ; le nom s’aligne sur ceux des sections dépliables. */
+.admin-section.empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 22px;
+  padding: 14px 22px 14px 44px;
+}
+.admin-section-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-section-title h3 {
+  margin: 0;
+}
+.admin-section.empty > .admin-actions {
+  margin: 0;
+}
+.admin-section .admin-row h4 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
 .admin-row-copy h3 {
   overflow-wrap: anywhere;
 }

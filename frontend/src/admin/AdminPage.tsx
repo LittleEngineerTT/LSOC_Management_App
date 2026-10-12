@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './data';
 import { UsersPanel } from './UsersPanel';
-import { SectionsPanel, TeamsPanel, GymnasiumsPanel } from './CatalogPanels';
+import { SectionsTeamsPanel, GymnasiumsPanel } from './CatalogPanels';
 import { BlocksPanel } from './BlocksPanel';
 import { FFVBPanel } from './FFVBPanel';
 import { LicensesPanel } from './LicensesPanel';
@@ -11,8 +11,7 @@ import { SourceWarnings } from './SourceWarnings';
 
 const tabs = [
   { id: 'users', title: 'Utilisateurs' },
-  { id: 'sections', title: 'Sections' },
-  { id: 'teams', title: 'Équipes' },
+  { id: 'sections', title: 'Sections et équipes' },
   { id: 'licenses', title: 'Licences' },
   { id: 'gymnasiums', title: 'Gymnases' },
   { id: 'blocks', title: 'Indisponibilités' },
@@ -21,7 +20,9 @@ const tabs = [
   { id: 'emails', title: 'E-mails' },
 ];
 // Administration limitée des coachs, en lecture seule.
-const coachTabs = ['users', 'licenses', 'sections', 'teams'];
+const coachTabs = ['users', 'licenses', 'sections'];
+// Anciens liens (notifications) vers l’onglet Équipes, fusionné dans Sections et équipes.
+const aliases: Record<string, string> = { teams: 'sections' };
 export function AdminPage() {
   return (
     <div className="administration">
@@ -35,7 +36,8 @@ function Administration() {
   const [search] = useSearchParams();
   const { catalog, admin } = useAdmin();
   const visible = admin ? tabs : tabs.filter((item) => coachTabs.includes(item.id));
-  const tab = visible.find((item) => item.id === search.get('tab'))?.id ?? 'users';
+  const requested = search.get('tab') ?? '';
+  const tab = visible.find((item) => item.id === (aliases[requested] ?? requested))?.id ?? 'users';
   return (
     <>
       <div className="admin-overview">
@@ -69,8 +71,7 @@ function Administration() {
       {admin && <SourceWarnings />}
       <div className="admin-panel" key={tab}>
         {tab === 'users' && <UsersPanel />}
-        {tab === 'sections' && <SectionsPanel />}
-        {tab === 'teams' && <TeamsPanel />}
+        {tab === 'sections' && <SectionsTeamsPanel />}
         {tab === 'licenses' && <LicensesPanel />}
         {tab === 'gymnasiums' && <GymnasiumsPanel />}
         {tab === 'blocks' && <BlocksPanel />}

@@ -130,24 +130,6 @@ function CatalogPanel<T extends Section>(config: CatalogConfig<T>) {
   );
 }
 const name: FormField = { name: 'name', label: 'Nom', required: true, maxLength: 120 };
-export function SectionsPanel() {
-  const { catalog } = useAdmin();
-  return (
-    <CatalogPanel<Section>
-      title="Sections"
-      description="Organisez les groupes de pratique du club."
-      add="Ajouter une section"
-      path="/sections"
-      items={catalog.sections}
-      fields={[name]}
-      initial={(item) => ({ name: item?.name ?? '' })}
-      payload={(values) => ({ name: str(values, 'name') })}
-      describe={(item) => (
-        <p>{catalog.teams.filter((team) => team.section_id === item.id).length} équipe(s)</p>
-      )}
-    />
-  );
-}
 export function GymnasiumsPanel() {
   const { catalog } = useAdmin();
   return (
@@ -179,66 +161,233 @@ export function GymnasiumsPanel() {
     />
   );
 }
-export function TeamsPanel() {
-  const { catalog, admin, referents } = useAdmin();
+
+type Editing =
+  | { kind: 'section'; item: Section | null }
+  | { kind: 'team'; item: Team | null; section?: string }
+  | null;
+type Removing = { kind: 'section'; item: Section } | { kind: 'team'; item: Team } | null;
+
+/** Sections dépliables, avec leurs équipes ; un coach les consulte sans les modifier. */
+export function SectionsTeamsPanel() {
+  const { api, catalog, reloadCatalog, admin, referents } = useAdmin();
+  const [editing, setEditing] = useState<Editing>(null);
+  const [removing, setRemoving] = useState<Removing>(null);
+  const [notice, setNotice] = useState('');
+  const start = (value: Editing) => {
+    setEditing(value);
+    setNotice('');
+  };
+  const referentName = (team: Team) =>
+    catalog.users.find((user) => user.id === team.referent_id)?.first_name ??
+    (team.referent_id && referents[team.referent_id]) ??
+    'À attribuer';
+  const teamFields: FormField[] = [
+    name,
+    {
+      name: 'section_id',
+      label: 'Section',
+      type: 'select',
+      required: true,
+      options: catalog.sections.map((section) => ({ value: section.id, label: section.name })),
+    },
+    {
+      name: 'referent_id',
+      label: 'Référent',
+      type: 'select',
+      options: catalog.users
+        .filter((user) => user.active)
+        .map((user) => ({ value: user.id, label: user.first_name })),
+      hint: 'Un référent actif est requis avant d’activer une source FFVB.',
+    },
+  ];
+  // Les sections sans équipe passent en bas, dans l’ordre reçu.
+  const sorted = [...catalog.sections].sort(
+    (a, b) =>
+      Number(!catalog.teams.some((team) => team.section_id === a.id)) -
+      Number(!catalog.teams.some((team) => team.section_id === b.id)),
+  );
+  const path = (kind: 'section' | 'team') => (kind === 'section' ? '/sections' : '/teams');
   return (
     <>
-      <CatalogPanel<Team>
-        title="Équipes"
-        description="Rattachez les équipes aux sections et choisissez leur référent par défaut."
-        add="Ajouter une équipe"
-        path="/teams"
-        items={catalog.teams}
-        fields={[
-          name,
-          {
-            name: 'section_id',
-            label: 'Section',
-            type: 'select',
-            required: true,
-            options: catalog.sections.map((section) => ({
-              value: section.id,
-              label: section.name,
-            })),
-          },
-          {
-            name: 'referent_id',
-            label: 'Référent',
-            type: 'select',
-            options: catalog.users
-              .filter((user) => user.active)
-              .map((user) => ({ value: user.id, label: user.first_name })),
-            hint: 'Un référent actif est requis avant d’activer une source FFVB.',
-          },
-        ]}
-        initial={(item) => ({
-          name: item?.name ?? '',
-          section_id: item?.section_id ?? '',
-          referent_id: item?.referent_id ?? '',
-        })}
-        payload={(values) => ({
-          name: str(values, 'name'),
-          section_id: str(values, 'section_id'),
-          referent_id: str(values, 'referent_id') || null,
-        })}
-        describe={(item) => (
-          <>
-            <p>
-              {catalog.sections.find((section) => section.id === item.section_id)?.name ??
-                'Section introuvable'}{' '}
-              · Référent :{' '}
-              {catalog.users.find((user) => user.id === item.referent_id)?.first_name ??
-                (item.referent_id && referents[item.referent_id]) ??
-                'À attribuer'}
-            </p>
-            {admin && item.ffvb_source_warning_ignored && (
-              <TeamSourceWarningPreference team={item} ignored />
+      <PanelHeading
+        title="Sections et équipes"
+        description={
+          admin
+            ? 'Organisez les groupes de pratique du club, rattachez-y les équipes et choisissez leur référent par défaut.'
+            : 'Consultation seule.'
+        }
+      >
+        {admin && (
+          <div className="admin-actions">
+            <button
+              className="admin-button primary"
+              onClick={() => start({ kind: 'section', item: null })}
+            >
+              Ajouter une section
+            </button>
+            {catalog.sections.length > 0 && (
+              <button className="admin-button" onClick={() => start({ kind: 'team', item: null })}>
+                Ajouter une équipe
+              </button>
             )}
-          </>
+          </div>
         )}
-      />
-      {admin && !catalog.sections.length && (
-        <p className="admin-hint">Créez une section avant d’ajouter une équipe.</p>
+      </PanelHeading>
+      {notice && <Notice>{notice}</Notice>}
+      {editing && (
+        <EntityForm
+          key={`${editing.kind}:${editing.item?.id ?? 'new'}:${editing.kind === 'team' ? (editing.section ?? '') : ''}`}
+          title={
+            editing.item
+              ? `Modifier ${editing.item.name}`
+              : editing.kind === 'section'
+                ? 'Ajouter une section'
+                : 'Ajouter une équipe'
+          }
+          fields={editing.kind === 'section' ? [name] : teamFields}
+          initial={
+            editing.kind === 'section'
+              ? { name: editing.item?.name ?? '' }
+              : {
+                  name: editing.item?.name ?? '',
+                  section_id: editing.item?.section_id ?? editing.section ?? '',
+                  referent_id: editing.item?.referent_id ?? '',
+                }
+          }
+          submit={editing.item ? 'Enregistrer' : 'Créer'}
+          onCancel={() => setEditing(null)}
+          onSave={async (values, signal) => {
+            const body =
+              editing.kind === 'section'
+                ? { name: str(values, 'name') }
+                : {
+                    name: str(values, 'name'),
+                    section_id: str(values, 'section_id'),
+                    referent_id: str(values, 'referent_id') || null,
+                  };
+            await api.request(
+              editing.item ? `${path(editing.kind)}/${editing.item.id}` : path(editing.kind),
+              editing.item ? 'PUT' : 'POST',
+              body,
+              signal,
+            );
+            setEditing(null);
+            setNotice(editing.item ? 'Modification enregistrée.' : 'Création enregistrée.');
+            reloadCatalog();
+          }}
+        />
+      )}
+      {!catalog.sections.length ? (
+        <Empty>
+          {admin
+            ? 'Aucune section pour le moment. Créez une section avant d’ajouter une équipe.'
+            : 'Aucun élément.'}
+        </Empty>
+      ) : (
+        <div className="admin-list">
+          {sorted.map((section) => {
+            const teams = catalog.teams.filter((team) => team.section_id === section.id);
+            const actions = admin && (
+              <div className="admin-actions">
+                <button
+                  className="admin-button"
+                  aria-label={`Modifier ${section.name}`}
+                  onClick={() => start({ kind: 'section', item: section })}
+                >
+                  Modifier la section
+                </button>
+                <button
+                  className="admin-button danger"
+                  aria-label={`Supprimer ${section.name}`}
+                  onClick={() => setRemoving({ kind: 'section', item: section })}
+                >
+                  Supprimer la section
+                </button>
+                <button
+                  className="admin-button"
+                  aria-label={`Ajouter une équipe dans ${section.name}`}
+                  onClick={() => start({ kind: 'team', item: null, section: section.id })}
+                >
+                  Ajouter une équipe
+                </button>
+              </div>
+            );
+            // Sans équipe, rien à déplier : une simple ligne, en bas de la liste.
+            if (!teams.length)
+              return (
+                <article className="admin-section empty" key={section.id}>
+                  <div className="admin-section-title">
+                    <h3>{section.name}</h3>
+                    <span className="admin-hint">0 équipe</span>
+                  </div>
+                  {actions}
+                </article>
+              );
+            return (
+              <details className="admin-section" key={section.id}>
+                <summary>
+                  <h3>{section.name}</h3>
+                  <span className="admin-hint">{teams.length} équipe(s)</span>
+                </summary>
+                {actions}
+                {teams.map((team) => (
+                  <article className="admin-row" key={team.id}>
+                    <div className="admin-row-copy">
+                      <h4>{team.name}</h4>
+                      <p>Référent : {referentName(team)}</p>
+                      {admin && team.ffvb_source_warning_ignored && (
+                        <TeamSourceWarningPreference team={team} ignored />
+                      )}
+                    </div>
+                    {admin && (
+                      <div className="admin-actions">
+                        <button
+                          className="admin-button"
+                          aria-label={`Modifier ${team.name}`}
+                          onClick={() => start({ kind: 'team', item: team })}
+                        >
+                          Modifier
+                        </button>
+                        <button
+                          className="admin-button danger"
+                          aria-label={`Supprimer ${team.name}`}
+                          onClick={() => setRemoving({ kind: 'team', item: team })}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </details>
+            );
+          })}
+        </div>
+      )}
+      {removing && (
+        <Confirm
+          title={`Supprimer ${removing.item.name} ?`}
+          label="Confirmer la suppression"
+          onClose={() => setRemoving(null)}
+          onConfirm={async (signal) => {
+            await api.request(
+              `${path(removing.kind)}/${removing.item.id}`,
+              'DELETE',
+              undefined,
+              signal,
+            );
+            if (editing?.kind === removing.kind && editing.item?.id === removing.item.id)
+              setEditing(null);
+            setNotice('Suppression effectuée.');
+            reloadCatalog();
+          }}
+        >
+          <p>
+            Cette suppression est définitive. Si cet élément est encore utilisé, le serveur refusera
+            la suppression ; retirez d’abord ses liens.
+          </p>
+        </Confirm>
       )}
     </>
   );

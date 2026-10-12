@@ -211,7 +211,7 @@ def erase_account(db: Session, user: User) -> None:
             f"team-orphan:{team.id}:{issue_marker()}",
             "referent_missing",
             f"Référent d’équipe à réattribuer : {team.name}",
-            link="/app/administration?tab=teams",
+            link="/app/administration?tab=sections",
         )
     db.execute(delete(LoginSession).where(LoginSession.user_id == user_id))
     db.delete(user)

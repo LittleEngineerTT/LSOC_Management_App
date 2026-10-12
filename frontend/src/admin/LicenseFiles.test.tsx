@@ -88,7 +88,7 @@ it('donne au coach une administration limitée, en lecture seule', async () => {
   // Utilisateurs par défaut, sans les onglets réservés aux administrateurs.
   expect(await screen.findByRole('heading', { name: 'Bob' })).toBeInTheDocument();
   const tabs = within(screen.getByRole('navigation', { name: 'Administration' })).getAllByRole('link');
-  expect(tabs.map((tab) => tab.textContent)).toEqual(['Utilisateurs', 'Sections', 'Équipes', 'Licences']);
+  expect(tabs.map((tab) => tab.textContent)).toEqual(['Utilisateurs', 'Sections et équipes', 'Licences']);
   expect([...document.querySelectorAll('.admin-list .admin-row h3')].map((item) => item.textContent)).toEqual(['Bob', 'Carla']);
   expect(screen.queryByRole('button', { name: /Ajouter|Gérer|Supprimer/ })).not.toBeInTheDocument();
   expect(within(screen.getByLabelText('Équipe')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Toutes les équipes', 'Sans équipe', 'Régionale']);
@@ -100,11 +100,10 @@ it('donne au coach une administration limitée, en lecture seule', async () => {
   // Filtres limités à ses équipes : il coache la Régionale.
   expect(within(screen.getByLabelText('Section')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Toutes les sections', 'Compétition']);
   expect(within(screen.getByLabelText('Équipe')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Toutes les équipes', 'Régionale']);
-  await userEvent.click(screen.getByRole('link', { name: 'Équipes' }));
-  expect(await screen.findByText(/Référent : Admin/)).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: /Ajouter|Modifier|Supprimer/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('link', { name: 'Sections' }));
-  expect(await screen.findByRole('heading', { name: 'Loisir' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('link', { name: 'Sections et équipes' }));
+  await userEvent.click(await screen.findByText('Loisir'));
+  expect(screen.getByRole('heading', { name: 'Loisir 1' })).toBeVisible();
+  expect(screen.getByText('Référent : Admin')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Ajouter|Modifier|Supprimer/ })).not.toBeInTheDocument();
 });
 
