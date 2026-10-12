@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -6,6 +6,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -49,6 +50,8 @@ class User(Identity, Base):
     followed_email: Mapped[bool] = mapped_column(Boolean, default=True)
     referent_email: Mapped[bool] = mapped_column(Boolean, default=True)
     admin_email: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Dernière activité (connexion ou session prolongée) : base de la purge après 2 ans.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class License(Base):
@@ -434,3 +437,5 @@ class ClubSettings(Base):
     after_minutes: Mapped[int] = mapped_column(Integer, default=150)
     courts: Mapped[int] = mapped_column(Integer, default=3)
     club_code: Mapped[str | None] = mapped_column(String(30))
+    # Dernière remise à zéro des licences (1er août) : chaque saison se refait.
+    licenses_reset_on: Mapped[date | None] = mapped_column(Date)

@@ -119,13 +119,26 @@ def cleanup_expired() -> None:
         db.execute(delete(EmailJob).where(EmailJob.sent_at < now() - timedelta(days=7)))
 
 
+def privacy() -> None:
+    """Remise à zéro des licences au 1er août et durées de conservation RGPD."""
+    from app.services.privacy import apply_retention, reset_licenses
+
+    with SessionFactory.begin() as db:
+        if reset_licenses(db):
+            logger.info("Licences remises à zéro pour la nouvelle saison")
+    with SessionFactory.begin() as db:
+        erased = apply_retention(db)
+        if erased:
+            logger.info("%s compte(s) inactif(s) effacé(s)", erased)
+
+
 def stop(signum: int, frame: FrameType | None) -> None:
     global _stopping
     _stopping = True
 
 
 def run_cycle() -> None:
-    for operation in (process_ffvb, process_emails, cleanup_expired):
+    for operation in (process_ffvb, process_emails, cleanup_expired, privacy):
         try:
             operation()
         except Exception:

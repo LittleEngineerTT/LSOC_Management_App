@@ -82,6 +82,9 @@ export function LoginPage() {
         </button>
         <p>Accès limité à l’accueil et aux matchs FFVB du club.</p>
       </div>
+      <p className="privacy-link">
+        <Link to="/confidentialite">Confidentialité et données personnelles</Link>
+      </p>
       <div className="invitation-note">
         <span className="note-icon">
           <Icon name="shield" />

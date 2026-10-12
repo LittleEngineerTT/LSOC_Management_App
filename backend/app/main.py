@@ -12,6 +12,7 @@ from app.api import (
     events,
     ffvb,
     licenses,
+    privacy,
     public,
     registrations,
     social,
@@ -68,5 +69,6 @@ for router in (
     social.router,
     ffvb.router,
     public.router,
+    privacy.router,
 ):
     app.include_router(router, prefix="/api/v1")

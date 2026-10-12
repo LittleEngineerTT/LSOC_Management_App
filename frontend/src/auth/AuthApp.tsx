@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RecoveryPage } from './pages/RecoveryPage';
 import { PasswordPage } from './pages/PasswordPage';
 import { AuthSuccessPage } from './pages/AuthSuccessPage';
+import { PrivacyPage } from '../app/PrivacyPage';
 
 function Page({ children }: { children: ReactNode }) {
   return <AuthLayout>{children}</AuthLayout>;
@@ -67,6 +68,7 @@ export function AuthApp() {
             </Page>
           }
         />
+        <Route path="/confidentialite" element={<PrivacyPage />} />
         <Route path="/app/*" element={<AppShell />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

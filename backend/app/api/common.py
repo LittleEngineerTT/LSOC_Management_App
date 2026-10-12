@@ -80,6 +80,8 @@ def current_user(
         and deadline - record.expires_at >= SESSION_REFRESH
     ):
         record.expires_at = deadline
+        # Activité réelle : repousse aussi la purge des comptes inactifs.
+        user.last_seen_at = now()
         csrf = request.cookies.get("lsoc_csrf", "")
         # Le cookie CSRF n’est renouvelé que s’il correspond bien à cette session.
         if csrf and digest(csrf) == record.csrf_hash:

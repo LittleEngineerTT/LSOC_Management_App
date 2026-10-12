@@ -89,6 +89,14 @@
     align-items: center;
     gap: 13px;
   }
+  .club-mark > img {
+    flex: none;
+    width: auto;
+    height: 68px;
+  }
+  .club-mark.compact > img {
+    height: 52px;
+  }
   .club-mark strong {
     display: block;
     font-size: 16px;
@@ -403,6 +411,41 @@
   }
   .guest-button:hover {
     background: #edf1f2;
+  }
+  .privacy-link {
+    margin: 14px 0 0;
+    text-align: center;
+    font-size: 12px;
+  }
+  .privacy-page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+    line-height: 1.6;
+  }
+  .privacy-page header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .privacy-back {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .privacy-page h1 {
+    font-size: 28px;
+  }
+  .privacy-page h2 {
+    margin: 28px 0 8px;
+    font-size: 18px;
+  }
+  .privacy-page ul {
+    padding-left: 20px;
+  }
+  .privacy-lead {
+    color: #5c6f7d;
   }
   .invitation-note {
     display: flex;
@@ -861,9 +904,8 @@
       font-size: 12px;
       letter-spacing: 1.2px;
     }
-    .mobile-brand .club-mark > svg {
-      width: 34px;
-      height: 34px;
+    .mobile-brand .club-mark > img {
+      height: 52px;
     }
     .mobile-brand .club-mark span span {
       font-size: 8px;

@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import delete, select, text
+from sqlalchemy.orm import Session
 
 from app.api.auth import issue_token, lock_auth
 from app.api.common import DB, Actor, Admin, get
@@ -136,7 +137,12 @@ def regenerate_invitation(user_id: str, db: DB, actor: Admin) -> InvitationView:
 
 @router.delete("/users/{user_id}", status_code=204)
 def delete_user(user_id: str, db: DB, actor: Admin) -> None:
-    user = get(db, User, user_id)
+    erase_account(db, get(db, User, user_id))
+
+
+def erase_account(db: Session, user: User) -> None:
+    """Efface un compte et ses traces : par un administrateur, par la personne ou à expiration."""
+    user_id = user.id
     protect_last_admin(db, user, [])
     from app.api.auth import lock_auth
     from app.services.events import lock_planning

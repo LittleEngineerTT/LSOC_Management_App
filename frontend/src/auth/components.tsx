@@ -48,15 +48,7 @@ export function Icon({ name, className = '' }: { name: keyof typeof paths; class
 export function ClubMark({ compact = false }: { compact?: boolean }) {
   return (
     <span className={`club-mark${compact ? ' compact' : ''}`}>
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="1.7" />
-        <path
-          d="M20 2c-3 6-3 13 0 18m18 0c-7-1-14 0-18 0M20 38c5-5 7-12 0-18M5 10c7 0 13 4 15 10m-16 9c4-7 9-10 16-9m11-14c0 5-4 11-11 14"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        />
-        <circle cx="20" cy="20" r="2.6" fill="#f14a4a" />
-      </svg>
+      <img src="/lsoc_logo.png" alt="" width="250" height="416" />
       {!compact && (
         <span>
           <strong>LSO COLOMBES</strong>

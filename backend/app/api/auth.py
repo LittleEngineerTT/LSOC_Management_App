@@ -119,6 +119,7 @@ def login(body: LoginInput, response: Response, db: DB) -> LoginView:
             },
         )
     raw, csrf = token(), token()
+    user.last_seen_at = now()
     db.add(
         LoginSession(
             hash=digest(raw),

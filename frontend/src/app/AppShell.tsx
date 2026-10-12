@@ -237,6 +237,10 @@ function Workspace({ account, section }: { account: Account | null; section: str
                       <Icon name="profile" />
                       Mon profil
                     </Link>
+                    <Link to="/confidentialite">
+                      <Icon name="shield" />
+                      Confidentialité
+                    </Link>
                     <div className="popover-divider" />
                     <button
                       type="button"
@@ -254,6 +258,10 @@ function Workspace({ account, section }: { account: Account | null; section: str
             </div>
           ) : (
             <div className="account-tools">
+              <Link to="/confidentialite" className="header-link">
+                <Icon name="shield" />
+                <span>Confidentialité</span>
+              </Link>
               <Link to="/login" className="admin-button primary guest-signin">
                 <Icon name="profile" />
                 <span>Se connecter</span>
