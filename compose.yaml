@@ -20,6 +20,26 @@ services:
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
+  # S3 simulé pour le développement : le bucket des licences, lisible sans authentification.
+  s3mock:
+    image: adobe/s3mock:3.12.0
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: lsoc-licences
+    ports:
+      - "127.0.0.1:9090:9090"
+  # Crée le bucket des licences s'il manque, quelle que soit la version de S3Mock.
+  s3init:
+    image: curlimages/curl:8.11.1
+    command:
+      - sh
+      - -c
+      - >-
+        until curl -sf -o /dev/null -X PUT http://s3mock:9090/lsoc-licences
+        || curl -sf -o /dev/null http://s3mock:9090/lsoc-licences;
+        do sleep 1; done
+    depends_on:
+      s3mock:
+        condition: service_started
   migrate:
     build: ./backend
     env_file: .env
@@ -35,10 +55,17 @@ services:
     environment:
       LSOC_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@postgres:5432/lsoc
       LSOC_SMTP_HOST: mailpit
+      LSOC_S3_BUCKET: lsoc-licences
+      LSOC_S3_ENDPOINT_URL: http://s3mock:9090
+      LSOC_S3_PUBLIC_URL: http://localhost:9090/lsoc-licences
+      LSOC_S3_ACCESS_KEY: dev
+      LSOC_S3_SECRET_KEY: dev
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      s3init:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
@@ -51,9 +78,16 @@ services:
     environment:
       LSOC_DATABASE_URL: postgresql+psycopg://lsoc:lsoc@postgres:5432/lsoc
       LSOC_SMTP_HOST: mailpit
+      LSOC_S3_BUCKET: lsoc-licences
+      LSOC_S3_ENDPOINT_URL: http://s3mock:9090
+      LSOC_S3_PUBLIC_URL: http://localhost:9090/lsoc-licences
+      LSOC_S3_ACCESS_KEY: dev
+      LSOC_S3_SECRET_KEY: dev
     command: ["lsoc-worker"]
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      s3init:
         condition: service_completed_successfully
       mailpit:
         condition: service_started

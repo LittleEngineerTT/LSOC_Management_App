@@ -9,12 +9,23 @@ import {
 } from 'react';
 import { useSession } from '../auth/session';
 import { createAdminApi, type AdminApi } from './api';
-import type { Catalog } from './types';
+import type { Assignment, Catalog, Team } from './types';
 
 interface AdminContextValue {
   api: AdminApi;
   catalog: Catalog;
   reloadCatalog: () => void;
+  /** Administrateur ; sinon coach, en lecture seule. */
+  admin: boolean;
+  /** Équipes du périmètre du coach ; nul pour un administrateur (tout le club). */
+  scope: string[] | null;
+  /** Prénoms des référents d’équipe hors de la liste des utilisateurs (coach). */
+  referents: Record<string, string>;
+}
+interface Loaded {
+  catalog: Catalog;
+  scope: string[] | null;
+  referents: Record<string, string>;
 }
 const AdminContext = createContext<AdminContextValue | null>(null);
 export function useAdmin() {
@@ -61,10 +72,62 @@ export function useResource<T>(path: string, paginated = false) {
 }
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const { csrfToken, clear } = useSession();
+  const { account, csrfToken, clear } = useSession();
   const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
+  const admin = account?.roles.includes('admin') ?? false;
+  const accountId = account?.id ?? '';
   const loader = useCallback(
-    async (signal: AbortSignal): Promise<Catalog> => {
+    async (signal: AbortSignal): Promise<Loaded> => {
+      if (!admin) {
+        // Coach : membres de ses équipes (filtrés par le serveur), sections et équipes en
+        // lecture, prénoms des référents, ses propres rattachements.
+        const [users, sections, teams, mine] = await Promise.all([
+          api.list<Catalog['users'][number]>('/users', true, signal),
+          api.list<Catalog['sections'][number]>('/sections', false, signal),
+          api.list<Team>('/teams', false, signal),
+          api.list<Assignment>(
+            `/users/${encodeURIComponent(accountId)}/assignments`,
+            false,
+            signal,
+          ),
+        ]);
+        const unknown = [
+          ...new Set(
+            teams.flatMap((team) =>
+              team.referent_id && !users.some((user) => user.id === team.referent_id)
+                ? [team.referent_id]
+                : [],
+            ),
+          ),
+        ];
+        const profiles = await Promise.all(
+          unknown.map((id) =>
+            api
+              .request<{ id: string; first_name: string; category: string }>(
+                `/profiles/${encodeURIComponent(id)}`,
+                'GET',
+                undefined,
+                signal,
+              )
+              .catch(() => null),
+          ),
+        );
+        const referents = Object.fromEntries(
+          profiles.flatMap((profile) => (profile ? [[profile.id, profile.first_name]] : [])),
+        );
+        const scope = teams
+          .filter(
+            (team) =>
+              team.referent_id === accountId ||
+              mine.some((item) => item.team_id === team.id && item.kind === 'coach'),
+          )
+          .map((team) => team.id);
+        return {
+          catalog: { users, sections, teams, gymnasiums: [], sources: [] },
+          scope,
+          referents,
+        };
+      }
       const [users, sections, teams, gymnasiums, sources] = await Promise.all([
         api.list<Catalog['users'][number]>('/users', true, signal),
         api.list<Catalog['sections'][number]>('/sections', false, signal),
@@ -72,9 +135,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         api.list<Catalog['gymnasiums'][number]>('/gymnasiums', false, signal),
         api.list<Catalog['sources'][number]>('/ffvb/sources', false, signal),
       ]);
-      return { users, sections, teams, gymnasiums, sources };
+      return {
+        catalog: { users, sections, teams, gymnasiums, sources },
+        scope: null,
+        referents: {},
+      };
     },
-    [api],
+    [api, admin, accountId],
   );
   const result = useLoad(loader);
   if (!result.data)
@@ -93,7 +160,16 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       </div>
     );
   return (
-    <AdminContext.Provider value={{ api, catalog: result.data, reloadCatalog: result.reload }}>
+    <AdminContext.Provider
+      value={{
+        api,
+        catalog: result.data.catalog,
+        reloadCatalog: result.reload,
+        admin,
+        scope: result.data.scope,
+        referents: result.data.referents,
+      }}
+    >
       {result.error && (
         <div className="admin-notice" role="alert">
           Les dernières données n’ont pas pu être chargées : {result.error}{' '}

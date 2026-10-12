@@ -85,6 +85,9 @@ class License(Base):
     updated_by: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
     )
+    # PDF de la licence dans le bucket S3 : clé « licences/ » + 64 caractères aléatoires.
+    file_key: Mapped[str | None] = mapped_column(String(80))
+    file_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AuthToken(Base):

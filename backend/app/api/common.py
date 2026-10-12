@@ -4,12 +4,13 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, Response
 from fastapi.security import APIKeyCookie
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import digest, now
 from app.persistence.database import SessionFactory
-from app.persistence.models import LoginSession, User
+from app.persistence.models import Assignment, LoginSession, Team, User
 
 session_cookie = APIKeyCookie(name="lsoc_session", auto_error=False)
 
@@ -103,3 +104,20 @@ def require_admin(user: User) -> None:
 
 
 Admin = Annotated[User, Depends(admin_user)]
+
+
+def coached_teams(db: Session, actor: User) -> set[str] | None:
+    """Équipes du périmètre d’un coach ; None pour un administrateur (tout le club).
+
+    Un coach voit, en lecture seule, les licences et les membres des équipes dont il est
+    référent et de celles auxquelles il est rattaché comme coach.
+    """
+    if "admin" in actor.roles:
+        return None
+    if "coach" not in actor.roles:
+        raise HTTPException(403, "Accès réservé aux administrateurs et aux coachs")
+    referent = db.scalars(select(Team.id).where(Team.referent_id == actor.id))
+    coached = db.scalars(
+        select(Assignment.team_id).where(Assignment.user_id == actor.id, Assignment.kind == "coach")
+    )
+    return set(referent) | set(coached)

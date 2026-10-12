@@ -27,11 +27,15 @@ const categories = ['adult', 'M21', 'M18', 'M15', 'M13', 'M11', 'M9'].map((value
   label: value === 'adult' ? 'Sénior' : value,
 }));
 export function UsersPanel() {
-  const { api, catalog, reloadCatalog } = useAdmin();
+  const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
   const session = useSession();
   const [editing, setEditing] = useState<User | 'new' | null>(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
+  const [section, setSection] = useState('');
+  const [team, setTeam] = useState('');
+  // Tous les rattachements, pour filtrer par section ou équipe.
+  const assignments = useResource<Assignment>('/assignments', true);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [confirmation, setConfirmation] = useState<{
     user: User;
@@ -42,11 +46,28 @@ export function UsersPanel() {
     typeof editing === 'object' && editing
       ? (catalog.users.find((user) => user.id === editing.id) ?? editing)
       : null;
-  const filtered = catalog.users.filter(
-    (user) =>
-      user.first_name.toLocaleLowerCase('fr').includes(query.toLocaleLowerCase('fr')) &&
-      (status === 'all' || user.active === (status === 'active')),
+  const teamsOf = new Map<string, string[]>();
+  for (const item of assignments.data ?? [])
+    teamsOf.set(item.user_id, [...(teamsOf.get(item.user_id) ?? []), item.team_id]);
+  const sectionOf = (id: string) => catalog.teams.find((item) => item.id === id)?.section_id;
+  // Un coach ne filtre que parmi ses équipes et leurs sections.
+  const reachable = catalog.teams.filter((item) => !scope || scope.includes(item.id));
+  const sectionChoices = catalog.sections.filter((item) =>
+    reachable.some((team) => team.section_id === item.id),
   );
+  const teamChoices = reachable.filter((item) => !section || item.section_id === section);
+  const filtered = catalog.users.filter((user) => {
+    const mine = teamsOf.get(user.id) ?? [];
+    return (
+      user.first_name.toLocaleLowerCase('fr').includes(query.toLocaleLowerCase('fr')) &&
+      (status === 'all' || user.active === (status === 'active')) &&
+      (team === 'none'
+        ? !mine.length
+        : team
+          ? mine.includes(team)
+          : !section || mine.some((id) => sectionOf(id) === section))
+    );
+  });
   const fields: FormField[] = [
     { name: 'first_name', label: 'Prénom', required: true, maxLength: 80 },
     {
@@ -77,18 +98,24 @@ export function UsersPanel() {
     <>
       <PanelHeading
         title="Utilisateurs"
-        description="Préparez les comptes, invitez les membres et attribuez leurs rôles et équipes."
+        description={
+          admin
+            ? 'Préparez les comptes, invitez les membres et attribuez leurs rôles et équipes.'
+            : 'Membres des équipes dont vous êtes référent ou coach, en consultation seule.'
+        }
       >
-        <button
-          className="admin-button primary"
-          onClick={() => {
-            setEditing('new');
-            setInvitation(null);
-            setNotice('');
-          }}
-        >
-          Ajouter un utilisateur
-        </button>
+        {admin && (
+          <button
+            className="admin-button primary"
+            onClick={() => {
+              setEditing('new');
+              setInvitation(null);
+              setNotice('');
+            }}
+          >
+            Ajouter un utilisateur
+          </button>
+        )}
       </PanelHeading>
       {notice && <Notice>{notice}</Notice>}
       <div className="admin-toolbar">
@@ -109,11 +136,53 @@ export function UsersPanel() {
             <option value="inactive">À activer</option>
           </select>
         </label>
-        <button className="admin-button" onClick={reloadCatalog}>
+        <label>
+          Section
+          <select
+            value={section}
+            onChange={(event) => {
+              setSection(event.target.value);
+              if (team !== 'none') setTeam('');
+            }}
+          >
+            <option value="">Toutes les sections</option>
+            {sectionChoices.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Équipe
+          <select
+            value={team}
+            onChange={(event) => {
+              setTeam(event.target.value);
+              if (event.target.value === 'none') setSection('');
+            }}
+          >
+            <option value="">Toutes les équipes</option>
+            <option value="none">Sans équipe</option>
+            {teamChoices.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="admin-button"
+          onClick={() => {
+            reloadCatalog();
+            assignments.reload();
+          }}
+        >
           Actualiser
         </button>
       </div>
-      {editing && (
+      {(section || team) && <LoadState result={assignments} />}
+      {admin && editing && (
         <EntityForm
           key={selected?.id ?? 'new'}
           title={selected ? `Compte de ${selected.first_name}` : 'Nouvel utilisateur'}
@@ -171,7 +240,7 @@ export function UsersPanel() {
           }}
         />
       )}
-      {selected && (
+      {admin && selected && (
         <section className="admin-card" aria-label={`Gestion de ${selected.first_name}`}>
           <h3>Invitation et rattachements</h3>
           {!selected.active && (
@@ -207,12 +276,14 @@ export function UsersPanel() {
               // Sans licence, l’identifiant suit la section : le compte sélectionné le suit aussi.
               setEditing({ ...selected, id });
               reloadCatalog();
+              assignments.reload();
             }}
+            onChanged={assignments.reload}
           />
         </section>
       )}
       {!filtered.length ? (
-        <Empty>Aucun utilisateur ne correspond à cette recherche.</Empty>
+        <Empty>Aucun utilisateur ne correspond à ces critères.</Empty>
       ) : (
         <div className="admin-list">
           {filtered.map((user) => (
@@ -230,26 +301,28 @@ export function UsersPanel() {
                 </Badge>
                 {!user.messaging_allowed && <Badge>Écriture désactivée</Badge>}
               </div>
-              <div className="admin-actions">
-                <button
-                  className="admin-button"
-                  aria-label={`Gérer ${user.first_name}`}
-                  onClick={() => {
-                    setEditing(user);
-                    setInvitation(null);
-                    setNotice('');
-                  }}
-                >
-                  Gérer
-                </button>
-                <button
-                  className="admin-button danger"
-                  aria-label={`Supprimer ${user.first_name}`}
-                  onClick={() => setConfirmation({ user, action: 'delete' })}
-                >
-                  Supprimer
-                </button>
-              </div>
+              {admin && (
+                <div className="admin-actions">
+                  <button
+                    className="admin-button"
+                    aria-label={`Gérer ${user.first_name}`}
+                    onClick={() => {
+                      setEditing(user);
+                      setInvitation(null);
+                      setNotice('');
+                    }}
+                  >
+                    Gérer
+                  </button>
+                  <button
+                    className="admin-button danger"
+                    aria-label={`Supprimer ${user.first_name}`}
+                    onClick={() => setConfirmation({ user, action: 'delete' })}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              )}
             </article>
           ))}
         </div>
@@ -340,7 +413,16 @@ function InvitationLink({ invitation }: { invitation: Invitation }) {
 export function displayName(user: Pick<User, 'first_name' | 'last_initial'>) {
   return user.last_initial ? `${user.first_name} ${user.last_initial}.` : user.first_name;
 }
-function Assignments({ user, onRenamed }: { user: User; onRenamed: (id: string) => void }) {
+function Assignments({
+  user,
+  onRenamed,
+  onChanged,
+}: {
+  user: User;
+  onRenamed: (id: string) => void;
+  /** Un rattachement ajouté ou retiré : la liste filtrée se met à jour. */
+  onChanged: () => void;
+}) {
   const { api, catalog } = useAdmin();
   const resource = useResource<Assignment>(`/users/${user.id}/assignments`);
   const [removing, setRemoving] = useState<Assignment | null>(null);
@@ -396,7 +478,10 @@ function Assignments({ user, onRenamed }: { user: User; onRenamed: (id: string) 
               signal,
             );
             if (created?.user_id && created.user_id !== user.id) onRenamed(created.user_id);
-            else resource.reload();
+            else {
+              resource.reload();
+              onChanged();
+            }
             setRevision((value) => value + 1);
           }}
         />
@@ -417,7 +502,10 @@ function Assignments({ user, onRenamed }: { user: User; onRenamed: (id: string) 
               signal,
             );
             if (updated?.id && updated.id !== user.id) onRenamed(updated.id);
-            else resource.reload();
+            else {
+              resource.reload();
+              onChanged();
+            }
           }}
         >
           <p>L’utilisateur ne sera plus rattaché à cette équipe pour ce rôle.</p>

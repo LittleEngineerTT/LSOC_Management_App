@@ -526,6 +526,9 @@ class LicenseView(View):
     missing_coach: bool
     # Manque pour le type de licence consulté.
     missing: bool
+    # URL publique du PDF déposé, lue directement par le navigateur.
+    file_url: str | None = None
+    file_uploaded_at: datetime | None = None
 
 
 class FollowView(View):

@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.api.auth import issue_token, lock_auth
-from app.api.common import DB, Actor, Admin, get
+from app.api.common import DB, Actor, Admin, coached_teams, get
 from app.api.schemas import (
     AssignmentInput,
     AssignmentView,
@@ -20,6 +20,7 @@ from app.api.schemas import (
 )
 from app.core.config import settings
 from app.core.security import now
+from app.integrations import s3
 from app.persistence.models import (
     Assignment,
     AuthToken,
@@ -29,6 +30,7 @@ from app.persistence.models import (
     Event,
     EventRevision,
     FFVBMatchState,
+    License,
     LoginSession,
     Team,
     User,
@@ -71,11 +73,16 @@ def invitation(db: DB, user: User) -> InvitationView:
 
 @router.get("/users", response_model=list[UserView])
 def users(
-    db: DB, actor: Admin, limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)
+    db: DB, actor: Actor, limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)
 ) -> list[User]:
-    return list(
-        db.scalars(select(User).order_by(User.first_name, User.id).offset(offset).limit(limit))
-    )
+    """Tous les comptes ; pour un coach, les membres de ses équipes seulement."""
+    query = select(User)
+    allowed = coached_teams(db, actor)
+    if allowed is not None:
+        query = query.where(
+            User.id.in_(select(Assignment.user_id).where(Assignment.team_id.in_(allowed)))
+        )
+    return list(db.scalars(query.order_by(User.first_name, User.id).offset(offset).limit(limit)))
 
 
 @router.post("/users", response_model=InvitationView, status_code=201)
@@ -150,6 +157,9 @@ def erase_account(db: Session, user: User) -> None:
     lock_planning(db)
     lock_auth(db)
     db.refresh(user)
+    record = db.get(License, user_id)
+    if record is not None:
+        s3.discard(record.file_key)
     # Scrub account identifiers embedded in historical JSON, not just foreign keys.
     for revision in db.scalars(select(EventRevision)):
         for field in ("before", "after"):
@@ -205,6 +215,18 @@ def erase_account(db: Session, user: User) -> None:
         )
     db.execute(delete(LoginSession).where(LoginSession.user_id == user_id))
     db.delete(user)
+
+
+@router.get("/assignments", response_model=list[AssignmentView])
+def every_assignment(
+    db: DB, actor: Actor, limit: int = Query(500, ge=1, le=500), offset: int = Query(0, ge=0)
+) -> list[Assignment]:
+    """Rattachements, pour filtrer les utilisateurs ; ceux de ses équipes pour un coach."""
+    query = select(Assignment)
+    allowed = coached_teams(db, actor)
+    if allowed is not None:
+        query = query.where(Assignment.team_id.in_(allowed))
+    return list(db.scalars(query.order_by(Assignment.id).offset(offset).limit(limit)))
 
 
 @router.get("/users/{user_id}/assignments", response_model=list[AssignmentView])

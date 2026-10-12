@@ -63,8 +63,9 @@ export function AppShell() {
     if (!section || !guestSections.includes(section)) return <Navigate to="/app" replace />;
     return <Workspace key={`invité:${location.pathname}`} account={null} section={section} />;
   }
-  const admin = session.account.roles.includes('admin');
-  if (!section || (location.pathname === '/app/administration' && !admin))
+  // Les coachs ont une administration limitée : sections, équipes et licences de leurs équipes.
+  const staff = session.account.roles.some((role) => role === 'admin' || role === 'coach');
+  if (!section || (location.pathname === '/app/administration' && !staff))
     return <Navigate to="/app" replace />;
   return (
     <UnreadProvider key={session.account.id}>
@@ -89,6 +90,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
   const profileButton = useRef<HTMLButtonElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const admin = account?.roles.includes('admin') ?? false;
+  const staff = admin || (account?.roles.includes('coach') ?? false);
   const unread = useUnread();
   const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
     Accueil: {
@@ -164,7 +166,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
           {applications
             .filter((item) =>
               account
-                ? item.title !== 'Administration' || admin
+                ? item.title !== 'Administration' || staff
                 : guestSections.includes(item.title),
             )
             .map((item) => (

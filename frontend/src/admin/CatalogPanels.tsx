@@ -26,23 +26,28 @@ interface CatalogConfig<T extends Section> {
   describe: (item: T) => ReactNode;
 }
 function CatalogPanel<T extends Section>(config: CatalogConfig<T>) {
-  const { api, reloadCatalog } = useAdmin();
+  const { api, reloadCatalog, admin } = useAdmin();
   const [editing, setEditing] = useState<T | 'new' | null>(null);
   const [removing, setRemoving] = useState<T | null>(null);
   const [notice, setNotice] = useState('');
   const item = editing && editing !== 'new' ? editing : null;
   return (
     <>
-      <PanelHeading title={config.title} description={config.description}>
-        <button
-          className="admin-button primary"
-          onClick={() => {
-            setEditing('new');
-            setNotice('');
-          }}
-        >
-          {config.add}
-        </button>
+      <PanelHeading
+        title={config.title}
+        description={admin ? config.description : 'Consultation seule.'}
+      >
+        {admin && (
+          <button
+            className="admin-button primary"
+            onClick={() => {
+              setEditing('new');
+              setNotice('');
+            }}
+          >
+            {config.add}
+          </button>
+        )}
       </PanelHeading>
       {notice && <Notice>{notice}</Notice>}
       {editing && (
@@ -67,7 +72,9 @@ function CatalogPanel<T extends Section>(config: CatalogConfig<T>) {
         />
       )}
       {!config.items.length ? (
-        <Empty>Aucun élément pour le moment. Commencez par une création.</Empty>
+        <Empty>
+          {admin ? 'Aucun élément pour le moment. Commencez par une création.' : 'Aucun élément.'}
+        </Empty>
       ) : (
         <div className="admin-list">
           {config.items.map((value) => (
@@ -76,25 +83,27 @@ function CatalogPanel<T extends Section>(config: CatalogConfig<T>) {
                 <h3>{value.name}</h3>
                 {config.describe(value)}
               </div>
-              <div className="admin-actions">
-                <button
-                  className="admin-button"
-                  aria-label={`Modifier ${value.name}`}
-                  onClick={() => {
-                    setEditing(value);
-                    setNotice('');
-                  }}
-                >
-                  Modifier
-                </button>
-                <button
-                  className="admin-button danger"
-                  aria-label={`Supprimer ${value.name}`}
-                  onClick={() => setRemoving(value)}
-                >
-                  Supprimer
-                </button>
-              </div>
+              {admin && (
+                <div className="admin-actions">
+                  <button
+                    className="admin-button"
+                    aria-label={`Modifier ${value.name}`}
+                    onClick={() => {
+                      setEditing(value);
+                      setNotice('');
+                    }}
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    className="admin-button danger"
+                    aria-label={`Supprimer ${value.name}`}
+                    onClick={() => setRemoving(value)}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              )}
             </article>
           ))}
         </div>
@@ -171,7 +180,7 @@ export function GymnasiumsPanel() {
   );
 }
 export function TeamsPanel() {
-  const { catalog } = useAdmin();
+  const { catalog, admin, referents } = useAdmin();
   return (
     <>
       <CatalogPanel<Team>
@@ -219,15 +228,16 @@ export function TeamsPanel() {
                 'Section introuvable'}{' '}
               · Référent :{' '}
               {catalog.users.find((user) => user.id === item.referent_id)?.first_name ??
+                (item.referent_id && referents[item.referent_id]) ??
                 'À attribuer'}
             </p>
-            {item.ffvb_source_warning_ignored && (
+            {admin && item.ffvb_source_warning_ignored && (
               <TeamSourceWarningPreference team={item} ignored />
             )}
           </>
         )}
       />
-      {!catalog.sections.length && (
+      {admin && !catalog.sections.length && (
         <p className="admin-hint">Créez une section avant d’ajouter une équipe.</p>
       )}
     </>

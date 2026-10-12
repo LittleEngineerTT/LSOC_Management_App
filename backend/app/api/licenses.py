@@ -1,9 +1,11 @@
-from typing import Literal
+import secrets
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import select, text
+from sqlalchemy.orm import Session
 
-from app.api.common import DB, Actor, Admin, get
+from app.api.common import DB, Actor, Admin, coached_teams, get
 from app.api.schemas import (
     LicenseInput,
     LicenseTeamView,
@@ -11,6 +13,7 @@ from app.api.schemas import (
     MyLicenseView,
 )
 from app.core.security import now, token
+from app.integrations import s3
 from app.persistence.models import Assignment, License, Team, User
 from app.services.identity import rekey
 from app.services.notifications import notify
@@ -24,6 +27,7 @@ LABELS = {
     "active": "Active",
 }
 # Directive du 11 octobre : « active » se choisit directement, sans étape préalable.
+MAX_FILE_BYTES = 10 * 1024 * 1024
 
 
 def lock_licenses(db: DB) -> None:
@@ -59,6 +63,8 @@ def view(
             "missing_player": missing_player,
             "missing_coach": missing_coach,
             "missing": missing_coach if kind == "coach" else missing_player,
+            "file_url": s3.public_url(record.file_key) if record and record.file_key else None,
+            "file_uploaded_at": record.file_uploaded_at if record else None,
         }
     )
 
@@ -80,7 +86,7 @@ def mine(db: DB, actor: Actor) -> MyLicenseView:
 @router.get("/licenses", response_model=list[LicenseView])
 def licenses(
     db: DB,
-    actor: Admin,
+    actor: Actor,
     kind: Literal["player", "coach"] = "player",
     section_id: str | None = None,
     team_id: str | None = None,
@@ -90,20 +96,22 @@ def licenses(
 
     Une licence manque pour un joueur (resp. coach) rattaché à une équipe du périmètre dont
     la licence du même type n’est pas active. La liste coach ne montre que les comptes
-    concernés : rôle coach ou rattachement coach.
+    concernés : rôle coach ou rattachement coach. Un coach ne voit que ses équipes.
     """
+    allowed = coached_teams(db, actor)
     teams = {team.id: team for team in db.scalars(select(Team))}
     scope = {
         identifier
         for identifier, team in teams.items()
         if (team_id is None or identifier == team_id)
         and (section_id is None or team.section_id == section_id)
+        and (allowed is None or identifier in allowed)
     }
     assignments: dict[str, list[Assignment]] = {}
     for assignment in db.scalars(select(Assignment).order_by(Assignment.team_id)):
         assignments.setdefault(assignment.user_id, []).append(assignment)
     records = {value.user_id: value for value in db.scalars(select(License))}
-    filtered = team_id is not None or section_id is not None
+    filtered = team_id is not None or section_id is not None or allowed is not None
     result: list[LicenseView] = []
     for user in db.scalars(
         select(User).where(User.active.is_(True)).order_by(User.first_name, User.id)
@@ -164,6 +172,81 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
                 )
     # Le numéro de licence devient l’identifiant du compte (temporaire sans numéro).
     user = rekey(db, user)
-    value = db.get(License, user.id)
+    return license_view(db, user)
+
+
+def license_view(db: Session, user: User) -> LicenseView:
     mine = list(db.scalars(select(Assignment).where(Assignment.user_id == user.id)))
-    return view(user, value, mine, concerned_coach(user, mine))
+    return view(user, db.get(License, user.id), mine, concerned_coach(user, mine))
+
+
+async def pdf_body(request: Request) -> bytes:
+    """Corps brut application/pdf, 10 Mo au plus."""
+    if request.headers.get("content-type", "").split(";")[0].strip() != "application/pdf":
+        raise HTTPException(415, "La licence doit être un fichier PDF")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > MAX_FILE_BYTES:
+        raise HTTPException(413, "Le PDF dépasse 10 Mo")
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_FILE_BYTES:
+            raise HTTPException(413, "Le PDF dépasse 10 Mo")
+    if not body.startswith(b"%PDF-"):
+        raise HTTPException(415, "La licence doit être un fichier PDF")
+    return bytes(body)
+
+
+@router.put(
+    "/licenses/{user_id}/file",
+    response_model=LicenseView,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}},
+        }
+    },
+)
+def upload_file(
+    user_id: str,
+    body: Annotated[bytes, Depends(pdf_body)],
+    tasks: BackgroundTasks,
+    db: DB,
+    actor: Admin,
+) -> LicenseView:
+    """Dépose le PDF de la licence et remplace le précédent."""
+    if not s3.configured():
+        raise HTTPException(503, "Stockage des licences non configuré")
+    get(db, User, user_id)
+    # Nom de 64 caractères aléatoires : il fait office de secret pour la lecture publique.
+    key = f"licences/{secrets.token_hex(32)}"
+    try:
+        s3.put(key, body, "application/pdf")
+    except s3.StorageError as error:
+        raise HTTPException(502, str(error)) from error
+    lock_licenses(db)
+    user = get(db, User, user_id)
+    value = db.get(License, user.id)
+    if value is None:
+        value = License(user_id=user.id, updated_at=now(), updated_by=actor.id)
+        db.add(value)
+    previous = value.file_key
+    value.file_key, value.file_uploaded_at = key, now()
+    db.flush()
+    # L’ancien PDF disparaît après la validation de la transaction.
+    tasks.add_task(s3.discard, previous)
+    return license_view(db, user)
+
+
+@router.delete("/licenses/{user_id}/file", response_model=LicenseView)
+def delete_file(user_id: str, tasks: BackgroundTasks, db: DB, actor: Admin) -> LicenseView:
+    lock_licenses(db)
+    user = get(db, User, user_id)
+    value = db.get(License, user.id)
+    if value is None or value.file_key is None:
+        raise HTTPException(404, "Aucun PDF de licence")
+    previous = value.file_key
+    value.file_key, value.file_uploaded_at = None, None
+    db.flush()
+    tasks.add_task(s3.discard, previous)
+    return license_view(db, user)

@@ -20,6 +20,8 @@ const tabs = [
   { id: 'ffvb', title: 'FFVB' },
   { id: 'emails', title: 'E-mails' },
 ];
+// Administration limitée des coachs, en lecture seule.
+const coachTabs = ['users', 'licenses', 'sections', 'teams'];
 export function AdminPage() {
   return (
     <div className="administration">
@@ -31,8 +33,9 @@ export function AdminPage() {
 }
 function Administration() {
   const [search] = useSearchParams();
-  const tab = tabs.find((item) => item.id === search.get('tab'))?.id ?? 'users';
-  const { catalog } = useAdmin();
+  const { catalog, admin } = useAdmin();
+  const visible = admin ? tabs : tabs.filter((item) => coachTabs.includes(item.id));
+  const tab = visible.find((item) => item.id === search.get('tab'))?.id ?? 'users';
   return (
     <>
       <div className="admin-overview">
@@ -45,12 +48,14 @@ function Administration() {
         <span>
           <strong>{catalog.teams.length}</strong> équipes
         </span>
-        <span>
-          <strong>{catalog.gymnasiums.length}</strong> gymnases
-        </span>
+        {admin && (
+          <span>
+            <strong>{catalog.gymnasiums.length}</strong> gymnases
+          </span>
+        )}
       </div>
       <nav className="admin-tabs" aria-label="Administration">
-        {tabs.map((item) => (
+        {visible.map((item) => (
           <Link
             key={item.id}
             to={`?tab=${item.id}`}
@@ -61,7 +66,7 @@ function Administration() {
           </Link>
         ))}
       </nav>
-      <SourceWarnings />
+      {admin && <SourceWarnings />}
       <div className="admin-panel" key={tab}>
         {tab === 'users' && <UsersPanel />}
         {tab === 'sections' && <SectionsPanel />}

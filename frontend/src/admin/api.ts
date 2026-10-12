@@ -47,24 +47,26 @@ export function createAdminApi(csrfToken: () => string | undefined, expired: () 
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) controller.abort();
     let timedOut = false;
+    // Un fichier (PDF de licence) part tel quel ; le reste en JSON.
+    const raw = body instanceof Blob;
     // A manual FFVB synchronization may involve several remote requests.
     const timer = window.setTimeout(
       () => {
         timedOut = true;
         controller.abort();
       },
-      path.endsWith('/sync') || path.endsWith('/preview') ? 90_000 : 20_000,
+      path.endsWith('/sync') || path.endsWith('/preview') || raw ? 90_000 : 20_000,
     );
     try {
       const headers = new Headers({ Accept: 'application/json' });
-      if (body) headers.set('Content-Type', 'application/json');
+      if (body) headers.set('Content-Type', raw ? body.type : 'application/json');
       if (csrf) headers.set('X-CSRF-Token', csrf);
       const response = await fetch(`/api/v1${path}`, {
         method,
         credentials: 'include',
         headers,
         signal: controller.signal,
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: raw ? body : JSON.stringify(body) } : {}),
       });
       signal?.throwIfAborted();
       const payload: unknown =

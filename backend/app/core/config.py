@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     match_courts: int = 3
     # Une rencontre dont l’équipe qui reçoit commence par ce nom se joue chez nous.
     ffvb_home_prefix: str = "LSO COLOMBES"
+    # PDF des licences : bucket S3 en lecture publique, lu directement par le navigateur.
+    s3_bucket: str = ""
+    s3_region: str = "eu-west-3"
+    # Vide : AWS (https://{bucket}.s3.{region}.amazonaws.com). Sinon un service compatible S3,
+    # adressé en style chemin ({endpoint}/{bucket}/{clé}).
+    s3_endpoint_url: str = ""
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+    # Base des URL données au navigateur ; vide : l’adresse du bucket.
+    s3_public_url: str = ""
 
     @model_validator(mode="after")
     def production(self) -> "Settings":

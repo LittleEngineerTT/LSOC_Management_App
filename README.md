@@ -29,8 +29,9 @@ Cette commande ajoute une section, un gymnase de trois terrains, une équipe, un
 - Contrat : http://localhost:8000/openapi.json
 - Santé PostgreSQL/API : http://localhost:8000/api/v1/health
 - Boîte de réception des e-mails de développement : http://localhost:8025
+- S3 simulé (S3Mock) des PDF de licence : http://localhost:9090/lsoc-licences
 
-Mailpit reçoit les e-mails du worker ; aucune adresse externe n’est contactée pour les envois de développement. Les ports sont exposés uniquement sur l’interface locale. Les données PostgreSQL sont persistées dans le volume Docker `postgres-data`.
+Mailpit reçoit les e-mails du worker ; aucune adresse externe n’est contactée pour les envois de développement. Les ports sont exposés uniquement sur l’interface locale. Les données PostgreSQL sont persistées dans le volume Docker `postgres-data`. S3Mock remplace le bucket S3 des licences en développement ; ses fichiers ne sont pas persistés. Les tests simulent S3 au niveau HTTP, sans service externe.
 
 PostgreSQL est accessible depuis l’hôte sur `127.0.0.1:5433`, afin de cohabiter avec une installation locale utilisant déjà `5432`. L’API et le worker utilisent le port interne `5432` du conteneur. Si `5433` est aussi occupé, choisir un autre port dans `LSOC_POSTGRES_PORT` du fichier `.env` et adapter `LSOC_DATABASE_URL` pour les commandes Python exécutées sur l’hôte. Après une modification, relancer `docker compose up -d`.
 
@@ -133,7 +134,7 @@ Les mots de passe sont hachés avec Argon2id. Les jetons d’invitation, récup�
 
 Le worker réessaie les e-mails avec un délai croissant, jusqu’à huit échecs. L’API admin permet d’inspecter la file et de réactiver un envoi. Une panne FFVB ne bloque pas les e-mails ni les autres sources. Les jobs sont dédupliqués en base ; un crash après acceptation SMTP et avant validation PostgreSQL peut exceptionnellement renvoyer le même message, avec le même `Message-ID`.
 
-Pour une installation de production, définir `LSOC_ENVIRONMENT=production`, un secret aléatoire `LSOC_SECRET_KEY` d’au moins 32 caractères, `LSOC_COOKIE_SECURE=true`, un `LSOC_FRONTEND_URL` HTTPS et les paramètres SMTP réels. L’API et le worker doivent partager le même secret. La terminaison HTTPS, les sauvegardes et leur durée de conservation relèvent du futur hébergement ; la composition fournie cible le développement local.
+Pour une installation de production, définir `LSOC_ENVIRONMENT=production`, un secret aléatoire `LSOC_SECRET_KEY` d’au moins 32 caractères, `LSOC_COOKIE_SECURE=true`, un `LSOC_FRONTEND_URL` HTTPS, les paramètres SMTP réels et le bucket S3 des PDF de licence (`LSOC_S3_BUCKET`, `LSOC_S3_REGION`, `LSOC_S3_ACCESS_KEY`, `LSOC_S3_SECRET_KEY`, voir `docs/rgpd.md` pour sa configuration). L’API et le worker doivent partager le même secret. La terminaison HTTPS, les sauvegardes et leur durée de conservation relèvent du futur hébergement ; la composition fournie cible le développement local.
 
 ## État de livraison
 

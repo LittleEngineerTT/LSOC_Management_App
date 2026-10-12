@@ -396,6 +396,38 @@
 .admin-dialog .admin-actions {
   justify-content: flex-end;
 }
+/* Dépôt d’un PDF : le libellé sert de bouton, le champ fichier reste invisible. */
+.admin-file {
+  position: relative;
+  cursor: pointer;
+}
+.admin-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  cursor: inherit;
+}
+.admin-file.disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.admin-file:focus-within {
+  outline: 2px solid #356079;
+  outline-offset: 2px;
+}
+.license-viewer {
+  width: min(960px, calc(100% - 32px));
+}
+.license-viewer iframe {
+  display: block;
+  width: 100%;
+  height: min(75dvh, 900px);
+  margin: 18px 0 20px;
+  border: 1px solid #dce5eb;
+  border-radius: 7px;
+  background: #f2f7fa;
+}
 .invitation-box {
   background: #f2f7fa;
   border: 1px solid #dce5eb;

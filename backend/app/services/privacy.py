@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.security import now
+from app.integrations import s3
 from app.persistence.models import (
     ChangeRequest,
     CoachEventRequest,
@@ -36,7 +37,8 @@ def season_start(today: date) -> date:
 def reset_licenses(db: Session, at: datetime | None = None) -> bool:
     """Au 1er août, toutes les licences sont à refaire : les statuts repartent de zéro.
 
-    Le numéro de licence est conservé : il identifie le compte et ouvre l’accès.
+    Le numéro de licence est conservé : il identifie le compte et ouvre l’accès. Les PDF de
+    la saison passée sont supprimés du stockage.
     """
     start = season_start((at or now()).astimezone(PARIS).date())
     club = defaults(db)
@@ -53,11 +55,19 @@ def reset_licenses(db: Session, at: datetime | None = None) -> bool:
             .where(License.number.is_not(None))
         )
     )
+    files = list(db.scalars(select(License.file_key).where(License.file_key.is_not(None))))
     db.execute(
         update(License).values(
-            status="none", coach_status="none", updated_at=now(), updated_by=None
+            status="none",
+            coach_status="none",
+            file_key=None,
+            file_uploaded_at=None,
+            updated_at=now(),
+            updated_by=None,
         )
     )
+    for key in files:
+        s3.discard(key)
     club.licenses_reset_on = start
     season = f"{start.year}/{start.year + 1}"
     for user in licensed:

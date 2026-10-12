@@ -44,6 +44,7 @@ export function PrivacyPage() {
             dans le club.
           </li>
           <li>Vie sportive : équipes, statut de licence, inscriptions, événements suivis.</li>
+          <li>Licence : le PDF de votre licence de la saison, déposé par un administrateur.</li>
           <li>
             Échanges : questions privées aux administrateurs, demandes de modification ou
             d’événement, notifications, historique des modifications que vous faites.
@@ -77,11 +78,13 @@ export function PrivacyPage() {
 
         <h2>Qui voit vos données</h2>
         <p>
-          Les administrateurs du club. Les autres adhérents ne voient que votre prénom lorsque vous
-          êtes référent d’un événement. Les matchs FFVB proviennent des calendriers publics de la
-          fédération. Les prestataires techniques du club (hébergement, envoi des e-mails) traitent
-          les données pour son compte uniquement. Aucune donnée n’est vendue ni utilisée à des fins
-          publicitaires.
+          Les administrateurs du club. Les coachs voient, pour les équipes dont ils sont référents
+          ou coachs, la fiche de compte des membres (prénom, initiale, catégorie, rôles, équipes)
+          ainsi que le statut et le PDF de leur licence. Les autres adhérents ne voient que votre
+          prénom lorsque vous êtes référent d’un événement. Les matchs FFVB proviennent des
+          calendriers publics de la fédération. Les prestataires techniques du club (hébergement,
+          stockage des PDF, envoi des e-mails) traitent les données pour son compte uniquement.
+          Aucune donnée n’est vendue ni utilisée à des fins publicitaires.
         </p>
 
         <h2>Durées de conservation</h2>
@@ -98,7 +101,8 @@ export function PrivacyPage() {
           </li>
           <li>
             Licences : leur statut repart de zéro chaque 1er août, les licences étant à refaire à
-            chaque saison. Votre numéro et votre compte sont conservés.
+            chaque saison, et le PDF de la saison passée est supprimé. Votre numéro et votre compte
+            sont conservés.
           </li>
         </ul>
 
@@ -136,7 +140,9 @@ export function PrivacyPage() {
         <h2>Sécurité</h2>
         <p>
           Mots de passe hachés, cookies de session inaccessibles aux scripts, contenu des e-mails
-          chiffré en base, accès réservé selon les rôles.
+          chiffré en base, accès réservé selon les rôles. Le PDF de licence est stocké sous un nom
+          aléatoire de 64 caractères, impossible à deviner : seul ce lien, donné aux personnes
+          autorisées, permet de l’ouvrir. Ne le transférez pas.
         </p>
       </article>
     </main>
