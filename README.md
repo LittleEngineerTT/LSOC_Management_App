@@ -31,7 +31,7 @@ Cette commande ajoute une section, un gymnase de trois terrains, une équipe, un
 - Boîte de réception des e-mails de développement : http://localhost:8025
 - S3 simulé (S3Mock) des PDF de licence : http://localhost:9090/lsoc-licences
 
-Mailpit reçoit les e-mails du worker ; aucune adresse externe n’est contactée pour les envois de développement. Les ports sont exposés uniquement sur l’interface locale. Les données PostgreSQL sont persistées dans le volume Docker `postgres-data`. S3Mock remplace le bucket S3 des licences en développement ; ses fichiers ne sont pas persistés. Les tests simulent S3 au niveau HTTP, sans service externe.
+Mailpit reçoit les e-mails du worker ; aucune adresse externe n’est contactée pour les envois de développement. Les ports sont exposés uniquement sur l’interface locale. Les données PostgreSQL sont persistées dans le volume Docker `postgres-data`. S3Mock remplace le bucket S3 des licences en développement ; ses fichiers ne sont pas persistés. Il n’est lancé qu’avec le profil Compose `mock` (`COMPOSE_PROFILES=mock` dans `.env`, ou `docker compose --profile mock up`) ; pour utiliser votre propre serveur compatible S3, retirer ce profil et renseigner les variables `LSOC_S3_*` du `.env` (voir `.env.example`). Les tests simulent S3 au niveau HTTP, sans service externe.
 
 PostgreSQL est accessible depuis l’hôte sur `127.0.0.1:5433`, afin de cohabiter avec une installation locale utilisant déjà `5432`. L’API et le worker utilisent le port interne `5432` du conteneur. Si `5433` est aussi occupé, choisir un autre port dans `LSOC_POSTGRES_PORT` du fichier `.env` et adapter `LSOC_DATABASE_URL` pour les commandes Python exécutées sur l’hôte. Après une modification, relancer `docker compose up -d`.
 
