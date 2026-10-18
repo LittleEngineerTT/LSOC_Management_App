@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { AdminProvider, useAdmin } from './data';
 import { UsersPanel } from './UsersPanel';
-import { SectionsTeamsPanel, GymnasiumsPanel } from './CatalogPanels';
+import { SectionsTeamsPanel, GymnasiumsPanel, PositionsPanel } from './CatalogPanels';
 import { BlocksPanel } from './BlocksPanel';
 import { FFVBPanel } from './FFVBPanel';
 import { LicensesPanel } from './LicensesPanel';
@@ -13,6 +13,7 @@ const tabs = [
   { id: 'users', title: 'Utilisateurs' },
   { id: 'sections', title: 'Sections et équipes' },
   { id: 'licenses', title: 'Licences' },
+  { id: 'positions', title: 'Postes' },
   { id: 'gymnasiums', title: 'Gymnases' },
   { id: 'blocks', title: 'Indisponibilités' },
   { id: 'requests', title: 'Validations' },
@@ -73,6 +74,7 @@ function Administration() {
         {tab === 'users' && <UsersPanel />}
         {tab === 'sections' && <SectionsTeamsPanel />}
         {tab === 'licenses' && <LicensesPanel />}
+        {tab === 'positions' && <PositionsPanel />}
         {tab === 'gymnasiums' && <GymnasiumsPanel />}
         {tab === 'blocks' && <BlocksPanel />}
         {tab === 'ffvb' && <FFVBPanel />}

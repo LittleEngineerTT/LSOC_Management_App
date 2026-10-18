@@ -7,6 +7,8 @@ export interface User {
   /** Initiale du nom de famille, seule partie conservée. */
   last_initial?: string;
   category: string;
+  /** Facultatif : M ou F. */
+  sex?: 'M' | 'F' | null;
   roles: Role[];
   active: boolean;
   messaging_allowed: boolean;
@@ -33,13 +35,19 @@ export interface Assignment {
   user_id: string;
   team_id: string;
   kind: 'player' | 'coach';
+  /** Numéro de maillot et poste, pour un joueur. */
+  number?: number | null;
+  position_id?: string | null;
 }
+/** Poste attribuable aux joueurs, défini dans l’administration. */
+export type Position = Section;
 export interface Catalog {
   users: User[];
   sections: Section[];
   teams: Team[];
   gymnasiums: Gymnasium[];
   sources: Source[];
+  positions: Position[];
 }
 export interface Block {
   id: string;

@@ -34,6 +34,8 @@ export interface FormField {
   visibleWhen?: string;
   /** Nom d’une case à cocher : le champ disparaît lorsqu’elle est cochée. */
   hiddenWhen?: string;
+  /** Choix multiples : case « Tous » qui coche ou décoche toutes les options. */
+  all?: boolean;
 }
 export type FormValues = Record<string, string | boolean | string[]>;
 export const str = (values: FormValues, name: string) => String(values[name] ?? '').trim();
@@ -41,6 +43,19 @@ export const num = (values: FormValues, name: string) => Number(str(values, name
 export const checked = (values: FormValues, name: string) => values[name] === true;
 export const choices = (values: FormValues, name: string): string[] =>
   Array.isArray(values[name]) ? (values[name] as string[]) : [];
+
+/** « n° 7 · Passeur » : numéro et poste d’un joueur, vide sans l’un ni l’autre. */
+export function playerDetails(
+  assignment: { number?: number | null; position_id?: string | null },
+  positions: { id: string; name: string }[],
+) {
+  return [
+    assignment.number != null && `n° ${assignment.number}`,
+    positions.find((position) => position.id === assignment.position_id)?.name,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 export function EntityForm({
   title,
@@ -95,6 +110,25 @@ export function EntityForm({
             return (
               <fieldset className="admin-choice-group" key={field.name}>
                 <legend>{field.label}</legend>
+                {field.all && field.options && field.options.length > 1 && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={
+                        Array.isArray(value) &&
+                        field.options.every((option) => value.includes(option.value))
+                      }
+                      onChange={(event) =>
+                        update(
+                          event.target.checked
+                            ? (field.options ?? []).map((option) => option.value)
+                            : [],
+                        )
+                      }
+                    />
+                    Tous
+                  </label>
+                )}
                 {field.options?.map((option) => (
                   <label key={option.value}>
                     <input

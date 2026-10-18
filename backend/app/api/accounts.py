@@ -12,6 +12,7 @@ from app.api.schemas import (
     InvitationView,
     MeView,
     PasswordResetView,
+    PlayerDetailsInput,
     Preferences,
     PublicProfileView,
     UserInput,
@@ -32,6 +33,7 @@ from app.persistence.models import (
     FFVBMatchState,
     License,
     LoginSession,
+    Position,
     Team,
     User,
 )
@@ -244,6 +246,7 @@ def assign(user_id: str, body: AssignmentInput, db: DB, actor: Admin) -> Assignm
     role = "coach" if body.kind == "coach" else "member"
     if role not in user.roles:
         raise HTTPException(422, "Le rôle correspondant est requis")
+    player_details(db, body.kind, body)
     value = Assignment(user_id=user_id, **body.model_dump())
     db.add(value)
     db.flush()
@@ -252,6 +255,27 @@ def assign(user_id: str, body: AssignmentInput, db: DB, actor: Admin) -> Assignm
     user = rekey(db, user)
     alert_duplicates(db, user)
     return get(db, Assignment, identifier)
+
+
+def player_details(db: DB, kind: str, body: PlayerDetailsInput) -> None:
+    if kind != "player" and (body.number is not None or body.position_id is not None):
+        raise HTTPException(422, "Numéro et poste sont réservés aux joueurs")
+    if body.position_id is not None:
+        get(db, Position, body.position_id)
+
+
+@router.put("/users/{user_id}/assignments/{assignment_id}", response_model=AssignmentView)
+def update_assignment(
+    user_id: str, assignment_id: str, body: PlayerDetailsInput, db: DB, actor: Admin
+) -> Assignment:
+    """Numéro de maillot et poste d’un joueur dans son équipe ; un numéro déjà pris : 409."""
+    value = get(db, Assignment, assignment_id)
+    if value.user_id != user_id:
+        raise HTTPException(404, "Rattachement introuvable")
+    player_details(db, value.kind, body)
+    value.number, value.position_id = body.number, body.position_id
+    db.flush()
+    return value
 
 
 @router.delete("/users/{user_id}/assignments/{assignment_id}", response_model=UserView)

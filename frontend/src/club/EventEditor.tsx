@@ -3,6 +3,7 @@ import { AdminError } from '../admin/api';
 import { fromLocal, toLocal } from '../admin/time';
 import type { Event } from '../admin/types';
 import {
+  Confirm,
   EntityForm,
   checked,
   choices,
@@ -55,6 +56,8 @@ export function EventEditor({
   const [acknowledge, setAcknowledge] = useState(false);
   const [scope, setScope] = useState<Scope>('event');
   const [includeExceptions, setIncludeExceptions] = useState(false);
+  // Événement sans section ni équipe organisatrice : enregistré après confirmation.
+  const [unorganized, setUnorganized] = useState<FormValues | null>(null);
   const ffvb = !!event?.ffvb_match_id;
   const direct = admin || (!!event && event.referent_id === account.id && event.direct_edit);
   const gymOptions = gymnasiums.map((gym) => ({
@@ -88,11 +91,13 @@ export function EventEditor({
             label: 'Sections concernées',
             type: 'choices' as const,
             options: sections.map((section) => ({ value: section.id, label: section.name })),
+            hint: 'Facultatif si l’événement est ouvert aux inscriptions de sections ou d’équipes.',
           },
           {
             name: 'team_ids',
             label: 'Équipes organisatrices',
             type: 'choices' as const,
+            all: true,
             options: teams.map((team) => ({ value: team.id, label: team.name })),
             hint: 'Facultatif. Les sections des équipes cochées sont ajoutées automatiquement.',
           },
@@ -181,6 +186,7 @@ export function EventEditor({
             name: 'registration_section_ids',
             label: 'Ouvert aux inscriptions des sections',
             type: 'choices' as const,
+            all: true,
             options: sections.map((section) => ({ value: section.id, label: section.name })),
             hint: 'L’ouverture concerne les sections ou équipes sélectionnées.',
           },
@@ -188,6 +194,7 @@ export function EventEditor({
             name: 'registration_team_ids',
             label: 'Ouvert aux inscriptions des équipes',
             type: 'choices' as const,
+            all: true,
             options: teams.map((team) => ({ value: team.id, label: team.name })),
             hint: 'Ouvrir une équipe permet seulement à ses membres de s’inscrire.',
           },
@@ -291,18 +298,31 @@ export function EventEditor({
   }
 
   async function save(values: FormValues, signal: AbortSignal) {
+    const open =
+      choices(values, 'registration_section_ids').length > 0 ||
+      choices(values, 'registration_team_ids').length > 0;
+    if (admin && open && registrationLimit(values) === null)
+      throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
+    // Seul l’administrateur choisit les organisateurs ; les autres ne les modifient pas.
+    // Un événement déjà enregistré sans organisateur ne redemande pas la confirmation.
+    const already = !!event && !event.section_ids.length && !event.team_ids?.length;
+    if (admin && !choices(values, 'section_ids').length && !choices(values, 'team_ids').length) {
+      if (!open)
+        throw new Error(
+          'Sans section ni équipe organisatrice, ouvrez l’événement aux inscriptions d’au moins une section ou équipe.',
+        );
+      if (!already) {
+        setUnorganized(values);
+        return;
+      }
+    }
+    await submit(values, signal);
+  }
+
+  async function submit(values: FormValues, signal: AbortSignal) {
     try {
-      if (
-        admin &&
-        (choices(values, 'registration_section_ids').length ||
-          choices(values, 'registration_team_ids').length) &&
-        registrationLimit(values) === null
-      )
-        throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
       if (!event) {
         const gym = str(values, 'gymnasium_id') || null;
-        if (!choices(values, 'section_ids').length && !choices(values, 'team_ids').length)
-          throw new Error('Sélectionnez au moins une section ou une équipe organisatrice.');
         const when = schedule(values);
         const body = {
           title: str(values, 'title'),
@@ -401,6 +421,20 @@ export function EventEditor({
       onCancel={onCancel}
       onSave={save}
     >
+      {unorganized && (
+        <Confirm
+          title="Événement sans catégorie organisatrice"
+          label="Enregistrer sans organisateur"
+          onClose={() => setUnorganized(null)}
+          onConfirm={(signal) => submit(unorganized, signal)}
+        >
+          <p>
+            Cet événement n’a pas de catégorie : aucune section ni équipe organisatrice n’est
+            sélectionnée. Il sera seulement ouvert aux inscriptions des sections et équipes
+            choisies.
+          </p>
+        </Confirm>
+      )}
       {!direct && event && (
         <p className="admin-hint club-wide">
           Vos changements seront appliqués après validation par un administrateur.

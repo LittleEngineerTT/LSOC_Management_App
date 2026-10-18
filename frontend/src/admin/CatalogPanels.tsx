@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { useAdmin } from './data';
-import type { Gymnasium, Section, Team } from './types';
+import { useAdmin, useResource } from './data';
+import type { Assignment, Gymnasium, Position, Section, Team } from './types';
+import { displayName } from './UsersPanel';
 import { TeamSourceWarningPreference } from './SourceWarnings';
 import {
   Confirm,
@@ -162,6 +163,23 @@ export function GymnasiumsPanel() {
   );
 }
 
+export function PositionsPanel() {
+  const { catalog } = useAdmin();
+  return (
+    <CatalogPanel<Position>
+      title="Postes des joueurs"
+      description="Définissez les postes que l’on peut attribuer aux joueurs dans leurs équipes."
+      add="Ajouter un poste"
+      path="/positions"
+      items={catalog.positions}
+      fields={[{ ...name, maxLength: 120 }]}
+      initial={(item) => ({ name: item?.name ?? '' })}
+      payload={(values) => ({ name: str(values, 'name') })}
+      describe={() => null}
+    />
+  );
+}
+
 type Editing =
   | { kind: 'section'; item: Section | null }
   | { kind: 'team'; item: Team | null; section?: string }
@@ -173,6 +191,28 @@ export function SectionsTeamsPanel() {
   const { api, catalog, reloadCatalog, admin, referents } = useAdmin();
   const [editing, setEditing] = useState<Editing>(null);
   const [removing, setRemoving] = useState<Removing>(null);
+  // Effectif : joueurs de chaque équipe regroupés par poste, puis par numéro ; les joueurs
+  // sans poste en dernier (périmètre du coach filtré par le serveur).
+  const assignments = useResource<Assignment>('/assignments', true);
+  const roster = (team: Team) => {
+    const players = (assignments.data ?? [])
+      .filter((item) => item.team_id === team.id && item.kind === 'player')
+      .sort((a, b) => (a.number ?? 100) - (b.number ?? 100));
+    const known = (player: Assignment) =>
+      catalog.positions.some((position) => position.id === player.position_id);
+    return [
+      ...catalog.positions.map((position) => ({
+        id: position.id,
+        name: position.name,
+        players: players.filter((player) => player.position_id === position.id),
+      })),
+      { id: '', name: 'Sans poste', players: players.filter((player) => !known(player)) },
+    ].filter((group) => group.players.length);
+  };
+  const playerName = (id: string) => {
+    const user = catalog.users.find((item) => item.id === id);
+    return user ? displayName(user) : id;
+  };
   const [notice, setNotice] = useState('');
   const start = (value: Editing) => {
     setEditing(value);
@@ -336,6 +376,25 @@ export function SectionsTeamsPanel() {
                     <div className="admin-row-copy">
                       <h4>{team.name}</h4>
                       <p>Référent : {referentName(team)}</p>
+                      {roster(team).length > 0 && (
+                        <div className="admin-roster" aria-label={`Joueurs de ${team.name}`}>
+                          {roster(team).map((group) => (
+                            <div key={group.id}>
+                              <h5>{group.name}</h5>
+                              <ul aria-label={`${group.name} de ${team.name}`}>
+                                {group.players.map((player) => (
+                                  <li key={player.id}>
+                                    {playerName(player.user_id)}
+                                    {player.number != null && (
+                                      <span className="admin-hint"> · n° {player.number}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {admin && team.ffvb_source_warning_ignored && (
                         <TeamSourceWarningPreference team={team} ignored />
                       )}

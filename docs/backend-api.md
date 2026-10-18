@@ -46,7 +46,7 @@ L’identifiant interne d’un compte (`id`) est son numéro de licence. À déf
 - **Propagation** : clés étrangères (`ON UPDATE CASCADE`) et identifiants stockés en JSON (historique, demandes, protections FFVB) suivent.
 - **Réponses** : `POST /users/{id}/assignments` renvoie le rattachement avec le nouvel `user_id`, et `DELETE /users/{id}/assignments/{aid}` renvoie le compte à jour (200).
 
-`POST /users` exige `last_name`, dont seule l’initiale est conservée (`last_initial`) ; `PUT /users/{id}` l’accepte facultativement. Un même prénom avec la même initiale dans une section déclenche une alerte admin `duplicate_user`.
+`POST /users` exige `last_name`, dont seule l’initiale est conservée (`last_initial`) ; `PUT /users/{id}` l’accepte facultativement. `sex` est facultatif : `"M"`, `"F"` ou `null` (absent vaut `null`). Un même prénom avec la même initiale dans une section déclenche une alerte admin `duplicate_user`.
 
 Sans numéro de licence, un compte non administrateur ne peut ni se connecter (403 `{code: "license_required"}`), ni utiliser une session existante (401). Les administrateurs gèrent ces comptes normalement.
 
@@ -59,11 +59,12 @@ Sans numéro de licence, un compte non administrateur ne peut ni se connecter (4
 | `POST /users/{id}/password-reset` | Admin : générer un lien de récupération à transmettre à l’utilisateur |
 | `POST /auth/reset-password` | `{token,password}` ; révoque les sessions |
 | `GET /profiles/{id}` | Profil visible : identifiant, prénom, catégorie ; aucun rôle, droit privé ou e-mail |
-| `GET/POST /users/{id}/assignments`, `DELETE /users/{id}/assignments/{assignment}` | Rattachements joueur/coach ; lecture pour le compte concerné ou l’admin |
+| `GET/POST /users/{id}/assignments`, `PUT/DELETE /users/{id}/assignments/{assignment}` | Rattachements joueur/coach ; lecture pour le compte concerné ou l’admin. Un joueur peut avoir un `number` (1 à 99, unique dans l’équipe, sinon 409) et un `position_id` ; `PUT` (admin) les modifie, 422 pour un coach |
 | `PUT /preferences` | Adresse `email` facultative et préférences `followed_email`, `referent_email`, `admin_email` |
 | `GET/POST /sections`, `PUT/DELETE /sections/{id}` | Groupes de pratique |
 | `GET/POST /teams`, `PUT/DELETE /teams/{id}` | Équipes rattachées à une section et référent par défaut des matchs |
 | `GET/POST /gymnasiums`, `PUT/DELETE /gymnasiums/{id}` | Gymnases et capacité entière positive |
+| `GET/POST /positions`, `PUT/DELETE /positions/{id}` | Postes attribuables aux joueurs (admin) ; supprimer un poste le retire des joueurs |
 
 Rôles cumulables : `member`, `coach`, `admin`. Catégories : `M18`, `M21`, `adult`, `M15`, `M13`, `M11`, `M9`. Un compte avec le rôle `member` doit être M18 ou plus ; un coach seul n’a pas cette restriction. Invitation : sept jours, usage unique. Récupération : une heure. Mot de passe : 12 à 128 caractères. Le premier admin se crée avec la commande locale `lsoc create-admin`.
 
@@ -142,7 +143,7 @@ Chaque personne a un seul numéro, commun à ses deux licences : `status` (joueu
 
 ## Séances ouvertes et inscriptions
 
-Un événement porte `registration_section_ids` (sections ouvertes), `registration_team_ids` (équipes ouvertes), `registration_limit` (obligatoire dès qu’une section ou équipe est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes.
+Un événement porte `registration_section_ids` (sections ouvertes), `registration_team_ids` (équipes ouvertes), `registration_limit` (obligatoire dès qu’une section ou équipe est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes. Les sections concernées (`section_ids`) et les équipes organisatrices sont facultatives si au moins une section ou équipe est ouverte aux inscriptions ; sinon 422. Le frontend demande alors une confirmation : l’événement n’a pas de catégorie organisatrice.
 
 | Routes | Usage |
 | --- | --- |

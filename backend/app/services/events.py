@@ -180,8 +180,14 @@ def validate_event(db: Session, event: Event) -> None:
             sections.append(section)
     if sections != event.section_ids:
         event.section_ids = sections
-    if not event.section_ids:
-        raise HTTPException(422, "Au moins une section est requise")
+    # Sans section organisatrice, l’événement n’existe que par ses inscriptions libres.
+    if not event.section_ids and not (
+        event.registration_section_ids or event.registration_team_ids
+    ):
+        raise HTTPException(
+            422,
+            "Sans section organisatrice, ouvrez les inscriptions à au moins une section ou équipe",
+        )
     for identifier in event.section_ids:
         get(db, Section, identifier)
     if event.referent_id is not None and not get(db, User, event.referent_id).active:

@@ -11,7 +11,7 @@ from app.api.schemas import (
     TeamView,
     TeamWarningInput,
 )
-from app.persistence.models import Gymnasium, Section, Team, User
+from app.persistence.models import Gymnasium, Position, Section, Team, User
 
 router = APIRouter(tags=["Catalogue"])
 
@@ -147,3 +147,29 @@ def update_gym(identifier: str, body: GymInput, db: DB, actor: Admin) -> Gymnasi
 @router.delete("/gymnasiums/{identifier}", status_code=204)
 def delete_gym(identifier: str, db: DB, actor: Admin) -> None:
     db.delete(get(db, Gymnasium, identifier))
+
+
+@router.get("/positions", response_model=list[SectionView])
+def positions(db: DB, actor: Actor) -> list[Position]:
+    return list(db.scalars(select(Position).order_by(Position.name)))
+
+
+@router.post("/positions", response_model=SectionView, status_code=201)
+def create_position(body: NameInput, db: DB, actor: Admin) -> Position:
+    value = Position(**body.model_dump())
+    db.add(value)
+    db.flush()
+    return value
+
+
+@router.put("/positions/{identifier}", response_model=SectionView)
+def update_position(identifier: str, body: NameInput, db: DB, actor: Admin) -> Position:
+    value = get(db, Position, identifier)
+    value.name = body.name
+    return value
+
+
+@router.delete("/positions/{identifier}", status_code=204)
+def delete_position(identifier: str, db: DB, actor: Admin) -> None:
+    """Supprime un poste ; les joueurs qui l’occupaient n’ont plus de poste."""
+    db.delete(get(db, Position, identifier))

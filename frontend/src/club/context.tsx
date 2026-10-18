@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { createAdminApi, type AdminApi } from '../admin/api';
 import { useLoad } from '../admin/data';
-import type { Assignment, Event, Gymnasium, Section, Team, User } from '../admin/types';
+import type { Assignment, Event, Gymnasium, Position, Section, Team, User } from '../admin/types';
 import type { Account } from '../api/auth';
 import { useSession } from '../auth/session';
 import '../admin/admin.css';
@@ -54,6 +54,8 @@ interface Club {
   gymnasiums: Gymnasium[];
   follows: Follow[];
   assignments: Assignment[];
+  /** Postes des joueurs, pour afficher ceux du compte. */
+  positions: Position[];
   /** Comptes, lisibles uniquement par les administrateurs. */
   users: User[];
 }
@@ -79,15 +81,17 @@ export function ClubProvider({ account, children }: { account: Account; children
   const admin = account.roles.includes('admin');
   const loader = useCallback(
     async (signal: AbortSignal): Promise<Club> => {
-      const [sections, teams, gymnasiums, follows, assignments, users] = await Promise.all([
-        api.list<Section>('/sections', false, signal),
-        api.list<Team>('/teams', false, signal),
-        api.list<Gymnasium>('/gymnasiums', false, signal),
-        api.list<Follow>('/follows', false, signal),
-        api.list<Assignment>(`/users/${account.id}/assignments`, false, signal),
-        admin ? api.list<User>('/users', true, signal) : Promise.resolve([]),
-      ]);
-      return { sections, teams, gymnasiums, follows, assignments, users };
+      const [sections, teams, gymnasiums, follows, assignments, positions, users] =
+        await Promise.all([
+          api.list<Section>('/sections', false, signal),
+          api.list<Team>('/teams', false, signal),
+          api.list<Gymnasium>('/gymnasiums', false, signal),
+          api.list<Follow>('/follows', false, signal),
+          api.list<Assignment>(`/users/${account.id}/assignments`, false, signal),
+          api.list<Position>('/positions', false, signal),
+          admin ? api.list<User>('/users', true, signal) : Promise.resolve([]),
+        ]);
+      return { sections, teams, gymnasiums, follows, assignments, positions, users };
     },
     [api, account.id, admin],
   );
@@ -201,6 +205,7 @@ export function GuestClubProvider({ children }: { children: ReactNode }) {
         ...result.data,
         follows: [],
         assignments: [],
+        positions: [],
         users: [],
         api,
         account: guestAccount,

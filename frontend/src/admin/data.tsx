@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useSession } from '../auth/session';
 import { createAdminApi, type AdminApi } from './api';
-import type { Assignment, Catalog, Team } from './types';
+import type { Assignment, Catalog, Position, Team } from './types';
 
 interface AdminContextValue {
   api: AdminApi;
@@ -81,7 +81,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (!admin) {
         // Coach : membres de ses équipes (filtrés par le serveur), sections et équipes en
         // lecture, prénoms des référents, ses propres rattachements.
-        const [users, sections, teams, mine] = await Promise.all([
+        const [users, sections, teams, mine, positions] = await Promise.all([
           api.list<Catalog['users'][number]>('/users', true, signal),
           api.list<Catalog['sections'][number]>('/sections', false, signal),
           api.list<Team>('/teams', false, signal),
@@ -90,6 +90,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             false,
             signal,
           ),
+          api.list<Position>('/positions', false, signal),
         ]);
         const unknown = [
           ...new Set(
@@ -123,20 +124,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           )
           .map((team) => team.id);
         return {
-          catalog: { users, sections, teams, gymnasiums: [], sources: [] },
+          catalog: { users, sections, teams, gymnasiums: [], sources: [], positions },
           scope,
           referents,
         };
       }
-      const [users, sections, teams, gymnasiums, sources] = await Promise.all([
+      const [users, sections, teams, gymnasiums, sources, positions] = await Promise.all([
         api.list<Catalog['users'][number]>('/users', true, signal),
         api.list<Catalog['sections'][number]>('/sections', false, signal),
         api.list<Catalog['teams'][number]>('/teams', false, signal),
         api.list<Catalog['gymnasiums'][number]>('/gymnasiums', false, signal),
         api.list<Catalog['sources'][number]>('/ffvb/sources', false, signal),
+        api.list<Position>('/positions', false, signal),
       ]);
       return {
-        catalog: { users, sections, teams, gymnasiums, sources },
+        catalog: { users, sections, teams, gymnasiums, sources, positions },
         scope: null,
         referents: {},
       };

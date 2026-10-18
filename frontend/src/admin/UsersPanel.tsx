@@ -12,7 +12,9 @@ import {
   EntityForm,
   LoadState,
   Notice,
+  num,
   PanelHeading,
+  playerDetails,
   str,
   type FormField,
 } from './ui';
@@ -22,6 +24,10 @@ const roleNames: Record<Role, string> = {
   coach: 'Coach',
   admin: 'Administrateur',
 };
+const sexes = [
+  { value: 'M', label: 'M' },
+  { value: 'F', label: 'F' },
+];
 const categories = ['adult', 'M21', 'M18', 'M15', 'M13', 'M11', 'M9'].map((value) => ({
   value,
   label: value === 'adult' ? 'Sénior' : value,
@@ -80,6 +86,7 @@ export function UsersPanel() {
         : 'Seule l’initiale est conservée.',
     },
     { name: 'category', label: 'Catégorie', type: 'select', required: true, options: categories },
+    { name: 'sex', label: 'Sexe', type: 'select', options: sexes, hint: 'Facultatif.' },
     {
       name: 'roles',
       label: 'Rôles',
@@ -193,6 +200,7 @@ export function UsersPanel() {
                   first_name: selected.first_name,
                   last_name: '',
                   category: selected.category,
+                  sex: selected.sex ?? '',
                   roles: selected.roles,
                   messaging_allowed: selected.messaging_allowed,
                 }
@@ -200,6 +208,7 @@ export function UsersPanel() {
                   first_name: '',
                   last_name: '',
                   category: 'adult',
+                  sex: '',
                   roles: ['member'],
                   messaging_allowed: true,
                 }
@@ -221,6 +230,7 @@ export function UsersPanel() {
               first_name: str(values, 'first_name'),
               ...(str(values, 'last_name') ? { last_name: str(values, 'last_name') } : {}),
               category: str(values, 'category'),
+              sex: str(values, 'sex') || null,
               roles,
               messaging_allowed: checked(values, 'messaging_allowed'),
             };
@@ -293,7 +303,8 @@ export function UsersPanel() {
                 <p className="admin-hint">ID : {user.id}</p>
                 {user.username && <p>Identifiant : {user.username}</p>}
                 <p>
-                  {user.category === 'adult' ? 'Sénior' : user.category} ·{' '}
+                  {user.category === 'adult' ? 'Sénior' : user.category}
+                  {user.sex && ` · ${user.sex}`} ·{' '}
                   {user.roles.map((role) => roleNames[role]).join(', ')}
                 </p>
                 <Badge tone={user.active ? 'good' : 'warning'}>
@@ -426,6 +437,7 @@ function Assignments({
   const { api, catalog } = useAdmin();
   const resource = useResource<Assignment>(`/users/${user.id}/assignments`);
   const [removing, setRemoving] = useState<Assignment | null>(null);
+  const [editing, setEditing] = useState<Assignment | null>(null);
   const [revision, setRevision] = useState(0);
   const kinds = [
     { value: 'player', label: 'Joueur' },
@@ -436,18 +448,74 @@ function Assignments({
       <h4>Équipes rattachées</h4>
       <LoadState result={resource} />
       {resource.loaded && !resource.data?.length && <Empty>Aucun rattachement.</Empty>}
-      {resource.data?.map((assignment) => (
-        <div className="admin-inline-row" key={assignment.id}>
-          <span>
-            {catalog.teams.find((team) => team.id === assignment.team_id)?.name ??
-              'Équipe supprimée'}{' '}
-            · {assignment.kind === 'coach' ? 'Coach' : 'Joueur'}
-          </span>
-          <button className="admin-button danger" onClick={() => setRemoving(assignment)}>
-            Retirer
-          </button>
-        </div>
-      ))}
+      {resource.data?.map((assignment) => {
+        const team =
+          catalog.teams.find((item) => item.id === assignment.team_id)?.name ?? 'Équipe supprimée';
+        const details = playerDetails(assignment, catalog.positions);
+        return (
+          <div className="admin-inline-row" key={assignment.id}>
+            <span>
+              {team} · {assignment.kind === 'coach' ? 'Coach' : 'Joueur'}
+              {details && ` · ${details}`}
+            </span>
+            <div className="admin-actions">
+              {assignment.kind === 'player' && (
+                <button
+                  className="admin-button"
+                  aria-label={`Numéro et poste dans ${team}`}
+                  onClick={() => setEditing(assignment)}
+                >
+                  Numéro et poste
+                </button>
+              )}
+              <button className="admin-button danger" onClick={() => setRemoving(assignment)}>
+                Retirer
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      {editing && (
+        <EntityForm
+          key={editing.id}
+          title="Numéro et poste"
+          fields={[
+            { name: 'number', label: 'Numéro de maillot', type: 'number', min: 1, max: 99 },
+            {
+              name: 'position_id',
+              label: 'Poste',
+              type: 'select',
+              options: catalog.positions.map((position) => ({
+                value: position.id,
+                label: position.name,
+              })),
+              hint: catalog.positions.length
+                ? undefined
+                : 'Définissez les postes dans l’onglet Postes.',
+            },
+          ]}
+          initial={{
+            number: editing.number != null ? String(editing.number) : '',
+            position_id: editing.position_id ?? '',
+          }}
+          submit="Enregistrer"
+          onCancel={() => setEditing(null)}
+          onSave={async (values, signal) => {
+            await api.request<Assignment>(
+              `/users/${user.id}/assignments/${editing.id}`,
+              'PUT',
+              {
+                number: str(values, 'number') ? num(values, 'number') : null,
+                position_id: str(values, 'position_id') || null,
+              },
+              signal,
+            );
+            setEditing(null);
+            resource.reload();
+            onChanged();
+          }}
+        />
+      )}
       {catalog.teams.length && kinds.length ? (
         <EntityForm
           key={revision}

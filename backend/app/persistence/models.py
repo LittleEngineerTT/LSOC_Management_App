@@ -9,12 +9,14 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
     select,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column
 
@@ -37,10 +39,13 @@ class User(Identity, Base):
     """Compte ; `id` est le numéro de licence, ou à défaut `initiale-prénom-section`."""
 
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint("sex IN ('M','F')", name="users_sex_check"),)
     first_name: Mapped[str] = mapped_column(String(80))
     # Seule l’initiale du nom de famille est conservée.
     last_initial: Mapped[str] = mapped_column(String(1), default="", server_default="")
     category: Mapped[str] = mapped_column(String(30), default="adult")
+    # Facultatif : « M » ou « F ».
+    sex: Mapped[str | None] = mapped_column(String(1))
     roles: Mapped[list[str]] = mapped_column(JSON, default=list)
     username: Mapped[str | None] = mapped_column(String(80), unique=True)
     email: Mapped[str | None] = mapped_column(String(254))
@@ -134,17 +139,45 @@ class Team(Identity, Base):
     )
 
 
+class Position(Identity, Base):
+    """Poste attribuable aux joueurs, défini par l’administration."""
+
+    __tablename__ = "positions"
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+
+
 class Assignment(Identity, Base):
+    """Rattachement d’un compte à une équipe ; numéro de maillot et poste pour un joueur."""
+
     __tablename__ = "assignments"
     __table_args__ = (
         UniqueConstraint("user_id", "team_id", "kind"),
         CheckConstraint("kind IN ('player','coach')"),
+        CheckConstraint(
+            "number IS NULL OR number BETWEEN 1 AND 99", name="assignments_number_range"
+        ),
+        CheckConstraint(
+            "kind = 'player' OR (number IS NULL AND position_id IS NULL)",
+            name="assignments_player_details",
+        ),
+        # Deux joueurs d’une même équipe ne partagent pas un numéro.
+        Index(
+            "assignments_team_number",
+            "team_id",
+            "number",
+            unique=True,
+            postgresql_where=text("number IS NOT NULL"),
+        ),
     )
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
     )
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(10))
+    number: Mapped[int | None] = mapped_column(Integer)
+    position_id: Mapped[str | None] = mapped_column(
+        ForeignKey("positions.id", ondelete="SET NULL")
+    )
 
 
 class Gymnasium(Identity, Base):

@@ -528,6 +528,22 @@
   border-bottom: 1px solid #e6edf1;
   padding: 12px 0;
 }
+.admin-roster {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.admin-roster h5 {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+.admin-roster ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
 .admin-changes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -149,7 +149,7 @@ it('dépose une demande pour plusieurs équipes coachées, avec ouverture ciblé
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   const teams = screen.getByRole('group', { name: 'Équipes organisatrices' });
-  expect(within(teams).getAllByRole('checkbox').map((box) => box.parentElement?.textContent)).toEqual(['Loisir 1', 'Loisir 2']);
+  expect(within(teams).getAllByRole('checkbox').map((box) => box.parentElement?.textContent)).toEqual(['Tous', 'Loisir 1', 'Loisir 2']);
   await userEvent.click(within(teams).getByLabelText('Loisir 2'));
   await userEvent.click(within(teams).getByLabelText('Loisir 1'));
   await userEvent.type(screen.getByLabelText('Titre'), 'Stage interéquipes');
@@ -358,6 +358,54 @@ it('l’administrateur ouvre un événement à une équipe avec une limite oblig
   expect(mutations[0]).toMatchObject({
     path: '/events',
     body: { registration_team_ids: ['t3'], registration_section_ids: [], registration_limit: 12 },
+  });
+});
+
+it('l’administrateur coche « Tous » pour les équipes organisatrices et les inscriptions', async () => {
+  account = admin;
+  mutation = () => reply(event, 201);
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Tournoi interne');
+  const organisers = screen.getByRole('group', { name: 'Équipes organisatrices' });
+  await userEvent.click(within(organisers).getByLabelText('Tous'));
+  expect(within(organisers).getByLabelText('Loisir 2')).toBeChecked();
+  await userEvent.click(within(organisers).getByLabelText('Loisir 2'));
+  expect(within(organisers).getByLabelText('Tous')).not.toBeChecked();
+  await userEvent.click(within(organisers).getByLabelText('Tous'));
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des sections' })).getByLabelText('Tous'),
+  );
+  await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '40');
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0]).toMatchObject({
+    path: '/events',
+    body: { team_ids: ['t1', 't2', 't3'], registration_section_ids: ['s1', 's2'] },
+  });
+});
+
+it('un événement sans organisateur exige des inscriptions libres et une confirmation', async () => {
+  account = admin;
+  mutation = () => reply(event, 201);
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Portes ouvertes');
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  expect(await screen.findByText(/Sans section ni équipe organisatrice/)).toBeInTheDocument();
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des équipes' })).getByLabelText('Compétition 1'),
+  );
+  await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '20');
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Événement sans catégorie organisatrice' });
+  expect(within(dialog).getByText(/n’a pas de catégorie/)).toBeInTheDocument();
+  expect(mutations).toEqual([]);
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer sans organisateur' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0]).toMatchObject({
+    path: '/events',
+    body: { section_ids: [], team_ids: [], registration_team_ids: ['t3'], registration_limit: 20 },
   });
 });
 

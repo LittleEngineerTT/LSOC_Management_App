@@ -69,6 +69,8 @@ class UserInput(Input):
     # Seule l’initiale est conservée ; obligatoire à la création, facultatif ensuite.
     last_name: str | None = Field(default=None, min_length=1, max_length=80)
     category: Category = "adult"
+    # Facultatif : M ou F.
+    sex: Literal["M", "F"] | None = None
     roles: list[Role] = Field(min_length=1)
     messaging_allowed: bool = True
 
@@ -91,6 +93,7 @@ class UserView(View):
     first_name: str
     last_initial: str
     category: str
+    sex: str | None = None
     roles: list[str]
     active: bool
     messaging_allowed: bool
@@ -160,7 +163,14 @@ class TeamWarningInput(Input):
     ignored: bool
 
 
-class AssignmentInput(Input):
+class PlayerDetailsInput(Input):
+    """Numéro de maillot et poste, réservés aux rattachements joueur."""
+
+    number: int | None = Field(default=None, ge=1, le=99)
+    position_id: str | None = None
+
+
+class AssignmentInput(PlayerDetailsInput):
     team_id: str
     kind: Literal["player", "coach"]
 
@@ -170,6 +180,8 @@ class AssignmentView(View):
     user_id: str
     team_id: str
     kind: str
+    number: int | None
+    position_id: str | None
 
 
 class Interval(Input):
@@ -202,7 +214,8 @@ class EventInput(Interval):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
     kind: Literal["training", "match", "other"] = "training"
-    # Peut rester vide si des équipes organisatrices apportent leurs sections.
+    # Peut rester vide si des équipes organisatrices apportent leurs sections, ou si
+    # l’événement est ouvert aux inscriptions de sections ou d’équipes.
     section_ids: list[str] = Field(default_factory=list)
     team_ids: list[str] = Field(default_factory=list)
     gymnasium_id: str | None = None
@@ -218,7 +231,7 @@ class EventInput(Interval):
 class EventPatch(Input):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
-    section_ids: list[str] | None = Field(default=None, min_length=1)
+    section_ids: list[str] | None = None
     team_ids: list[str] | None = None
     gymnasium_id: str | None = None
     location: str | None = Field(default=None, max_length=200)

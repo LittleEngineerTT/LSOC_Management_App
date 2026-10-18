@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Badge, Empty, LoadState, PanelHeading } from '../admin/ui';
+import { Badge, Empty, LoadState, PanelHeading, playerDetails } from '../admin/ui';
 import { dayLabel, horizonLabel, parisDay, timeRange } from './calendar';
 import { PersonName, useClub, useMySections } from './context';
 import { DetailHost } from './EventDetail';
@@ -9,7 +9,7 @@ import { useMyEvents } from './MyPlanningPage';
 const roles = { player: 'Joueur', coach: 'Coach' } as const;
 
 export function MySectionsPage() {
-  const { assignments, teams, admin } = useClub();
+  const { assignments, teams, positions, admin } = useClub();
   const sections = useMySections();
   const { result, events } = useMyEvents();
   const link = useEventLink();
@@ -48,7 +48,8 @@ export function MySectionsPage() {
               <ul className="club-plain-list">
                 {mine.map(({ assignment, team }) => (
                   <li key={assignment.id}>
-                    <strong>{team?.name}</strong> <Badge>{roles[assignment.kind]}</Badge>
+                    <strong>{team?.name}</strong> <Badge>{roles[assignment.kind]}</Badge>{' '}
+                    {playerDetails(assignment, positions)}
                     <span className="admin-hint">
                       {' '}
                       Référent de l’équipe :{' '}
