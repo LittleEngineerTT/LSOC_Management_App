@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_starttls: bool = False
+    # TLS implicite dès la connexion (port 465) ; exclusif de STARTTLS.
+    smtp_ssl: bool = False
     smtp_from: str = "LSOC <noreply@lsoc.local>"
     worker_poll_seconds: int = 10
     ffvb_interval_minutes: int = 1440
@@ -45,6 +47,8 @@ class Settings(BaseSettings):
                 )
             if not self.cookie_secure or not self.frontend_url.startswith("https://"):
                 raise ValueError("La production exige HTTPS et LSOC_COOKIE_SECURE=true")
+        if self.smtp_ssl and self.smtp_starttls:
+            raise ValueError("LSOC_SMTP_SSL et LSOC_SMTP_STARTTLS sont exclusifs")
         return self
 
 
