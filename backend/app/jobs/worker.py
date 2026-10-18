@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 from email.message import EmailMessage
 from types import FrameType
+from urllib.parse import urlsplit
 
 import httpx
 from cryptography.fernet import InvalidToken
@@ -19,6 +20,11 @@ from app.services.ffvb import sync_source
 
 logger = logging.getLogger(__name__)
 _stopping = False
+
+
+def message_domain() -> str:
+    """Domaine des Message-ID : celui du frontend, pour ne pas être pris pour du spam."""
+    return urlsplit(settings.frontend_url).hostname or "lsoc.local"
 
 
 def process_emails(limit: int = 100) -> int:
@@ -59,9 +65,10 @@ def process_emails(limit: int = 100) -> int:
                 message["From"] = settings.smtp_from
                 message["To"] = user.email
                 message["Subject"] = payload["subject"]
-                message["Message-ID"] = f"<{job.id}@lsoc.local>"
+                message["Message-ID"] = f"<{job.id}@{message_domain()}>"
                 message.set_content(payload["body"])
-                with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
+                smtp_class = smtplib.SMTP_SSL if settings.smtp_ssl else smtplib.SMTP
+                with smtp_class(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
                     if settings.smtp_starttls:
                         smtp.starttls()
                     if settings.smtp_username:
