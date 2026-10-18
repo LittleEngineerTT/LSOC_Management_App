@@ -36,6 +36,7 @@ export function scheduleFields(): FormField[] {
       label: 'Fin (Europe/Paris)',
       type: 'datetime-fr',
       required: true,
+      after: { name: 'starts_at', minutes: 120 },
       hiddenWhen: 'repeat',
     },
     {
@@ -58,6 +59,7 @@ export function scheduleFields(): FormField[] {
       label: 'Heure de fin',
       type: 'time',
       required: true,
+      after: { name: 'start_time', minutes: 120 },
       visibleWhen: 'repeat',
     },
     {
@@ -122,4 +124,12 @@ export function schedule(values: FormValues, from: string = today()): Schedule {
     ends_at: fromLocal(`${endDay}T${end}`),
     recurrence: { until, weekdays },
   };
+}
+
+/** Séance ouverte : au moins une section ou une équipe peut s’inscrire. */
+export function openToRegistrations(values: FormValues) {
+  return (
+    choices(values, 'registration_section_ids').length > 0 ||
+    choices(values, 'registration_team_ids').length > 0
+  );
 }

@@ -274,3 +274,17 @@ export function isFollowed(follows: Follow[], event: Event) {
       follow.event_id === event.id || (!!event.series_id && follow.series_id === event.series_id),
   );
 }
+
+/** Sections et leurs équipes, pour un champ de formulaire `groups`. */
+export function sectionGroups(
+  sections: Section[],
+  teams: Pick<Team, 'id' | 'name' | 'section_id'>[],
+) {
+  return sections.map((section) => ({
+    value: section.id,
+    label: section.name,
+    members: teams
+      .filter((team) => team.section_id === section.id)
+      .map((team) => ({ value: team.id, label: team.name })),
+  }));
+}

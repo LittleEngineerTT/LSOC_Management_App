@@ -156,7 +156,7 @@ it('dépose une demande pour plusieurs équipes coachées, avec ouverture ciblé
   await userEvent.type(screen.getByLabelText('Lieu extérieur'), 'Parc');
   await userEvent.click(
     within(
-      screen.getByRole('group', { name: 'Ouvert aux inscriptions des équipes' }),
+      screen.getByRole('group', { name: 'Ouvert aux inscriptions' }),
     ).getByLabelText('Compétition 1'),
   );
   // Directive du 11 octobre : un coach peut aussi proposer une récurrence.
@@ -342,11 +342,11 @@ it('l’administrateur ouvre un événement à une équipe avec une limite oblig
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Séance découverte');
   await userEvent.click(
-    within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'),
+    within(screen.getByRole('group', { name: 'Sections et équipes organisatrices' })).getByLabelText('Loisir'),
   );
   await userEvent.click(
     within(
-      screen.getByRole('group', { name: 'Ouvert aux inscriptions des équipes' }),
+      screen.getByRole('group', { name: 'Ouvert aux inscriptions' }),
     ).getByLabelText('Compétition 1'),
   );
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
@@ -367,21 +367,26 @@ it('l’administrateur coche « Tous » pour les équipes organisatrices et les 
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Tournoi interne');
-  const organisers = screen.getByRole('group', { name: 'Équipes organisatrices' });
+  const organisers = screen.getByRole('group', { name: 'Sections et équipes organisatrices' });
   await userEvent.click(within(organisers).getByLabelText('Tous'));
   expect(within(organisers).getByLabelText('Loisir 2')).toBeChecked();
   await userEvent.click(within(organisers).getByLabelText('Loisir 2'));
   expect(within(organisers).getByLabelText('Tous')).not.toBeChecked();
   await userEvent.click(within(organisers).getByLabelText('Tous'));
   await userEvent.click(
-    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des sections' })).getByLabelText('Tous'),
+    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions' })).getByLabelText('Tous'),
   );
   await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '40');
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   await waitFor(() => expect(mutations).toHaveLength(1));
   expect(mutations[0]).toMatchObject({
     path: '/events',
-    body: { team_ids: ['t1', 't2', 't3'], registration_section_ids: ['s1', 's2'] },
+    body: {
+      section_ids: ['s1', 's2'],
+      team_ids: ['t1', 't2', 't3'],
+      registration_section_ids: ['s1', 's2'],
+      registration_team_ids: ['t1', 't2', 't3'],
+    },
   });
 });
 
@@ -394,7 +399,7 @@ it('un événement sans organisateur exige des inscriptions libres et une confir
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText(/Sans section ni équipe organisatrice/)).toBeInTheDocument();
   await userEvent.click(
-    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des équipes' })).getByLabelText('Compétition 1'),
+    within(screen.getByRole('group', { name: 'Ouvert aux inscriptions' })).getByLabelText('Compétition 1'),
   );
   await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '20');
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
@@ -457,7 +462,7 @@ it('l’administrateur désigne plusieurs équipes organisatrices sans cocher de
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Tournoi interne');
-  const teams = screen.getByRole('group', { name: 'Équipes organisatrices' });
+  const teams = screen.getByRole('group', { name: 'Sections et équipes organisatrices' });
   await userEvent.click(within(teams).getByLabelText('Loisir 1'));
   await userEvent.click(within(teams).getByLabelText('Compétition 1'));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));

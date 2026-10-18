@@ -94,7 +94,7 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   open('/app/planning');
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement compétition');
-  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections et équipes organisatrices' })).getByLabelText('Loisir'));
   await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
   expect(screen.queryByLabelText('Fin de la récurrence')).not.toBeInTheDocument();
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
@@ -213,8 +213,8 @@ it('un administrateur ouvre une séance en fixant obligatoirement une limite', a
   open('/app/planning');
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Séance découverte');
-  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
-  await userEvent.click(within(screen.getByRole('group', { name: 'Ouvert aux inscriptions des sections' })).getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections et équipes organisatrices' })).getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Ouvert aux inscriptions' })).getByLabelText('Loisir'));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText(/Indiquez le nombre maximal d’inscrits/)).toBeInTheDocument();
   expect(mutations).toEqual([]);
@@ -254,7 +254,7 @@ it('un administrateur crée un entraînement les mardis et jeudis jusqu’à la 
   open('/app/planning');
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement loisir');
-  await userEvent.click(within(screen.getByRole('group', { name: 'Sections concernées' })).getByLabelText('Loisir'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections et équipes organisatrices' })).getByLabelText('Loisir'));
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
   const days = screen.getByRole('group', { name: 'Jours de répétition' });
   await userEvent.click(within(days).getByLabelText('Jeudi'));

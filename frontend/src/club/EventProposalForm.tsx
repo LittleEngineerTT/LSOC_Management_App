@@ -1,8 +1,8 @@
 import type { EventRequest } from '../admin/types';
 import { choices, EntityForm, num, str, type FormField, type FormValues } from '../admin/ui';
-import { useClub } from './context';
+import { sectionGroups, useClub } from './context';
 import { kindLabels } from './events';
-import { schedule, scheduleFields, scheduleInitial } from './schedule';
+import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
 
 /** Équipes pour lesquelles le compte peut demander un événement : référent ou coach rattaché. */
 export function useCoachedTeams() {
@@ -79,21 +79,16 @@ export function EventProposalForm({
     },
     {
       name: 'registration_section_ids',
-      label: 'Ouvert aux inscriptions des sections',
-      type: 'choices',
+      memberName: 'registration_team_ids',
+      label: 'Ouvert aux inscriptions',
+      type: 'groups',
       all: true,
-      options: sections.map((section) => ({ value: section.id, label: section.name })),
-    },
-    {
-      name: 'registration_team_ids',
-      label: 'Ouvert aux inscriptions des équipes',
-      type: 'choices',
-      all: true,
-      options: teams.map((team) => ({ value: team.id, label: team.name })),
-      hint: 'Seules les équipes ou sections cochées pourront s’inscrire.',
+      groups: sectionGroups(sections, teams),
+      hint: 'Cochez une section pour l’ouvrir à tous ses membres, ou dépliez-la pour n’ouvrir que certaines équipes.',
     },
     {
       name: 'registration_limit',
+      requiredWhen: openToRegistrations,
       label: 'Nombre maximal d’inscrits',
       type: 'number',
       min: 1,
@@ -157,6 +152,7 @@ export function EventProposalForm({
   return (
     <EntityForm
       title="Demander un événement"
+      markRequired
       fields={fields}
       initial={{
         team_ids: coached.length === 1 ? [coached[0]!.id] : [],

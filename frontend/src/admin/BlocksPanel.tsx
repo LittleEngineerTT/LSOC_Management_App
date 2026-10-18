@@ -30,7 +30,13 @@ export function BlocksPanel() {
       options: catalog.gymnasiums.map((gym) => ({ value: gym.id, label: gym.name })),
     },
     { name: 'starts_at', label: 'Début (Europe/Paris)', type: 'datetime-fr', required: true },
-    { name: 'ends_at', label: 'Fin (Europe/Paris)', type: 'datetime-fr', required: true },
+    {
+      name: 'ends_at',
+      label: 'Fin (Europe/Paris)',
+      type: 'datetime-fr',
+      required: true,
+      after: { name: 'starts_at', minutes: 120 },
+    },
     {
       name: 'courts',
       label: 'Terrains indisponibles',
@@ -148,7 +154,12 @@ function Availability() {
             options: catalog.gymnasiums.map((gym) => ({ value: gym.id, label: gym.name })),
           },
           { name: 'starts_at', label: 'Du (Europe/Paris)', type: 'datetime-fr', required: true },
-          { name: 'ends_at', label: 'Au (Europe/Paris)', type: 'datetime-fr', required: true },
+          {
+            name: 'ends_at',
+            label: 'Au (Europe/Paris)',
+            type: 'datetime-fr',
+            required: true,
+          },
         ]}
         initial={{ gymnasium_id: '', starts_at: '', ends_at: '' }}
         submit="Consulter"

@@ -821,3 +821,36 @@
   color: #354d60;
   font-weight: 600;
 }
+.admin-groups .admin-group {
+  border-top: 1px solid #eef2f5;
+}
+.admin-groups .admin-group:first-of-type {
+  border-top: 0;
+}
+.admin-groups details {
+  margin: 0 0 8px 28px;
+}
+.admin-groups summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: #4f6472;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+.admin-groups summary::before {
+  content: '▸';
+  margin-right: 6px;
+}
+.admin-groups details[open] > summary::before {
+  content: '▾';
+}
+.admin-groups summary::-webkit-details-marker {
+  display: none;
+}
+.mark-required .admin-field.required > label:first-child::after,
+.mark-required .admin-field.required > div > label:first-child::after {
+  content: ' *';
+  color: #b42318;
+}

@@ -13,8 +13,8 @@ import {
   type FormValues,
 } from '../admin/ui';
 import { timeRange } from './calendar';
-import { schedule, scheduleFields, scheduleInitial } from './schedule';
-import { useClub } from './context';
+import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
+import { sectionGroups, useClub } from './context';
 import { kindLabels } from './events';
 
 type Scope = 'event' | 'following';
@@ -88,18 +88,12 @@ export function EventEditor({
       ? [
           {
             name: 'section_ids',
-            label: 'Sections concernées',
-            type: 'choices' as const,
-            options: sections.map((section) => ({ value: section.id, label: section.name })),
-            hint: 'Facultatif si l’événement est ouvert aux inscriptions de sections ou d’équipes.',
-          },
-          {
-            name: 'team_ids',
-            label: 'Équipes organisatrices',
-            type: 'choices' as const,
+            memberName: 'team_ids',
+            label: 'Sections et équipes organisatrices',
+            type: 'groups' as const,
             all: true,
-            options: teams.map((team) => ({ value: team.id, label: team.name })),
-            hint: 'Facultatif. Les sections des équipes cochées sont ajoutées automatiquement.',
+            groups: sectionGroups(sections, teams),
+            hint: 'Cochez une section concernée, ou dépliez-la pour choisir ses équipes organisatrices ; la section d’une équipe cochée est ajoutée automatiquement. Facultatif si l’événement est ouvert aux inscriptions.',
           },
         ]
       : []),
@@ -153,6 +147,7 @@ export function EventEditor({
               label: 'Fin (Europe/Paris)',
               type: 'datetime-fr' as const,
               required: true,
+              after: { name: 'starts_at', minutes: 120 },
             },
           ]
         : scheduleFields()),
@@ -184,22 +179,16 @@ export function EventEditor({
           },
           {
             name: 'registration_section_ids',
-            label: 'Ouvert aux inscriptions des sections',
-            type: 'choices' as const,
+            memberName: 'registration_team_ids',
+            label: 'Ouvert aux inscriptions',
+            type: 'groups' as const,
             all: true,
-            options: sections.map((section) => ({ value: section.id, label: section.name })),
-            hint: 'L’ouverture concerne les sections ou équipes sélectionnées.',
-          },
-          {
-            name: 'registration_team_ids',
-            label: 'Ouvert aux inscriptions des équipes',
-            type: 'choices' as const,
-            all: true,
-            options: teams.map((team) => ({ value: team.id, label: team.name })),
-            hint: 'Ouvrir une équipe permet seulement à ses membres de s’inscrire.',
+            groups: sectionGroups(sections, teams),
+            hint: 'Cochez une section pour l’ouvrir à tous ses membres, ou dépliez-la pour n’ouvrir que certaines équipes.',
           },
           {
             name: 'registration_limit',
+            requiredWhen: openToRegistrations,
             label: 'Nombre maximal d’inscrits',
             type: 'number' as const,
             min: 1,
@@ -298,9 +287,7 @@ export function EventEditor({
   }
 
   async function save(values: FormValues, signal: AbortSignal) {
-    const open =
-      choices(values, 'registration_section_ids').length > 0 ||
-      choices(values, 'registration_team_ids').length > 0;
+    const open = openToRegistrations(values);
     if (admin && open && registrationLimit(values) === null)
       throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
     // Seul l’administrateur choisit les organisateurs ; les autres ne les modifient pas.
@@ -419,6 +406,7 @@ export function EventEditor({
       initial={initial}
       submit={event ? (direct ? 'Enregistrer' : 'Envoyer la demande') : 'Créer'}
       onCancel={onCancel}
+      markRequired
       onSave={save}
     >
       {unorganized && (

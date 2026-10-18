@@ -17,6 +17,7 @@ export interface FormField {
     | 'select'
     | 'checkbox'
     | 'choices'
+    | 'groups'
     | 'datetime-fr'
     | 'date'
     | 'time'
@@ -36,6 +37,130 @@ export interface FormField {
   hiddenWhen?: string;
   /** Choix multiples : case « Tous » qui coche ou décoche toutes les options. */
   all?: boolean;
+  /** Groupes (`groups`) : chaque groupe se coche (valeurs de `name`) et se déplie sur ses
+   * membres (valeurs de `memberName`), par exemple une section et ses équipes. */
+  groups?: (Option & { members: Option[] })[];
+  memberName?: string;
+  /** Valeur par défaut : le champ `name` décalé de `minutes` (date et heure, ou heure), tant
+   * que ce champ est vide ou garde la valeur calculée précédemment. */
+  after?: { name: string; minutes: number };
+  /** Obligatoire selon les autres valeurs : astérisque et `aria-required` ; le contrôle reste
+   * dans `onSave`, avec un message explicite. */
+  requiredWhen?: (values: FormValues) => boolean;
+}
+
+/** « 2026-10-18T18:00 » ou « 18:00 » décalé de `minutes` ; vide si l’heure sort de la journée. */
+export function shifted(value: string, minutes: number): string {
+  const time = /^(?:(\d{4})-(\d{2})-(\d{2})T)?(\d{2}):(\d{2})$/.exec(value);
+  if (!time) return '';
+  const [, year, month, day, hour, minute] = time;
+  const total = Number(hour) * 60 + Number(minute) + minutes;
+  const pad = (number: number) => String(number).padStart(2, '0');
+  const clock = (count: number) => `${pad(Math.floor(count / 60) % 24)}:${pad(count % 60)}`;
+  if (!year) return total < 24 * 60 ? clock(total) : '';
+  // Calcul en UTC sur la date locale : aucun changement d’heure ne s’y glisse.
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  date.setUTCDate(date.getUTCDate() + Math.floor(total / (24 * 60)));
+  const iso = date.toISOString().slice(0, 10);
+  return `${iso}T${clock(total % (24 * 60))}`;
+}
+
+/** Applique les valeurs par défaut des champs qui suivent `changed`. */
+function followers(
+  fields: FormField[],
+  previous: FormValues,
+  next: FormValues,
+  changed: string,
+): FormValues {
+  const result = { ...next };
+  for (const field of fields) {
+    if (field.after?.name !== changed) continue;
+    const current = String(previous[field.name] ?? '');
+    const expected = shifted(String(previous[changed] ?? ''), field.after.minutes);
+    if (!current || current === expected)
+      result[field.name] = shifted(String(next[changed] ?? ''), field.after.minutes);
+  }
+  return result;
+}
+
+const list = (value: FormValues[string] | undefined) => (Array.isArray(value) ? value : []);
+const toggle = (items: string[], item: string, on: boolean) =>
+  on ? [...items.filter((value) => value !== item), item] : items.filter((value) => value !== item);
+
+/** Groupes cochables, dépliables sur leurs membres cochables ; « Tous » coche l’ensemble. */
+function GroupChoices({
+  field,
+  values,
+  onChange,
+}: {
+  field: FormField;
+  values: FormValues;
+  onChange: (name: string, next: string[]) => void;
+}) {
+  const groups = field.groups ?? [];
+  const memberName = field.memberName ?? `${field.name}_members`;
+  const chosen = list(values[field.name]);
+  const members = list(values[memberName]);
+  const everyMember = groups.flatMap((group) => group.members.map((member) => member.value));
+  const all =
+    groups.every((group) => chosen.includes(group.value)) &&
+    everyMember.every((member) => members.includes(member));
+  return (
+    <fieldset className="admin-choice-group admin-groups">
+      <legend>{field.label}</legend>
+      {field.all && groups.length + everyMember.length > 1 && (
+        <label>
+          <input
+            type="checkbox"
+            checked={all}
+            onChange={(event) => {
+              onChange(field.name, event.target.checked ? groups.map((group) => group.value) : []);
+              onChange(memberName, event.target.checked ? everyMember : []);
+            }}
+          />
+          Tous
+        </label>
+      )}
+      {groups.map((group) => {
+        const picked = group.members.filter((member) => members.includes(member.value)).length;
+        return (
+          <div className="admin-group" key={group.value}>
+            <label>
+              <input
+                type="checkbox"
+                checked={chosen.includes(group.value)}
+                onChange={(event) =>
+                  onChange(field.name, toggle(chosen, group.value, event.target.checked))
+                }
+              />
+              {group.label}
+            </label>
+            {group.members.length > 0 && (
+              <details>
+                <summary aria-label={`Équipes de ${group.label}`}>
+                  {group.members.length} équipe{group.members.length > 1 ? 's' : ''}
+                  {picked > 0 && ` · ${picked} cochée${picked > 1 ? 's' : ''}`}
+                </summary>
+                {group.members.map((member) => (
+                  <label key={member.value}>
+                    <input
+                      type="checkbox"
+                      checked={members.includes(member.value)}
+                      onChange={(event) =>
+                        onChange(memberName, toggle(members, member.value, event.target.checked))
+                      }
+                    />
+                    {member.label}
+                  </label>
+                ))}
+              </details>
+            )}
+          </div>
+        );
+      })}
+      {field.hint && <p className="admin-hint">{field.hint}</p>}
+    </fieldset>
+  );
 }
 export type FormValues = Record<string, string | boolean | string[]>;
 export const str = (values: FormValues, name: string) => String(values[name] ?? '').trim();
@@ -64,6 +189,7 @@ export function EntityForm({
   submit = 'Enregistrer',
   onSave,
   onCancel,
+  markRequired = false,
   children,
 }: {
   title: string;
@@ -72,6 +198,8 @@ export function EntityForm({
   submit?: string;
   onSave: (values: FormValues, signal: AbortSignal) => Promise<void>;
   onCancel?: () => void;
+  /** Astérisque après le libellé des champs obligatoires. */
+  markRequired?: boolean;
   children?: ReactNode;
 }) {
   const [values, setValues] = useState(initial);
@@ -83,7 +211,7 @@ export function EntityForm({
   }, []);
   return (
     <form
-      className="admin-form"
+      className={`admin-form${markRequired ? ' mark-required' : ''}`}
       ref={first}
       onSubmit={(event) => {
         event.preventDefault();
@@ -91,21 +219,37 @@ export function EntityForm({
       }}
     >
       <h3>{title}</h3>
+      {markRequired && (
+        <p className="admin-hint">Les champs marqués d’un astérisque (*) sont obligatoires.</p>
+      )}
       <fieldset disabled={request.pending} className="admin-fields">
         {fields.map((field) => {
           if (field.visibleWhen && values[field.visibleWhen] !== true) return null;
           if (field.hiddenWhen && values[field.hiddenWhen] === true) return null;
           const fieldId = `${id}-${field.name}`;
+          const required = field.required || !!field.requiredWhen?.(values);
           const common = {
             id: fieldId,
             name: field.name,
             disabled: field.disabled,
             required: field.required,
+            'aria-required': required || undefined,
             'aria-describedby': field.hint ? `${fieldId}-hint` : undefined,
           };
           const value = values[field.name];
           const update = (next: string | boolean | string[]) =>
-            setValues((previous) => ({ ...previous, [field.name]: next }));
+            setValues((previous) =>
+              followers(fields, previous, { ...previous, [field.name]: next }, field.name),
+            );
+          if (field.type === 'groups')
+            return (
+              <GroupChoices
+                key={field.name}
+                field={field}
+                values={values}
+                onChange={(name, next) => setValues((previous) => ({ ...previous, [name]: next }))}
+              />
+            );
           if (field.type === 'choices')
             return (
               <fieldset className="admin-choice-group" key={field.name}>
@@ -152,7 +296,7 @@ export function EntityForm({
             );
           return (
             <div
-              className={`admin-field${field.type === 'checkbox' ? ' check-field' : ''}`}
+              className={`admin-field${field.type === 'checkbox' ? ' check-field' : ''}${required ? ' required' : ''}`}
               key={field.name}
             >
               {field.type === 'checkbox' ? (
