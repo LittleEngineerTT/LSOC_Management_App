@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+os.environ.setdefault('LSOC_ENVIRONMENT', 'development')
 os.environ.setdefault('LSOC_DATABASE_URL', 'postgresql+psycopg://lewis@127.0.0.1:55433/postgres')
 
 from app.core.security import hash_password  # noqa: E402

@@ -9,6 +9,7 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[2]
 BACKEND = PROJECT / 'backend'
 os.chdir(PROJECT)
+os.environ.setdefault('LSOC_ENVIRONMENT', 'development')
 os.environ['LSOC_DATABASE_URL'] = os.environ.get('LSOC_TEST_DATABASE_URL', 'postgresql+psycopg://lewis@127.0.0.1:55433/postgres')
 os.environ['TMPDIR'] = str(BACKEND / '.tmp')
 (BACKEND / '.tmp').mkdir(exist_ok=True)
