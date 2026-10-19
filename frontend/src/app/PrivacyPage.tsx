@@ -97,7 +97,8 @@ export function PrivacyPage() {
           </li>
           <li>
             Sessions, liens d’invitation ou de réinitialisation : effacés à leur expiration. E-mails
-            envoyés : retirés de la file d’envoi après 7 jours.
+            envoyés : retirés de la file d’envoi après 7 jours ; e-mails en échec : 30 jours après
+            le dernier essai.
           </li>
           <li>
             Licences : leur statut repart de zéro chaque 1er août, les licences étant à refaire à
