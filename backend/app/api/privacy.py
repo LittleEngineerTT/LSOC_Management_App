@@ -1,14 +1,15 @@
 """Droits RGPD exercés par la personne elle-même : accès, portabilité et effacement."""
 
 from datetime import date, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 
-from app.api.common import DB, Actor
-from app.core.security import verify_password
+from app.api.auth import lock_auth, rate_limit
+from app.api.common import DB, Actor, session_cookie
+from app.core.security import digest, hash_password, verify_password
 from app.persistence.models import (
     Assignment,
     Base,
@@ -18,6 +19,7 @@ from app.persistence.models import (
     EventRevision,
     Follow,
     License,
+    LoginSession,
     Notification,
     QuestionMessage,
     QuestionThread,
@@ -33,6 +35,11 @@ SECRET_FIELDS = {"password_hash"}
 
 class ErasureInput(BaseModel):
     password: str = Field(min_length=1, max_length=128)
+
+
+class PasswordChangeInput(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
 
 
 def plain(value: Base) -> dict[str, Any]:
@@ -102,3 +109,35 @@ def erase(body: ErasureInput, db: DB, actor: Actor, response: Response) -> None:
     erase_account(db, user)
     response.delete_cookie("lsoc_session", path="/")
     response.delete_cookie("lsoc_csrf", path="/")
+
+
+@router.post("/password", status_code=204, dependencies=[Depends(rate_limit)])
+def change_password(
+    body: PasswordChangeInput,
+    db: DB,
+    actor: Actor,
+    cookie: Annotated[str | None, Depends(session_cookie)],
+) -> None:
+    """Nouveau mot de passe, confirmé par l’actuel ; les autres sessions sont fermées."""
+    user = db.get(User, actor.id)
+    if user is None or not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(403, "Mot de passe actuel incorrect")
+    lock_auth(db)
+    user.password_hash = hash_password(body.new_password)
+    db.execute(
+        delete(LoginSession).where(
+            LoginSession.user_id == user.id, LoginSession.hash != digest(cookie or "")
+        )
+    )
+
+
+@router.post("/sessions/revoke", status_code=204)
+def revoke_other_sessions(
+    db: DB, actor: Actor, cookie: Annotated[str | None, Depends(session_cookie)]
+) -> None:
+    """Déconnecte tous les autres appareils ; la session courante reste ouverte."""
+    db.execute(
+        delete(LoginSession).where(
+            LoginSession.user_id == actor.id, LoginSession.hash != digest(cookie or "")
+        )
+    )
