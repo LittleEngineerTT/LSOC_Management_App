@@ -37,7 +37,7 @@ it('crée un compte et présente son lien, sans stocker de secret', async () => 
   mutation = (path, init) => {
     expect(path).toBe('/api/v1/users');
     expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('admin-csrf');
-    expect(JSON.parse(String(init?.body))).toEqual({ first_name: 'Alex', last_name: 'Durand', category: 'adult', roles: ['member'], messaging_allowed: true });
+    expect(JSON.parse(String(init?.body))).toEqual({ first_name: 'Alex', last_name: 'Durand', category: 'adult', sex: null, roles: ['member'], messaging_allowed: true });
     users = [admin, invited];
     return reply({ user: invited, invitation_url: 'http://localhost:5173/activate?token=secret-invitation', invitation_token: 'secret-invitation' }, 201);
   };
