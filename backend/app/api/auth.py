@@ -102,10 +102,18 @@ def activate(body: ActivateInput, db: DB) -> Status:
 
 @router.post("/login", response_model=LoginView, dependencies=[Depends(rate_limit)])
 def login(body: LoginInput, response: Response, db: DB) -> LoginView:
-    lock_auth(db)
+    # Argon2 est volontairement lent : le mot de passe est vérifié hors du verrou global, sinon
+    # toutes les connexions du site passeraient une par une.
     user = db.scalar(select(User).where(User.username == body.username))
-    valid = verify_password(body.password, user.password_hash if user else None)
+    verified = user.password_hash if user else None
+    valid = verify_password(body.password, verified)
     if not valid or user is None or not user.active:
+        raise HTTPException(401, "Identifiants invalides")
+    # Verrou bref, puis relecture : une réinitialisation, un changement d’identifiant ou un
+    # effacement concurrent ne doit pas laisser naître une session avec l’ancien mot de passe.
+    lock_auth(db)
+    db.refresh(user)
+    if not user.active or user.password_hash != verified or user.username != body.username:
         raise HTTPException(401, "Identifiants invalides")
     from app.services.identity import has_access
 

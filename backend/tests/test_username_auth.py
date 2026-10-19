@@ -75,12 +75,12 @@ def test_login_cannot_recreate_a_session_after_credential_revocation(admin: Test
         else:
             mutation = pool.submit(lambda: admin.post('/api/v1/auth/reset-password', json={'token': reset_token, 'password': 'changed-password-123'}))
         try:
-            with pytest.raises(TimeoutError):
-                mutation.result(timeout=0.3)
+            # The slow password check no longer holds the auth lock: the revocation goes through.
+            assert mutation.result(timeout=5).status_code == 200
         finally:
             release.set()
-        assert pending.result(timeout=5).status_code == 200
-        assert mutation.result(timeout=5).status_code == 200
+        # The login re-reads the account under the lock and refuses the revoked credentials.
+        assert pending.result(timeout=5).status_code == 401
         assert visitor.get('/api/v1/auth/me').status_code == 401
 
 
