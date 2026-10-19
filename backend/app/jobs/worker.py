@@ -19,6 +19,11 @@ from app.persistence.models import AuthToken, EmailJob, FFVBSource, LoginSession
 from app.services.ffvb import sync_source
 
 logger = logging.getLogger(__name__)
+# Tentatives d’envoi avant abandon (voir aussi GET /admin/email-jobs?status=failed).
+MAX_EMAIL_ATTEMPTS = 8
+# Un e-mail abandonné reste ce délai visible des administrateurs, qui peuvent le relancer,
+# puis son contenu chiffré (liens d’invitation, de réinitialisation…) est effacé.
+FAILED_EMAIL_RETENTION = timedelta(days=30)
 _stopping = False
 
 
@@ -33,7 +38,11 @@ def process_emails(limit: int = 100) -> int:
         identifiers = list(
             db.scalars(
                 select(EmailJob.id)
-                .where(EmailJob.sent_at.is_(None), EmailJob.due_at <= now(), EmailJob.attempts < 8)
+                .where(
+                    EmailJob.sent_at.is_(None),
+                    EmailJob.due_at <= now(),
+                    EmailJob.attempts < MAX_EMAIL_ATTEMPTS,
+                )
                 .order_by(EmailJob.due_at)
                 .limit(limit)
             )
@@ -124,6 +133,13 @@ def cleanup_expired() -> None:
         db.execute(delete(AuthToken).where(AuthToken.expires_at <= now()))
         db.execute(delete(RateBucket).where(RateBucket.expires_at <= now()))
         db.execute(delete(EmailJob).where(EmailJob.sent_at < now() - timedelta(days=7)))
+        db.execute(
+            delete(EmailJob).where(
+                EmailJob.sent_at.is_(None),
+                EmailJob.attempts >= MAX_EMAIL_ATTEMPTS,
+                EmailJob.due_at < now() - FAILED_EMAIL_RETENTION,
+            )
+        )
 
 
 def privacy() -> None:

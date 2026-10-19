@@ -58,3 +58,20 @@ def test_smtp_failure_retries_and_deleted_user_not_delivered(monkeypatch) -> Non
     assert process_emails()==0
     with SessionFactory() as db:
         assert list(db.scalars(select(EmailJob)))==[]
+
+
+def test_abandoned_emails_are_purged_after_retention() -> None:
+    from app.jobs.worker import cleanup_expired
+    with SessionFactory.begin() as db:
+        user=db.get(User,'admin')
+        email(db,user,'abandoned','Subject','Body')
+        email(db,user,'recent-failure','Subject','Body')
+        email(db,user,'still-retrying','Subject','Body')
+        db.flush()
+        jobs={job.dedupe_key:job for job in db.scalars(select(EmailJob))}
+        jobs['abandoned'].attempts,jobs['abandoned'].due_at=8,now()-timedelta(days=31)
+        jobs['recent-failure'].attempts,jobs['recent-failure'].due_at=8,now()-timedelta(days=5)
+        jobs['still-retrying'].attempts,jobs['still-retrying'].due_at=3,now()-timedelta(days=31)
+    cleanup_expired()
+    with SessionFactory() as db:
+        assert sorted(job.dedupe_key for job in db.scalars(select(EmailJob)))==['recent-failure','still-retrying']
