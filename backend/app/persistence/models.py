@@ -175,9 +175,7 @@ class Assignment(Identity, Base):
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     kind: Mapped[str] = mapped_column(String(10))
     number: Mapped[int | None] = mapped_column(Integer)
-    position_id: Mapped[str | None] = mapped_column(
-        ForeignKey("positions.id", ondelete="SET NULL")
-    )
+    position_id: Mapped[str | None] = mapped_column(ForeignKey("positions.id", ondelete="SET NULL"))
 
 
 class Gymnasium(Identity, Base):
