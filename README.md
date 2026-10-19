@@ -140,8 +140,8 @@ Le worker réessaie les e-mails avec un délai croissant, jusqu’à huit échec
 
 Le workflow `Images` publie à chaque push deux images multi-architecture (`linux/amd64`, `linux/arm64`) sur GHCR, étiquetées `sha-<commit>`, et `X.Y.Z` / `X.Y` pour un tag `vX.Y.Z` :
 
-- `ghcr.io/alcelafranque/lsoc-backend` : API (commande par défaut), worker (`lsoc-worker`) et migrations (`alembic upgrade head`). Utilisateur non root `10001`, compatible avec un système de fichiers en lecture seule.
-- `ghcr.io/alcelafranque/lsoc-frontend` : nginx non root sur le port `8080`, qui sert `dist/` et renvoie `index.html` pour les routes du frontend.
+- `ghcr.io/littleengineertt/lsoc-backend` : API (commande par défaut), worker (`lsoc-worker`) et migrations (`alembic upgrade head`). Utilisateur non root `10001`, compatible avec un système de fichiers en lecture seule.
+- `ghcr.io/littleengineertt/lsoc-frontend` : nginx non root sur le port `8080`, qui sert `dist/` et renvoie `index.html` pour les routes du frontend.
 
 Le reverse proxy route `/api` vers l'API (port `8000`) et le reste vers le frontend, sur le même domaine. Il doit fournir l'adresse du client dans `X-Forwarded-For` ; définir alors `FORWARDED_ALLOW_IPS` (adresses des proxys de confiance, ou `*` si l'API n'est joignable que par le proxy), sans quoi la limitation des tentatives de connexion s'applique à l'adresse du proxy, donc à tous les utilisateurs à la fois. Les migrations prennent un verrou PostgreSQL : plusieurs conteneurs peuvent les lancer au démarrage sans conflit.
 
