@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -5,7 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="LSOC_", extra="ignore")
     database_url: str = "postgresql+psycopg://lsoc:lsoc@localhost:5433/lsoc"
-    environment: str = "development"
+    # Production par défaut : un déploiement qui oublie LSOC_ENVIRONMENT garde les contrôles
+    # ci-dessous. Le développement local et les tests le déclarent explicitement.
+    environment: Literal["development", "production"] = "production"
     secret_key: str = "development-only-change-this-secret-before-deployment"
     frontend_url: str = "http://localhost:5173"
     cors_origins: list[str] = ["http://localhost:5173"]
