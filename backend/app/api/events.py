@@ -112,9 +112,9 @@ def history(
     actor: Actor,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-) -> list[EventRevision]:
+) -> list[EventRevision] | list[RevisionView]:
     get(db, Event, event_id)
-    return list(
+    revisions = list(
         db.scalars(
             select(EventRevision)
             .where(EventRevision.event_id == event_id)
@@ -123,6 +123,14 @@ def history(
             .limit(limit)
         )
     )
+    if "admin" in actor.roles:
+        return revisions
+    # Le motif d’une décision est adressé au demandeur (GET /change-requests) : les autres
+    # membres voient la décision dans l’historique, sans son motif.
+    return [
+        RevisionView.model_validate(revision).model_copy(update={"decision_reason": ""})
+        for revision in revisions
+    ]
 
 
 @router.post("/events/{event_id}/history/{revision_id}/restore", response_model=EventView)

@@ -48,6 +48,11 @@ def test_change_decision_has_actor_and_history(admin: TestClient) -> None:
     assert decision.json()['decided_by']=='admin' and decision.json()['decided_at'] is not None
     history=admin.get(f'/api/v1/events/{event}/history').json()
     assert history[-1]['action']=='request_reject' and history[-1]['actor_id']=='admin'
+    assert history[-1]['decision_reason']=='Autre créneau nécessaire'
+    # The reason is addressed to the requester, not to every member reading the history.
+    add_user('other')
+    assert login('other').get(f'/api/v1/events/{event}/history').json()[-1]['decision_reason']==''
+    assert member.get('/api/v1/change-requests?status=rejected').json()[0]['decision']=='Autre créneau nécessaire'
 
 
 def test_week_shift_of_full_series_checks_final_schedule(admin: TestClient) -> None:
