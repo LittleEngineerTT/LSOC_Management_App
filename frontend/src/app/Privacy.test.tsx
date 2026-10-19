@@ -21,6 +21,8 @@ function open(path: string, signedIn = true) {
     if (path === '/auth/me') return signedIn ? json(account) : json({ detail: 'Connexion requise' }, 401);
     if (path === '/me/export') return json({ compte: { id: 'm1' } });
     if (path === '/me/delete') return JSON.parse(String(init?.body)).password === 'secret' ? json(null, 204) : json({ detail: 'Mot de passe incorrect' }, 403);
+    if (path === '/me/password') return JSON.parse(String(init?.body)).current_password === 'secret' ? json(null, 204) : json({ detail: 'Mot de passe actuel incorrect' }, 403);
+    if (path === '/me/sessions/revoke') return json(null, 204);
     if (path === '/licenses/me') return json({ status: 'none' });
     return json([]);
   });
@@ -56,4 +58,26 @@ it('exporte ses données et supprime son compte après confirmation par mot de p
   expect(await screen.findByRole('button', { name: 'Continuer en tant qu’invité' })).toBeInTheDocument();
   expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/me/delete') && init?.method === 'POST')).toBe(true);
   click.mockRestore();
+});
+
+it('change son mot de passe et déconnecte ses autres appareils', async () => {
+  const fetchMock = open('/app/profil');
+  const card = within(await screen.findByRole('region', { name: 'Sécurité du compte' }));
+  await userEvent.type(card.getByLabelText('Mot de passe actuel'), 'wrong');
+  await userEvent.type(card.getByLabelText(/^Nouveau mot de passe/), 'nouveau-mot-de-passe');
+  await userEvent.type(card.getByLabelText('Confirmer le nouveau mot de passe'), 'autre-mot-de-passe');
+  await userEvent.click(card.getByRole('button', { name: 'Changer le mot de passe' }));
+  expect(card.getByText('Les deux nouveaux mots de passe ne correspondent pas.')).toBeInTheDocument();
+  await userEvent.clear(card.getByLabelText('Confirmer le nouveau mot de passe'));
+  await userEvent.type(card.getByLabelText('Confirmer le nouveau mot de passe'), 'nouveau-mot-de-passe');
+  await userEvent.click(card.getByRole('button', { name: 'Changer le mot de passe' }));
+  expect(await card.findByText('Mot de passe actuel incorrect')).toBeInTheDocument();
+  await userEvent.clear(card.getByLabelText('Mot de passe actuel'));
+  await userEvent.type(card.getByLabelText('Mot de passe actuel'), 'secret');
+  await userEvent.click(card.getByRole('button', { name: 'Changer le mot de passe' }));
+  expect(await card.findByText(/Mot de passe modifié/)).toBeInTheDocument();
+  const call = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/me/password')).pop();
+  expect(JSON.parse(String(call?.[1]?.body))).toEqual({ current_password: 'secret', new_password: 'nouveau-mot-de-passe' });
+  await userEvent.click(card.getByRole('button', { name: 'Déconnecter mes autres appareils' }));
+  expect(await card.findByText('Vos autres appareils ont été déconnectés.')).toBeInTheDocument();
 });

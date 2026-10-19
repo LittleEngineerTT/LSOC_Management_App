@@ -22,10 +22,11 @@ export function ProfilePage({ account }: { account: Account }) {
           Identifiant : <strong>{account.username}</strong>
         </p>
         <p className="admin-hint">
-          Contactez un administrateur pour modifier votre identifiant ou obtenir un lien de
-          réinitialisation du mot de passe.
+          Contactez un administrateur pour modifier votre identifiant ou si vous avez oublié votre
+          mot de passe.
         </p>
       </section>
+      <AccountSecurity />
       <MyLicense />
       {notice && <Notice>{notice}</Notice>}
       <EntityForm
@@ -88,6 +89,105 @@ export function ProfilePage({ account }: { account: Account }) {
       />
       <MyData />
     </div>
+  );
+}
+
+/** Changement du mot de passe et fermeture des sessions ouvertes sur d’autres appareils. */
+function AccountSecurity() {
+  const { csrfToken, clear } = useSession();
+  const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
+  const change = useRequest();
+  const revoke = useRequest();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [invalid, setInvalid] = useState('');
+  const [done, setDone] = useState('');
+  return (
+    <section className="admin-card" aria-labelledby="account-security">
+      <h2 id="account-security">Sécurité du compte</h2>
+      {done && <Notice>{done}</Notice>}
+      <ErrorNotice message={invalid || change.error || revoke.error} />
+      <form
+        className="admin-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setDone('');
+          const value = next.trim();
+          if (!current.trim()) return setInvalid('Saisissez votre mot de passe actuel.');
+          if (value.length < 12 || value.length > 128)
+            return setInvalid('Le nouveau mot de passe doit faire entre 12 et 128 caractères.');
+          if (value !== confirmation.trim())
+            return setInvalid('Les deux nouveaux mots de passe ne correspondent pas.');
+          setInvalid('');
+          void change.run(async (signal) => {
+            await api.request<void>(
+              '/me/password',
+              'POST',
+              { current_password: current.trim(), new_password: value },
+              signal,
+            );
+            setCurrent('');
+            setNext('');
+            setConfirmation('');
+            setDone('Mot de passe modifié. Vos autres appareils ont été déconnectés.');
+          });
+        }}
+      >
+        <label>
+          Mot de passe actuel
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={current}
+            onChange={(event) => setCurrent(event.target.value)}
+          />
+        </label>
+        <label>
+          Nouveau mot de passe (12 caractères minimum)
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={next}
+            onChange={(event) => setNext(event.target.value)}
+          />
+        </label>
+        <label>
+          Confirmer le nouveau mot de passe
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+          />
+        </label>
+        <div className="admin-actions">
+          <button type="submit" className="admin-button" disabled={change.pending}>
+            {change.pending ? 'Modification…' : 'Changer le mot de passe'}
+          </button>
+        </div>
+      </form>
+      <p className="admin-hint">
+        Appareil perdu ou session restée ouverte ailleurs : déconnectez tous vos autres appareils.
+        Cette session reste ouverte.
+      </p>
+      <div className="admin-actions">
+        <button
+          type="button"
+          className="admin-button"
+          disabled={revoke.pending}
+          onClick={() => {
+            setDone('');
+            void revoke.run(async (signal) => {
+              await api.request<void>('/me/sessions/revoke', 'POST', undefined, signal);
+              setDone('Vos autres appareils ont été déconnectés.');
+            });
+          }}
+        >
+          Déconnecter mes autres appareils
+        </button>
+      </div>
+    </section>
   );
 }
 
