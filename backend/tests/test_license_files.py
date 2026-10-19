@@ -176,3 +176,18 @@ def test_coach_reads_only_the_users_of_his_teams(admin: TestClient) -> None:
     assert carla.delete('/api/v1/users/bob').status_code == 403
     assert carla.post('/api/v1/users/bob/assignments', json={'team_id': team_l, 'kind': 'player'}).status_code == 403
     assert len(admin.get('/api/v1/users').json()) == 4
+
+
+def test_body_is_not_read_before_authorization(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.api import licenses
+
+    read: list[bool] = []
+    original = licenses.pdf_body
+
+    async def spy(request):  # type: ignore[no-untyped-def]
+        read.append(True)
+        return await original(request)
+
+    monkeypatch.setattr(licenses, 'pdf_body', spy)
+    assert upload(client, 'admin').status_code == 401
+    assert read == []

@@ -197,6 +197,12 @@ async def pdf_body(request: Request) -> bytes:
     return bytes(body)
 
 
+async def admin_pdf_body(request: Request, actor: Admin) -> bytes:
+    """Corps PDF lu seulement après le contrôle de la session, du CSRF et du rôle : sinon
+    n’importe qui, même sans compte, ferait charger 10 Mo en mémoire par requête."""
+    return await pdf_body(request)
+
+
 @router.put(
     "/licenses/{user_id}/file",
     response_model=LicenseView,
@@ -209,10 +215,10 @@ async def pdf_body(request: Request) -> bytes:
 )
 def upload_file(
     user_id: str,
-    body: Annotated[bytes, Depends(pdf_body)],
+    actor: Admin,
+    body: Annotated[bytes, Depends(admin_pdf_body)],
     tasks: BackgroundTasks,
     db: DB,
-    actor: Admin,
 ) -> LicenseView:
     """Dépose le PDF de la licence et remplace le précédent."""
     if not s3.configured():
