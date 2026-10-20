@@ -533,3 +533,24 @@ it('l’application Inscriptions apparaît chez le joueur avec le nombre de piè
   const link = await screen.findByRole('link', { name: /Inscriptions/ });
   expect(within(link).getByLabelText('1 pièce à déposer')).toBeInTheDocument();
 });
+
+it('la clôture d’un dossier avertit de la suppression et exige d’avoir téléchargé les fichiers', async () => {
+  account = admin;
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1')];
+  routes['/dossiers'] = [dossier];
+  mutation = () => reply({ ...dossier, closed_at: at('12:00') });
+  open('/app/inscriptions');
+  const team = await screen.findByRole('region', { name: 'Loisir 1' });
+  await userEvent.click(within(team).getByRole('button', { name: 'Dossier' }));
+  expect(within(team).getByRole('note')).toHaveTextContent('Les fichiers déposés seront supprimés définitivement à la clôture du dossier.');
+  await userEvent.click(within(team).getByRole('button', { name: 'Clore le dossier' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Clore le dossier de Andréa ?' });
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('Le fichier déposé sera supprimé définitivement.');
+  expect(within(dialog).getByRole('link', { name: 'Télécharger' })).toHaveAttribute('href', '/api/v1/dossiers/d1/documents/doc-med/file');
+  const close = within(dialog).getByRole('button', { name: 'Clore et supprimer les fichiers' });
+  expect(close).toBeDisabled();
+  await userEvent.click(within(dialog).getByLabelText('J’ai téléchargé les fichiers à conserver'));
+  expect(close).toBeEnabled();
+  await userEvent.click(close);
+  await waitFor(() => expect(mutations).toEqual([{ path: '/dossiers/d1/close', method: 'POST', body: {} }]));
+});

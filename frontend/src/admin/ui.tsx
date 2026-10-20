@@ -412,12 +412,15 @@ export function Confirm({
   title,
   children,
   label = 'Confirmer',
+  disabled = false,
   onConfirm,
   onClose,
 }: {
   title: string;
   children: ReactNode;
   label?: string;
+  /** Confirmation bloquée tant qu’une condition (case cochée…) n’est pas remplie. */
+  disabled?: boolean;
   onConfirm: (signal: AbortSignal) => Promise<void>;
   onClose: () => void;
 }) {
@@ -457,7 +460,7 @@ export function Confirm({
         <button
           type="button"
           className="admin-button danger"
-          disabled={request.pending}
+          disabled={request.pending || disabled}
           onClick={() => {
             void request.run(async (signal) => {
               await onConfirm(signal);

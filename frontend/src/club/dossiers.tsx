@@ -208,6 +208,8 @@ export function DossierCard({
   const request = useRequest();
   const [rejecting, setRejecting] = useState<DossierDocument | null>(null);
   const [closing, setClosing] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const kept = dossier.documents.filter((item) => item.has_file);
   function act(path: string, body: object, message: string) {
     void request.run(async (signal) => {
       await api.request(`/dossiers/${dossier.id}${path}`, 'POST', body, signal);
@@ -220,6 +222,14 @@ export function DossierCard({
       <p className="admin-hint">
         Dossier ouvert le {dateLabel(dossier.created_at)} · étapes terminées : {done}/{total}
         {dossier.note && ` · « ${dossier.note} »`}
+      </p>
+      <p className="club-dossier-warning" role="note">
+        <strong>
+          Les fichiers déposés seront supprimés définitivement à la clôture du dossier.
+        </strong>{' '}
+        {admin
+          ? 'Téléchargez ceux à conserver avant de le clore.'
+          : 'Seul un administrateur peut les ouvrir et les télécharger.'}
       </p>
       <ul className="club-plain-list club-participants">
         {dossier.documents.map((item) => (
@@ -293,7 +303,10 @@ export function DossierCard({
             type="button"
             className="admin-button"
             disabled={request.pending}
-            onClick={() => setClosing(true)}
+            onClick={() => {
+              setSaved(false);
+              setClosing(true);
+            }}
           >
             Clore le dossier
           </button>
@@ -329,17 +342,52 @@ export function DossierCard({
       )}
       {closing && (
         <Confirm
-          title="Clore le dossier"
-          label="Clore"
+          title={`Clore le dossier de ${dossier.first_name} ?`}
+          label={kept.length ? 'Clore et supprimer les fichiers' : 'Clore le dossier'}
+          disabled={kept.length > 0 && !saved}
           onClose={() => setClosing(false)}
           onConfirm={async (signal) => {
             await api.request(`/dossiers/${dossier.id}/close`, 'POST', {}, signal);
             onChanged(`Dossier de ${dossier.first_name} clos.`);
           }}
         >
+          {kept.length > 0 ? (
+            <>
+              <p className="club-dossier-warning" role="alert">
+                <strong>
+                  {kept.length > 1
+                    ? `Les ${kept.length} fichiers déposés seront supprimés définitivement.`
+                    : 'Le fichier déposé sera supprimé définitivement.'}
+                </strong>{' '}
+                Ils ne pourront plus être ouverts ni récupérés : téléchargez-les maintenant si vous
+                devez les conserver.
+              </p>
+              <ul className="club-plain-list">
+                {kept.map((item) => (
+                  <li key={item.id}>
+                    {pieceName(item)}
+                    {item.file_name && ` · ${item.file_name}`}{' '}
+                    <a className="admin-button" href={fileUrl(dossier, item)} download>
+                      Télécharger
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <label className="admin-check">
+                <input
+                  type="checkbox"
+                  checked={saved}
+                  onChange={(change) => setSaved(change.target.checked)}
+                />
+                J’ai téléchargé les fichiers à conserver
+              </label>
+            </>
+          ) : (
+            <p>Aucun fichier n’est conservé dans ce dossier.</p>
+          )}
           <p>
-            Les fichiers déposés seront définitivement effacés ; seul l’état des pièces est
-            conservé. {dossier.first_name} n’aura plus accès à l’application Inscriptions.
+            Seul l’état des pièces est conservé. {dossier.first_name} n’aura plus accès à
+            l’application Inscriptions.
           </p>
         </Confirm>
       )}
@@ -401,6 +449,10 @@ export function MyDossier({ embedded = false }: { embedded?: boolean }) {
             Étapes terminées : {done}/{total}
           </h3>
           {dossier.note && <p>Message du club : {dossier.note}</p>}
+          <p className="club-dossier-warning" role="note">
+            <strong>Vos fichiers seront supprimés définitivement à la clôture du dossier.</strong>{' '}
+            Gardez-en une copie si vous en avez besoin.
+          </p>
           <ul className="club-plain-list club-participants">
             {dossier.documents.map((item) => (
               <li key={item.id}>
