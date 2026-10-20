@@ -189,6 +189,16 @@ def create(body: StaffRequestInput, db: DB, actor: Actor) -> RequestView:
     )
     db.add(value)
     db.flush()
+    if player is not None and "admin" in actor.roles:
+        # Demande d’un administrateur (coach ou non) : elle part directement au joueur et
+        # reste enregistrée, acceptée, pour le suivi.
+        request_documents(db, actor, player, body.documents, False)
+        value.status = "accepted"
+        value.decided_by = actor.id
+        value.decider_name = actor.first_name
+        value.decided_at = now()
+        db.flush()
+        return staff_view(value)
     admins(
         db,
         alert_key(value),

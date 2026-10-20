@@ -83,3 +83,15 @@ def test_one_list_gathers_every_kind_of_request(admin: TestClient) -> None:
     assert [r['kind'] for r in referent.get('/api/v1/requests').json()] == ['event_change']
     assert [r['kind'] for r in coach.get('/api/v1/requests?status=pending').json()] == ['other']
     assert coach.get('/api/v1/requests?status=accepted').json() == []
+
+
+def test_document_request_from_an_admin_goes_straight_to_the_player(admin: TestClient) -> None:
+    club(admin)
+    add_user('coachadmin', ['member', 'coach', 'admin'])
+    player = login('player')
+    created = login('coachadmin').post('/api/v1/requests', json={'kind': 'document', 'player_id': 'player', 'documents': [{'kind': 'identity'}]})
+    assert created.status_code == 201, created.text
+    assert (created.json()['status'], created.json()['decider_name']) == ('accepted', 'coachadmin')
+    dossier = player.get('/api/v1/dossiers/me').json()
+    assert [d['kind'] for d in dossier['documents']] == ['identity']
+    assert 'staff_request' not in [n['kind'] for n in admin.get('/api/v1/notifications').json()]
