@@ -15,6 +15,7 @@ import { GymnasiumsPage } from '../club/GymnasiumsPage';
 import { MessagingPage } from '../club/MessagingPage';
 import { MyPlanningPage } from '../club/MyPlanningPage';
 import { MySectionsPage } from '../club/MySectionsPage';
+import { InscriptionsPage } from '../club/InscriptionsPage';
 
 const clubSections = [
   'Accueil',
@@ -23,6 +24,7 @@ const clubSections = [
   'Messagerie',
   'Mon planning',
   'Mes sections',
+  'Inscriptions',
 ];
 
 const applications = [
@@ -30,8 +32,11 @@ const applications = [
   { path: '/app/planning', title: 'Planning', icon: 'calendar' },
   { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
+  { path: '/app/inscriptions', title: 'Inscriptions', icon: 'clipboard' },
   { path: '/app/administration', title: 'Administration', icon: 'shield' },
 ] as const;
+// Applications réservées aux administrateurs et aux coachs.
+const staffOnly = ['/app/administration', '/app/inscriptions'];
 // Un invité ne voit que l’accueil et les matchs FFVB du planning.
 const guestSections = ['Accueil', 'Planning'];
 const sectionTitles: Record<string, string> = {
@@ -65,7 +70,7 @@ export function AppShell() {
   }
   // Les coachs ont une administration limitée : sections, équipes et licences de leurs équipes.
   const staff = session.account.roles.some((role) => role === 'admin' || role === 'coach');
-  if (!section || (location.pathname === '/app/administration' && !staff))
+  if (!section || (staffOnly.includes(location.pathname) && !staff))
     return <Navigate to="/app" replace />;
   return (
     <UnreadProvider key={session.account.id}>
@@ -166,7 +171,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
           {applications
             .filter((item) =>
               account
-                ? item.title !== 'Administration' || staff
+                ? !staffOnly.includes(item.path) || staff
                 : guestSections.includes(item.title),
             )
             .map((item) => (
@@ -310,6 +315,7 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mon planning' && <MyPlanningPage />}
       {section === 'Mes sections' && <MySectionsPage />}
+      {section === 'Inscriptions' && <InscriptionsPage />}
     </>
   );
 }

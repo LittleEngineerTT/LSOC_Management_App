@@ -25,6 +25,7 @@ const paths = {
   exit: 'M10 4H4v16h6 M10 12h11 M17 8l4 4-4 4',
   chevron: 'M6 9l6 6 6-6',
   menu: 'M4 6h16 M4 12h16 M4 18h16',
+  clipboard: 'M9 3h6v4H9z M7 5H5v16h14V5h-2 M8 12h8 M8 16h5',
 };
 export function Icon({ name, className = '' }: { name: keyof typeof paths; className?: string }) {
   return (

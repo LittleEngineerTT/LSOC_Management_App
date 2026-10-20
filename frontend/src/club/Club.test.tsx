@@ -337,3 +337,37 @@ it('le coach référent supprime son événement ; un simple adhérent ne voit p
   await userEvent.click(within(screen.getByRole('dialog', { name: /Supprimer « Entraînement loisir »/ })).getByRole('button', { name: 'Supprimer' }));
   await waitFor(() => expect(mutations).toContainEqual(expect.objectContaining({ path: '/events/e1', method: 'DELETE' })));
 });
+
+const license = (user_id: string, first_name: string, status: string, team_id: string) => ({ user_id, first_name, username: user_id, number: status === 'active' ? `L-${user_id}` : null, status, coach_status: 'none', updated_at: null, teams: [{ team_id, kind: 'player' }], coach: false, missing: status !== 'active' });
+
+it('l’onglet Inscriptions montre d’abord les joueurs non inscrits, par équipe, section et étape', async () => {
+  account = admin;
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null }, { id: 't2', name: 'Régionale', section_id: 's2', referent_id: null }];
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1'), license('u2', 'Bao', 'payment_pending', 't2'), license('u3', 'Chloé', 'active', 't1'), { ...license('u4', 'Dominique', 'none', 't1'), teams: [{ team_id: 't1', kind: 'coach' }] }];
+  open('/app/inscriptions');
+  expect(await screen.findByRole('heading', { name: 'Inscriptions' })).toBeInTheDocument();
+  const loisir = await screen.findByRole('region', { name: 'Loisir 1' });
+  expect(within(loisir).getByText('Andréa')).toBeInTheDocument();
+  expect(within(loisir).getByText('Pas de licence · étape 1/4')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Régionale' })).toHaveTextContent('Paiement en attente · étape 3/4');
+  // Un coach rattaché n’est pas un joueur ; un joueur actif est inscrit.
+  expect(screen.queryByText('Dominique')).not.toBeInTheDocument();
+  expect(screen.queryByText('Chloé')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Inscrits (1)' }));
+  expect(within(await screen.findByRole('region', { name: 'Loisir 1' })).getByText('Chloé')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Paiement en attente (1)' }));
+  expect(screen.getByRole('region', { name: 'Régionale' })).toHaveTextContent('Bao');
+  await userEvent.click(screen.getByRole('button', { name: 'Tous (3)' }));
+  await userEvent.selectOptions(screen.getByLabelText('Regrouper par'), 'section');
+  expect(screen.getByRole('region', { name: 'Loisir' })).toHaveTextContent(/Andréa.*Chloé/);
+  await userEvent.selectOptions(screen.getByLabelText('Section'), 's2');
+  expect(screen.queryByRole('region', { name: 'Loisir' })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Compétition' })).toHaveTextContent('Bao · Régionale');
+});
+
+it('un adhérent sans rôle coach n’accède pas à l’onglet Inscriptions', async () => {
+  open('/app/inscriptions');
+  expect(await screen.findByRole('heading', { name: 'Accueil' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Inscriptions' })).not.toBeInTheDocument();
+});
