@@ -174,6 +174,7 @@ def request_change(event_id: str, body: ChangeInput, db: DB, actor: Actor) -> Ch
         actor_name=actor.first_name,
         base_version=body.base_version,
         changes=body.changes.model_dump(mode="json", exclude_unset=True),
+        description=body.description,
     )
     db.add(value)
     db.flush()
@@ -184,6 +185,7 @@ def request_change(event_id: str, body: ChangeInput, db: DB, actor: Actor) -> Ch
         f"Modification à valider : {event.title}",
         event_id,
         link=f"/app/administration?tab=requests&demande={value.id}",
+        body=body.description,
     )
     return value
 

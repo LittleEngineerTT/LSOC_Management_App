@@ -97,7 +97,7 @@ export function EventProposalForm({
     },
     {
       name: 'note',
-      label: 'Commentaire',
+      label: 'Description de la demande',
       type: 'textarea',
       maxLength: 2000,
       hint: 'Message pour les administrateurs, non publié avec l’événement.',

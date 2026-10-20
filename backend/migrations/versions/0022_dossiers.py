@@ -49,16 +49,20 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("kind", sa.String(30), nullable=False),
+        sa.Column("label", sa.String(120), nullable=False, server_default=""),
         sa.Column("status", sa.String(10), nullable=False),
         sa.Column("file_key", sa.String(80), nullable=True),
         sa.Column("file_name", sa.String(200), nullable=True),
         sa.Column("content_type", sa.String(100), nullable=True),
         sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("decision", sa.Text(), nullable=False, server_default=""),
-        sa.UniqueConstraint("dossier_id", "kind"),
+        sa.UniqueConstraint("dossier_id", "kind", "label"),
         sa.CheckConstraint(
-            "kind IN ('medical_certificate','identity','reduction_proof')",
+            "kind IN ('medical_certificate','identity','reduction_proof','other')",
             name="dossier_documents_kind_check",
+        ),
+        sa.CheckConstraint(
+            "(kind = 'other') = (label <> '')", name="dossier_documents_label_check"
         ),
         sa.CheckConstraint(
             "status IN ('requested','submitted','validated','rejected')",

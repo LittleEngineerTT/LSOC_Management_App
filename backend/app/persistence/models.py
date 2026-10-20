@@ -139,11 +139,12 @@ class DossierDocument(Identity, Base):
 
     __tablename__ = "dossier_documents"
     __table_args__ = (
-        UniqueConstraint("dossier_id", "kind"),
+        UniqueConstraint("dossier_id", "kind", "label"),
         CheckConstraint(
-            "kind IN ('medical_certificate','identity','reduction_proof')",
+            "kind IN ('medical_certificate','identity','reduction_proof','other')",
             name="dossier_documents_kind_check",
         ),
+        CheckConstraint("(kind = 'other') = (label <> '')", name="dossier_documents_label_check"),
         CheckConstraint(
             "status IN ('requested','submitted','validated','rejected')",
             name="dossier_documents_status_check",
@@ -153,6 +154,8 @@ class DossierDocument(Identity, Base):
         ForeignKey("dossiers.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(30))
+    # Nom d’une pièce « Autre », choisi par l’administration ; vide sinon.
+    label: Mapped[str] = mapped_column(String(120), default="", server_default="")
     status: Mapped[str] = mapped_column(String(10), default="requested")
     # Fichier chiffré dans le bucket S3 : clé « dossiers/ » + 64 caractères aléatoires.
     file_key: Mapped[str | None] = mapped_column(String(80))
@@ -364,6 +367,8 @@ class ChangeRequest(Identity, Base):
     actor_name: Mapped[str] = mapped_column(String(80))
     base_version: Mapped[int] = mapped_column(Integer)
     changes: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # Explication libre du demandeur, jointe aux champs proposés.
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     decision: Mapped[str] = mapped_column(Text, default="")
     decided_by: Mapped[str | None] = mapped_column(
@@ -397,6 +402,50 @@ class CoachEventRequest(Identity, Base):
     event_id: Mapped[str | None] = mapped_column(
         ForeignKey("events.id", ondelete="SET NULL"), unique=True
     )
+
+
+class StaffRequest(Identity, Base):
+    """Demande d’un coach ou d’un administrateur aux administrateurs.
+
+    Pièces à obtenir d’un joueur, ou demande libre ; liée à un événement ou non. Les demandes
+    de créneau et de modification ont leurs propres tables (CoachEventRequest, ChangeRequest).
+    """
+
+    __tablename__ = "staff_requests"
+    __table_args__ = (
+        CheckConstraint("kind IN ('document','other')", name="staff_requests_kind_check"),
+        CheckConstraint(
+            "status IN ('pending','accepted','rejected','withdrawn')",
+            name="staff_requests_status_check",
+        ),
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    event_id: Mapped[str | None] = mapped_column(
+        ForeignKey("events.id", ondelete="SET NULL"), index=True
+    )
+    actor_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"), index=True
+    )
+    actor_name: Mapped[str] = mapped_column(String(80))
+    # Demande de pièces : le joueur et les pièces voulues ({kind, label}).
+    player_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
+    documents: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    # Conversation de la demande dans la messagerie du demandeur.
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("question_threads.id", ondelete="SET NULL")
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    decision: Mapped[str] = mapped_column(Text, default="", server_default="")
+    decided_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
+    decider_name: Mapped[str | None] = mapped_column(String(80))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class Follow(Identity, Base):

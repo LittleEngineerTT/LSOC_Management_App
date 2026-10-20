@@ -20,6 +20,7 @@ import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, str } from '../ad
 import { dayLabel, parisDay, timeRange } from './calendar';
 import { PersonName, PersonNames, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
+import { RequestForm } from './StaffRequests';
 import { kindLabels, registrationOpen, usePlace, useSectionNames, useTeamNames } from './events';
 
 // Champs que l’API accepte de restaurer depuis l’historique.
@@ -142,6 +143,9 @@ function EventBody({
   const referent = event.referent_ids.includes(account.id);
   const [history, setHistory] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [asked, setAsked] = useState('');
+  const staff = admin || account.roles.includes('coach');
   return (
     <>
       <div className="club-detail-badges">
@@ -209,12 +213,36 @@ function EventBody({
         <button type="button" className="admin-button" onClick={() => setHistory(!history)}>
           {history ? 'Masquer l’historique' : 'Historique'}
         </button>
+        {staff && (
+          <button
+            type="button"
+            className="admin-button"
+            onClick={() => {
+              setAsked('');
+              setAsking(true);
+            }}
+          >
+            Faire une demande
+          </button>
+        )}
         {(admin || (referent && account.roles.includes('coach'))) && !event.ffvb_match_id && (
           <button type="button" className="admin-button danger" onClick={() => setDeleting(true)}>
             Supprimer
           </button>
         )}
       </div>
+      {asked && <Notice>{asked}</Notice>}
+      {asking && (
+        <RequestForm
+          eventId={event.id}
+          eventTitle={event.title}
+          onCancel={() => setAsking(false)}
+          onDone={(message) => {
+            setAsking(false);
+            setAsked(message);
+          }}
+        />
+      )}
       {deleting && (
         <DeleteEvent event={event} onClose={() => setDeleting(false)} onDeleted={onDeleted} />
       )}

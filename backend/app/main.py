@@ -16,6 +16,7 @@ from app.api import (
     privacy,
     public,
     registrations,
+    requests,
     social,
 )
 from app.api.common import DB
@@ -66,6 +67,7 @@ for router in (
     events.router,
     event_requests.router,
     registrations.router,
+    requests.router,
     licenses.router,
     dossiers.router,
     social.router,

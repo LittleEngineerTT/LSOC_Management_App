@@ -549,3 +549,12 @@
 .club-participants li > .club-dossier {
   flex-basis: 100%;
 }
+/* Liste des demandes : détail sous le titre. */
+.club-requests .club-request-detail {
+  flex-basis: 100%;
+  margin: 0;
+  color: #617282;
+}
+.club-requests li > .admin-form {
+  flex-basis: 100%;
+}

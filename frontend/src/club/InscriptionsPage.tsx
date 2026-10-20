@@ -35,9 +35,45 @@ type Grouping = 'team' | 'section' | 'none';
 
 /** Application Inscriptions : suivi des joueurs pour l’encadrement, son dossier pour un joueur. */
 export function InscriptionsPage() {
-  const { account } = useClub();
+  const { api, account } = useClub();
   const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
-  return staff ? <PlayersTracking /> : <MyDossier />;
+  const [panel, setPanel] = useState<'players' | 'mine'>('players');
+  // Un admin ou un coach peut aussi avoir son propre dossier à compléter.
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      staff
+        ? api.request<Dossier | null>('/dossiers/me', 'GET', undefined, signal)
+        : Promise.resolve(null),
+    [api, staff],
+  );
+  const own = useLoad(loader);
+  if (!staff) return <MyDossier />;
+  const mine = !!own.data?.id;
+  return (
+    <>
+      {mine && (
+        <div className="admin-subtabs" role="group" aria-label="Panneau des inscriptions">
+          {(
+            [
+              ['players', 'Suivi des joueurs'],
+              ['mine', 'Mon inscription'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`admin-button${panel === id ? ' selected' : ''}`}
+              aria-pressed={panel === id}
+              onClick={() => setPanel(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {mine && panel === 'mine' ? <MyDossier embedded /> : <PlayersTracking />}
+    </>
+  );
 }
 
 /** Suivi de l’inscription des joueurs, par équipe ou section et par étape. */

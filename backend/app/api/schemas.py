@@ -265,6 +265,8 @@ class ChangeInput(Input):
     changes: EventPatch
     force: bool = False
     acknowledge_ffvb: bool = False
+    # Explication jointe à une demande de modification ; ignorée d’une modification directe.
+    description: str = Field(default="", max_length=2000)
 
 
 class EventView(View):
@@ -356,6 +358,7 @@ class ChangeView(View):
     actor_name: str
     base_version: int
     changes: dict[str, object]
+    description: str
     status: str
     decision: str
     decided_by: str | None
@@ -407,6 +410,53 @@ class CoachEventRequestView(View):
     decided_at: datetime | None
     created_at: datetime
     event_id: str | None
+
+
+RequestKind = Literal["event_change", "slot", "document", "other"]
+
+
+class RequestedDocument(Input):
+    kind: Literal["medical_certificate", "identity", "reduction_proof", "other"]
+    # Libellé d’une pièce « Autre » ; vide pour les pièces prédéfinies.
+    label: str = Field(default="", max_length=120)
+
+
+class StaffRequestInput(Input):
+    """Demande aux administrateurs : pièces à obtenir d’un joueur, ou demande libre."""
+
+    kind: Literal["document", "other"]
+    title: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=4000)
+    event_id: str | None = None
+    player_id: str | None = None
+    documents: list[RequestedDocument] = Field(default_factory=list, max_length=10)
+
+
+class RequestDecisionInput(Input):
+    accept: bool
+    reason: str = Field(default="", max_length=2000)
+
+
+class RequestView(View):
+    """Demande de tout type, sous une forme commune pour la liste unique des demandes."""
+
+    id: str
+    kind: RequestKind
+    title: str
+    description: str
+    event_id: str | None
+    actor_id: str | None
+    actor_name: str
+    status: str
+    decision: str
+    decider_name: str | None
+    decided_at: datetime | None
+    created_at: datetime
+    thread_id: str | None = None
+    player_id: str | None = None
+    documents: list[dict[str, str]] = Field(default_factory=list)
+    # Écran où la demande se traite (créneau et modification ont leur écran de validation).
+    link: str
 
 
 class RevisionView(View):
@@ -528,22 +578,17 @@ LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]
 CoachLicenseStatus = Literal["none", "in_progress", "active"]
 
 
-DocumentKind = Literal["medical_certificate", "identity", "reduction_proof"]
+DocumentKind = Literal["medical_certificate", "identity", "reduction_proof", "other"]
 DocumentStatus = Literal["requested", "submitted", "validated", "rejected"]
 
 
 class DossierInput(Input):
+    """Pièces ou paiement demandés à un joueur : ouvre son dossier, ou complète celui en cours."""
+
     user_id: str
-    documents: list[DocumentKind] = Field(default_factory=list, max_length=3)
+    documents: list[RequestedDocument] = Field(default_factory=list, max_length=10)
     payment: bool = False
     note: str = Field(default="", max_length=2000)
-
-
-class DossierChange(Input):
-    """Étapes ajoutées à un dossier ouvert."""
-
-    documents: list[DocumentKind] = Field(default_factory=list, max_length=3)
-    payment: bool = False
 
 
 class DocumentDecisionInput(Input):
@@ -552,7 +597,9 @@ class DocumentDecisionInput(Input):
 
 
 class DossierDocumentView(View):
+    id: str
     kind: DocumentKind
+    label: str
     status: DocumentStatus
     file_name: str | None
     uploaded_at: datetime | None

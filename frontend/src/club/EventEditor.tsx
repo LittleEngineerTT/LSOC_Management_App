@@ -198,6 +198,18 @@ export function EventEditor({
         ]
       : []),
     ...(event ? [{ name: 'cancelled', label: 'Événement annulé', type: 'checkbox' as const }] : []),
+    // Sans droit direct, la modification part en demande : son auteur l’explique.
+    ...(event && !direct
+      ? [
+          {
+            name: 'request_description',
+            label: 'Description de la demande',
+            type: 'textarea' as const,
+            maxLength: 2000,
+            hint: 'Lue par les administrateurs avec les champs modifiés.',
+          },
+        ]
+      : []),
   ];
   const initial: FormValues = event
     ? {
@@ -373,7 +385,7 @@ export function EventEditor({
         await api.request(
           `/events/${event.id}/change-requests`,
           'POST',
-          { ...body, force: false },
+          { ...body, force: false, description: str(values, 'request_description') },
           signal,
         );
         onDone('Demande envoyée aux administrateurs pour validation.');

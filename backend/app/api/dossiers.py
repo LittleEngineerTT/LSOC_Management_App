@@ -1,5 +1,4 @@
 import secrets
-from collections.abc import Sequence
 from typing import Annotated, Literal
 from urllib.parse import quote, unquote
 
@@ -11,11 +10,10 @@ from sqlalchemy.orm import Session
 from app.api.common import DB, Actor, Admin, coached_teams, get
 from app.api.schemas import (
     DocumentDecisionInput,
-    DocumentKind,
-    DossierChange,
     DossierDocumentView,
     DossierInput,
     DossierView,
+    RequestedDocument,
 )
 from app.core.security import cipher, now
 from app.integrations import s3
@@ -29,6 +27,13 @@ LABELS = {
     "identity": "Carte d’identité ou passeport",
     "reduction_proof": "Justificatif de réduction",
 }
+
+
+def piece(item: DossierDocument | RequestedDocument) -> str:
+    """Nom d’une pièce : le libellé choisi pour une pièce « Autre »."""
+    return item.label if item.kind == "other" else LABELS[item.kind]
+
+
 LINK = "/app/inscriptions"
 MAX_FILE_BYTES = 10 * 1024 * 1024
 # Formats acceptés et leur signature : un QR code ou un code se dépose en image ou en PDF.
@@ -55,7 +60,7 @@ def view(db: Session, value: Dossier) -> DossierView:
     documents = db.scalars(
         select(DossierDocument)
         .where(DossierDocument.dossier_id == value.id)
-        .order_by(DossierDocument.kind)
+        .order_by(DossierDocument.kind, DossierDocument.label)
     )
     return DossierView.model_validate(
         {
@@ -71,7 +76,9 @@ def view(db: Session, value: Dossier) -> DossierView:
             "documents": [
                 DossierDocumentView.model_validate(
                     {
+                        "id": item.id,
                         "kind": item.kind,
+                        "label": item.label,
                         "status": item.status,
                         "file_name": item.file_name,
                         "uploaded_at": item.uploaded_at,
@@ -94,22 +101,74 @@ def locked(db: Session, dossier_id: str) -> Dossier:
     return value
 
 
-def document(db: Session, value: Dossier, kind: str) -> DossierDocument:
-    item = db.scalar(
-        select(DossierDocument).where(
-            DossierDocument.dossier_id == value.id, DossierDocument.kind == kind
-        )
-    )
-    if item is None:
+def document(db: Session, value: Dossier, document_id: str) -> DossierDocument:
+    item = db.get(DossierDocument, document_id)
+    if item is None or item.dossier_id != value.id:
         raise HTTPException(404, "Pièce non demandée dans ce dossier")
     return item
 
 
-def steps(documents: Sequence[str], payment: bool) -> str:
+def steps(documents: list[RequestedDocument], payment: bool) -> str:
     return "\n".join(
-        [f"- {LABELS[kind]}" for kind in documents]
+        [f"- {piece(item)}" for item in documents]
         + (["- Paiement, à régler auprès du club"] if payment else [])
     )
+
+
+def request_documents(
+    db: Session,
+    actor: User,
+    user: User,
+    documents: list[RequestedDocument],
+    payment: bool,
+    note: str = "",
+) -> Dossier:
+    """Ouvre le dossier du joueur, ou complète celui en cours, et le prévient.
+
+    Une pièce déjà demandée dans le dossier en cours n’est pas ajoutée une seconde fois.
+    """
+    for item in documents:
+        if (item.kind == "other") != bool(item.label.strip()):
+            raise HTTPException(422, "Nommez chaque pièce « Autre », et seulement celles-là")
+    if not user.active:
+        raise HTTPException(409, "Compte inactif")
+    # Verrou du joueur : deux demandes simultanées n’ouvrent pas deux dossiers.
+    db.scalar(select(User.id).where(User.id == user.id).with_for_update())
+    value = db.scalar(
+        select(Dossier).where(Dossier.user_id == user.id, Dossier.closed_at.is_(None))
+    )
+    opened = value is None
+    if value is None:
+        value = Dossier(user_id=user.id, opened_by=actor.id, note=note)
+        db.add(value)
+        db.flush()
+    present = {
+        (item.kind, item.label)
+        for item in db.scalars(
+            select(DossierDocument).where(DossierDocument.dossier_id == value.id)
+        )
+    }
+    added: list[RequestedDocument] = []
+    for item in documents:
+        key = (item.kind, item.label.strip())
+        if key in present:
+            continue
+        present.add(key)
+        added.append(RequestedDocument(kind=item.kind, label=key[1]))
+        db.add(DossierDocument(dossier_id=value.id, kind=item.kind, label=key[1]))
+    payment = payment and not value.payment_requested
+    if not added and not payment:
+        raise HTTPException(422, "Aucune nouvelle pièce ni paiement à demander")
+    value.payment_requested = value.payment_requested or payment
+    db.flush()
+    text = steps(added, payment) + (f"\n\n{note}" if note else "")
+    title = (
+        "Dossier d’inscription : des pièces vous sont demandées"
+        if opened
+        else "Dossier d’inscription : nouvelle demande"
+    )
+    player_alert(db, value, title, text)
+    return value
 
 
 def staff_alert(db: Session, value: Dossier, title: str) -> None:
@@ -156,52 +215,13 @@ def mine(db: DB, actor: Actor) -> DossierView | None:
 
 
 @router.post("/dossiers", response_model=DossierView, status_code=201)
-def open_dossier(body: DossierInput, db: DB, actor: Actor) -> DossierView:
-    """Demande des pièces ou un paiement à un joueur ; chaque étape est facultative."""
+def open_dossier(body: DossierInput, db: DB, actor: Admin) -> DossierView:
+    """Demande des pièces ou un paiement à un joueur ; chaque étape est facultative.
+
+    Réservé aux administrateurs : un coach passe par une demande (POST /requests).
+    """
     user = get(db, User, body.user_id)
-    check_scope(db, actor, user.id)
-    documents = list(dict.fromkeys(body.documents))
-    if not documents and not body.payment:
-        raise HTTPException(422, "Demandez au moins une pièce ou le paiement")
-    if not user.active:
-        raise HTTPException(409, "Compte inactif")
-    # Verrou du joueur : deux demandes simultanées n’ouvrent pas deux dossiers.
-    db.scalar(select(User.id).where(User.id == user.id).with_for_update())
-    if db.scalar(select(Dossier.id).where(Dossier.user_id == user.id, Dossier.closed_at.is_(None))):
-        raise HTTPException(409, "Un dossier est déjà en cours pour ce joueur")
-    value = Dossier(
-        user_id=user.id,
-        opened_by=actor.id,
-        note=body.note,
-        payment_requested=body.payment,
-    )
-    db.add(value)
-    db.flush()
-    for kind in documents:
-        db.add(DossierDocument(dossier_id=value.id, kind=kind))
-    db.flush()
-    text = steps(documents, body.payment) + (f"\n\n{body.note}" if body.note else "")
-    player_alert(db, value, "Dossier d’inscription : des pièces vous sont demandées", text)
-    return view(db, value)
-
-
-@router.patch("/dossiers/{dossier_id}", response_model=DossierView)
-def add_steps(dossier_id: str, body: DossierChange, db: DB, actor: Actor) -> DossierView:
-    value = locked(db, dossier_id)
-    check_scope(db, actor, value.user_id)
-    present = set(
-        db.scalars(select(DossierDocument.kind).where(DossierDocument.dossier_id == value.id))
-    )
-    added = [kind for kind in dict.fromkeys(body.documents) if kind not in present]
-    payment = body.payment and not value.payment_requested
-    if not added and not payment:
-        raise HTTPException(422, "Aucune nouvelle étape")
-    for kind in added:
-        db.add(DossierDocument(dossier_id=value.id, kind=kind))
-    value.payment_requested = value.payment_requested or payment
-    db.flush()
-    player_alert(db, value, "Dossier d’inscription : nouvelle demande", steps(added, payment))
-    return view(db, value)
+    return view(db, request_documents(db, actor, user, body.documents, body.payment, body.note))
 
 
 async def upload_body(request: Request, actor: Actor) -> tuple[bytes, str, str]:
@@ -224,7 +244,7 @@ async def upload_body(request: Request, actor: Actor) -> tuple[bytes, str, str]:
 
 
 @router.put(
-    "/dossiers/{dossier_id}/documents/{kind}/file",
+    "/dossiers/{dossier_id}/documents/{document_id}/file",
     response_model=DossierView,
     openapi_extra={
         "requestBody": {
@@ -237,7 +257,7 @@ async def upload_body(request: Request, actor: Actor) -> tuple[bytes, str, str]:
 )
 def upload(
     dossier_id: str,
-    kind: DocumentKind,
+    document_id: str,
     actor: Actor,
     received: Annotated[tuple[bytes, str, str], Depends(upload_body)],
     tasks: BackgroundTasks,
@@ -249,7 +269,7 @@ def upload(
     value = locked(db, dossier_id)
     if value.user_id != actor.id:
         raise HTTPException(403, "Seul le joueur dépose les pièces de son dossier")
-    item = document(db, value, kind)
+    item = document(db, value, document_id)
     if item.status == "validated":
         raise HTTPException(409, "Pièce déjà validée")
     content, content_type, name = received
@@ -264,19 +284,19 @@ def upload(
     db.flush()
     # L’ancien fichier disparaît après la validation de la transaction.
     tasks.add_task(s3.discard, previous)
-    staff_alert(db, value, f"Pièce déposée par {actor.first_name} : {LABELS[kind]}")
+    staff_alert(db, value, f"Pièce déposée par {actor.first_name} : {piece(item)}")
     return view(db, value)
 
 
-@router.get("/dossiers/{dossier_id}/documents/{kind}/file")
-def download(dossier_id: str, kind: DocumentKind, db: DB, actor: Actor) -> Response:
+@router.get("/dossiers/{dossier_id}/documents/{document_id}/file")
+def download(dossier_id: str, document_id: str, db: DB, actor: Actor) -> Response:
     """Pièce déchiffrée, pour un administrateur ou le joueur lui-même ; jamais pour un coach."""
     value = db.get(Dossier, dossier_id)
     if value is None:
         raise HTTPException(404, "Dossier introuvable")
     if "admin" not in actor.roles and value.user_id != actor.id:
         raise HTTPException(403, "Pièces réservées aux administrateurs")
-    item = document(db, value, kind)
+    item = document(db, value, document_id)
     if item.file_key is None:
         raise HTTPException(404, "Aucun fichier pour cette pièce")
     try:
@@ -297,12 +317,12 @@ def download(dossier_id: str, kind: DocumentKind, db: DB, actor: Actor) -> Respo
     )
 
 
-@router.post("/dossiers/{dossier_id}/documents/{kind}/decision", response_model=DossierView)
+@router.post("/dossiers/{dossier_id}/documents/{document_id}/decision", response_model=DossierView)
 def decide(
-    dossier_id: str, kind: DocumentKind, body: DocumentDecisionInput, db: DB, actor: Admin
+    dossier_id: str, document_id: str, body: DocumentDecisionInput, db: DB, actor: Admin
 ) -> DossierView:
     value = locked(db, dossier_id)
-    item = document(db, value, kind)
+    item = document(db, value, document_id)
     if item.status != "submitted":
         raise HTTPException(409, "Aucune pièce déposée à valider")
     item.status = "validated" if body.accept else "rejected"
@@ -311,7 +331,7 @@ def decide(
     player_alert(
         db,
         value,
-        f"{LABELS[kind]} : {'validé' if body.accept else 'à déposer de nouveau'}",
+        f"{piece(item)} : {'validé' if body.accept else 'à déposer de nouveau'}",
         body.reason,
     )
     return view(db, value)
@@ -331,10 +351,9 @@ def validate_payment(dossier_id: str, db: DB, actor: Admin) -> DossierView:
 
 
 @router.post("/dossiers/{dossier_id}/close", response_model=DossierView)
-def close(dossier_id: str, tasks: BackgroundTasks, db: DB, actor: Actor) -> DossierView:
+def close(dossier_id: str, tasks: BackgroundTasks, db: DB, actor: Admin) -> DossierView:
     """Clôt le dossier et efface ses fichiers ; seul l’état des pièces est conservé."""
     value = locked(db, dossier_id)
-    check_scope(db, actor, value.user_id)
     for item in db.scalars(select(DossierDocument).where(DossierDocument.dossier_id == value.id)):
         tasks.add_task(s3.discard, item.file_key)
         item.file_key = None

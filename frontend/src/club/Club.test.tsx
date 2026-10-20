@@ -81,7 +81,7 @@ it('un référent sans droit direct envoie une demande avec les seuls champs mod
   await userEvent.type(courts, '1');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Envoyer la demande' }));
   expect(await within(dialog).findByText(/Demande envoyée aux administrateurs/)).toBeInTheDocument();
-  expect(mutations).toEqual([{ path: '/events/e1/change-requests', method: 'POST', body: { base_version: 3, changes: { courts: 1 }, force: false, acknowledge_ffvb: false } }]);
+  expect(mutations).toEqual([{ path: '/events/e1/change-requests', method: 'POST', body: { base_version: 3, changes: { courts: 1 }, force: false, acknowledge_ffvb: false, description: '' } }]);
 });
 
 it('un administrateur crée une série et peut forcer explicitement un dépassement de capacité', async () => {
@@ -373,7 +373,7 @@ it('un adhérent sans rôle coach n’accède pas à l’onglet Inscriptions', a
   expect(screen.queryByRole('link', { name: 'Inscriptions' })).not.toBeInTheDocument();
 });
 
-const dossier = { id: 'd1', user_id: 'u1', first_name: 'Andréa', opened_by: 'a1', note: 'Avant la reprise', payment_requested: true, payment_validated_at: null, created_at: at('10:00'), closed_at: null, documents: [{ kind: 'medical_certificate', status: 'submitted', file_name: 'certificat.pdf', uploaded_at: at('11:00'), decision: '', has_file: true }, { kind: 'identity', status: 'requested', file_name: null, uploaded_at: null, decision: '', has_file: false }] };
+const dossier = { id: 'd1', user_id: 'u1', first_name: 'Andréa', opened_by: 'a1', note: 'Avant la reprise', payment_requested: true, payment_validated_at: null, created_at: at('10:00'), closed_at: null, documents: [{ id: 'doc-med', kind: 'medical_certificate', label: '', status: 'submitted', file_name: 'certificat.pdf', uploaded_at: at('11:00'), decision: '', has_file: true }, { id: 'doc-id', kind: 'identity', label: '', status: 'requested', file_name: null, uploaded_at: null, decision: '', has_file: false }] };
 
 it('l’encadrement demande des pièces à un joueur puis traite son dossier', async () => {
   account = admin;
@@ -389,15 +389,15 @@ it('l’encadrement demande des pièces à un joueur puis traite son dossier', a
   await userEvent.type(within(team).getByLabelText(/Message au joueur/), 'Merci');
   await userEvent.click(within(team).getByRole('button', { name: 'Envoyer la demande' }));
   expect(await screen.findByText('Demande envoyée à Bao.')).toBeInTheDocument();
-  expect(mutations).toEqual([{ path: '/dossiers', method: 'POST', body: { user_id: 'u2', documents: ['medical_certificate', 'reduction_proof'], payment: false, note: 'Merci' } }]);
+  expect(mutations).toEqual([{ path: '/dossiers', method: 'POST', body: { user_id: 'u2', documents: [{ kind: 'medical_certificate' }, { kind: 'reduction_proof' }], payment: false, note: 'Merci' } }]);
   // La liste rechargée remplace la région affichée.
   const reloaded = await screen.findByRole('region', { name: 'Loisir 1' });
   await userEvent.click(within(reloaded).getByRole('button', { name: 'Dossier' }));
-  expect(within(reloaded).getByRole('link', { name: 'Ouvrir' })).toHaveAttribute('href', '/api/v1/dossiers/d1/documents/medical_certificate/file');
+  expect(within(reloaded).getByRole('link', { name: 'Ouvrir' })).toHaveAttribute('href', '/api/v1/dossiers/d1/documents/doc-med/file');
   await userEvent.click(within(reloaded).getByRole('button', { name: 'Valider' }));
   await userEvent.click(await within(await screen.findByRole('region', { name: 'Loisir 1' })).findByRole('button', { name: 'Valider le paiement' }));
   await waitFor(() => expect(mutations.slice(1)).toEqual([
-    { path: '/dossiers/d1/documents/medical_certificate/decision', method: 'POST', body: { accept: true, reason: '' } },
+    { path: '/dossiers/d1/documents/doc-med/decision', method: 'POST', body: { accept: true, reason: '' } },
     { path: '/dossiers/d1/payment', method: 'POST', body: {} },
   ]));
 });
@@ -412,11 +412,21 @@ it('un coach suit le dossier sans ouvrir ni valider les pièces', async () => {
   expect(within(team).getByText('Déposée, en vérification')).toBeInTheDocument();
   expect(within(team).queryByRole('link', { name: 'Ouvrir' })).not.toBeInTheDocument();
   expect(within(team).queryByRole('button', { name: 'Valider' })).not.toBeInTheDocument();
-  expect(within(team).getByRole('button', { name: 'Clore le dossier' })).toBeEnabled();
+  expect(within(team).queryByRole('button', { name: 'Clore le dossier' })).not.toBeInTheDocument();
+  // Sa demande de pièces part aux administrateurs, pièce « Autre » nommée comprise.
+  mutation = () => reply({}, 201);
+  await userEvent.click(within(team).getByRole('button', { name: 'Compléter' }));
+  await userEvent.click(within(team).getByLabelText('Justificatif de réduction'));
+  await userEvent.click(within(team).getByLabelText('Autre pièce'));
+  await userEvent.type(within(team).getByLabelText('Nom de la pièce'), 'Autorisation parentale');
+  await userEvent.type(within(team).getByLabelText(/Description/), 'Nouveau joueur');
+  await userEvent.click(within(team).getByRole('button', { name: 'Envoyer aux administrateurs' }));
+  expect(await screen.findByText('Demande transmise aux administrateurs pour Andréa.')).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/requests', method: 'POST', body: { kind: 'document', player_id: 'u1', documents: [{ kind: 'reduction_proof' }, { kind: 'other', label: 'Autorisation parentale' }], description: 'Nouveau joueur' } }]);
 });
 
 it('un joueur avec un dossier en cours accède à l’application et dépose une pièce', async () => {
-  routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille', documents: [{ ...dossier.documents[1] }, { kind: 'reduction_proof', status: 'rejected', file_name: 'qr.png', uploaded_at: at('11:00'), decision: 'Code expiré', has_file: true }] };
+  routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille', documents: [{ ...dossier.documents[1] }, { id: 'doc-qr', kind: 'reduction_proof', label: '', status: 'rejected', file_name: 'qr.png', uploaded_at: at('11:00'), decision: 'Code expiré', has_file: true }] };
   mutation = () => reply(routes['/dossiers/me']);
   open('/app');
   await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions' }));
@@ -428,7 +438,7 @@ it('un joueur avec un dossier en cours accède à l’application et dépose une
   const file = new File(['%PDF-1.7'], 'carte d’identité.pdf', { type: 'application/pdf' });
   await userEvent.upload(screen.getByLabelText('Fichier : Carte d’identité ou passeport'), file);
   expect(await screen.findByText('Carte d’identité ou passeport déposé.')).toBeInTheDocument();
-  expect(mutations).toEqual([{ path: '/dossiers/d1/documents/identity/file', method: 'PUT', body: { file, name: 'carte%20d%E2%80%99identit%C3%A9.pdf' } }]);
+  expect(mutations).toEqual([{ path: '/dossiers/d1/documents/doc-id/file', method: 'PUT', body: { file, name: 'carte%20d%E2%80%99identit%C3%A9.pdf' } }]);
 });
 
 it('un événement à plusieurs référents les présente tous et reconnaît chacun', async () => {
@@ -438,4 +448,66 @@ it('un événement à plusieurs référents les présente tous et reconnaît cha
   const referents = within(dialog).getByText('Référents').nextElementSibling!;
   await waitFor(() => expect(referents).toHaveTextContent('Alix, Camille'));
   expect(within(dialog).getByRole('button', { name: /Modifier|Proposer une modification/ })).toBeInTheDocument();
+});
+
+const coach = { ...member, roles: ['member', 'coach'] };
+const staffRequest = { id: 'r1', kind: 'document', title: 'Pièces à demander à Andréa', description: 'Nouveau joueur', event_id: null, actor_id: 'm1', actor_name: 'Camille', status: 'pending', decision: '', decider_name: null, decided_at: null, created_at: at('09:00'), thread_id: 'th1', player_id: 'u1', documents: [{ kind: 'medical_certificate', label: '' }, { kind: 'other', label: 'Autorisation parentale' }], link: '/app/messagerie?thread=th1' };
+
+it('un coach suit ses demandes et en ouvre une nouvelle depuis la messagerie', async () => {
+  account = coach;
+  routes['/requests'] = [staffRequest, { ...staffRequest, id: 'c1', kind: 'event_change', title: 'Modification : Entraînement loisir', thread_id: null, player_id: null, documents: [], description: 'Gymnase fermé plus tôt', link: '/app/administration?tab=requests&demande=c1' }];
+  mutation = () => reply({ ...staffRequest, kind: 'other' }, 201);
+  open('/app/messagerie');
+  await userEvent.click(await screen.findByRole('button', { name: 'Demandes' }));
+  const list = await screen.findByRole('region', { name: 'Demandes' });
+  expect(await within(list).findByText('Pièces à demander à Andréa')).toBeInTheDocument();
+  expect(within(list).getByText(/Pièces : Certificat médical, Autorisation parentale\. Nouveau joueur/)).toBeInTheDocument();
+  expect(within(list).getByText('Modification d’événement')).toBeInTheDocument();
+  expect(within(list).getByRole('link', { name: 'Conversation' })).toHaveAttribute('href', '/app/messagerie?thread=th1');
+  expect(within(list).queryByRole('button', { name: 'Décider' })).not.toBeInTheDocument();
+  await userEvent.click(within(list).getByRole('button', { name: 'Nouvelle demande' }));
+  await userEvent.type(within(list).getByLabelText(/Titre/), 'Ballons neufs');
+  await userEvent.type(within(list).getByLabelText('Description'), 'Pour la reprise');
+  await userEvent.click(within(list).getByRole('button', { name: 'Envoyer aux administrateurs' }));
+  expect(await within(list).findByText(/la conversation est ouverte dans la messagerie/)).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/requests', method: 'POST', body: { kind: 'other', title: 'Ballons neufs', description: 'Pour la reprise', event_id: null } }]);
+});
+
+it('un administrateur décide d’une demande de pièces depuis la liste unique', async () => {
+  account = admin;
+  routes['/requests'] = [staffRequest];
+  mutation = () => reply({ ...staffRequest, status: 'accepted' });
+  open('/app/messagerie?vue=demandes');
+  const list = await screen.findByRole('region', { name: 'Demandes' });
+  await userEvent.click(await within(list).findByRole('button', { name: 'Décider' }));
+  expect(within(list).getByText(/ouvre ou complète le dossier du joueur/)).toBeInTheDocument();
+  await userEvent.selectOptions(within(list).getByLabelText('Décision'), 'yes');
+  await userEvent.click(within(list).getByRole('button', { name: 'Enregistrer la décision' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/requests/r1/decision', method: 'POST', body: { accept: true, reason: '' } }]));
+});
+
+it('un coach fait une demande depuis un événement', async () => {
+  account = coach;
+  mutation = () => reply({ ...staffRequest, kind: 'other', event_id: 'e1' }, 201);
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Faire une demande' }));
+  expect(within(dialog).getByRole('heading', { name: 'Demande sur « Entraînement loisir »' })).toBeInTheDocument();
+  await userEvent.type(within(dialog).getByLabelText(/Titre/), 'Arbitre');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Envoyer aux administrateurs' }));
+  expect(await within(dialog).findByText(/la conversation est ouverte/)).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/requests', method: 'POST', body: { kind: 'other', title: 'Arbitre', description: '', event_id: 'e1' } }]);
+});
+
+it('un administrateur qui a son propre dossier passe du suivi des joueurs à son inscription', async () => {
+  account = admin;
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1')];
+  routes['/dossiers/me'] = { ...dossier, user_id: 'a1', first_name: 'Alix' };
+  open('/app/inscriptions');
+  expect(await screen.findByRole('region', { name: 'Loisir 1' })).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole('button', { name: 'Mon inscription' }));
+  expect(await screen.findByRole('heading', { name: 'Mon inscription' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Fichier : Carte d’identité ou passeport')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Suivi des joueurs' }));
+  expect(await screen.findByRole('region', { name: 'Loisir 1' })).toBeInTheDocument();
 });

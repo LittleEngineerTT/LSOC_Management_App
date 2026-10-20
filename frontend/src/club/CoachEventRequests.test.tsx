@@ -168,7 +168,7 @@ it('dépose une demande pour plusieurs équipes coachées, avec ouverture ciblé
   expect(mutations).toEqual([]);
   await userEvent.type(screen.getByLabelText('Nombre maximal d’inscrits'), '12');
   await userEvent.type(screen.getByLabelText('Description'), 'Ateliers puis matchs.');
-  await userEvent.type(screen.getByLabelText('Commentaire'), 'Préparation tournoi');
+  await userEvent.type(screen.getByLabelText('Description de la demande'), 'Préparation tournoi');
   await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
   expect(await screen.findByText(/Demande envoyée aux administrateurs/)).toBeInTheDocument();
   expect(mutations).toEqual([

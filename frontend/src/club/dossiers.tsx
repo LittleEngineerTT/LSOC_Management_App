@@ -4,10 +4,20 @@ import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
 import { dateLabel } from '../admin/time';
-import { Badge, Confirm, EntityForm, LoadState, Notice, PanelHeading, str } from '../admin/ui';
+import {
+  Badge,
+  checked,
+  Confirm,
+  EntityForm,
+  LoadState,
+  Notice,
+  PanelHeading,
+  str,
+  type FormValues,
+} from '../admin/ui';
 import { useClub } from './context';
 
-export type DocumentKind = 'medical_certificate' | 'identity' | 'reduction_proof';
+export type DocumentKind = 'medical_certificate' | 'identity' | 'reduction_proof' | 'other';
 type DocumentStatus = 'requested' | 'submitted' | 'validated' | 'rejected';
 export interface Dossier {
   id: string;
@@ -19,18 +29,22 @@ export interface Dossier {
   payment_validated_at: string | null;
   created_at: string;
   closed_at: string | null;
-  documents: {
-    kind: DocumentKind;
-    status: DocumentStatus;
-    file_name: string | null;
-    uploaded_at: string | null;
-    decision: string;
-    /** Le fichier disparaît à la clôture du dossier. */
-    has_file: boolean;
-  }[];
+  documents: DossierDocument[];
+}
+interface DossierDocument {
+  id: string;
+  kind: DocumentKind;
+  /** Nom d’une pièce « Autre ». */
+  label: string;
+  status: DocumentStatus;
+  file_name: string | null;
+  uploaded_at: string | null;
+  decision: string;
+  /** Le fichier disparaît à la clôture du dossier. */
+  has_file: boolean;
 }
 
-export const documentLabels: Record<DocumentKind, string> = {
+export const documentLabels: Record<Exclude<DocumentKind, 'other'>, string> = {
   medical_certificate: 'Certificat médical',
   identity: 'Carte d’identité ou passeport',
   reduction_proof: 'Justificatif de réduction',
@@ -39,7 +53,11 @@ const documentHints: Record<DocumentKind, string> = {
   medical_certificate: '',
   identity: '',
   reduction_proof: 'QR code ou code de réduction, en image ou en PDF.',
+  other: '',
 };
+/** Nom d’une pièce : le libellé choisi pour une pièce « Autre ». */
+export const pieceName = (item: { kind: DocumentKind; label?: string }) =>
+  item.kind === 'other' ? (item.label ?? 'Autre pièce') : documentLabels[item.kind];
 const statusLabels: Record<DocumentStatus, { label: string; tone: string }> = {
   requested: { label: 'À déposer', tone: 'warning' },
   submitted: { label: 'Déposée, en vérification', tone: '' },
@@ -48,8 +66,8 @@ const statusLabels: Record<DocumentStatus, { label: string; tone: string }> = {
 };
 const ACCEPT = 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png';
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const fileUrl = (dossier: Dossier, kind: DocumentKind) =>
-  `/api/v1/dossiers/${dossier.id}/documents/${kind}/file`;
+const fileUrl = (dossier: Dossier, item: DossierDocument) =>
+  `/api/v1/dossiers/${dossier.id}/documents/${item.id}/file`;
 
 /** Étapes terminées sur étapes demandées : pièces validées et paiement reçu. */
 export function progress(dossier: Dossier): [number, number] {
@@ -59,7 +77,24 @@ export function progress(dossier: Dossier): [number, number] {
   return [done, dossier.documents.length + (dossier.payment_requested ? 1 : 0)];
 }
 
-/** Demande de pièces : ouvre un dossier, ou ajoute des étapes au dossier en cours. */
+/** Pièces voulues dans un formulaire : cases prédéfinies et pièce « Autre » nommée. */
+function requestedDocuments(values: FormValues) {
+  const documents: { kind: DocumentKind; label?: string }[] = (
+    Array.isArray(values.documents) ? values.documents : []
+  ).map((kind) => ({ kind: kind as DocumentKind }));
+  if (checked(values, 'other')) {
+    const label = str(values, 'other_label');
+    if (!label) throw new Error('Nommez la pièce « Autre ».');
+    documents.push({ kind: 'other', label });
+  }
+  return documents;
+}
+
+/** Demande de pièces à un joueur.
+ *
+ * Un administrateur ouvre ou complète directement son dossier ; un coach adresse la demande
+ * aux administrateurs, qui l’acceptent ou la refusent.
+ */
 export function DossierRequestForm({
   user,
   dossier,
@@ -71,15 +106,19 @@ export function DossierRequestForm({
   onDone: (message: string) => void;
   onCancel: () => void;
 }) {
-  const { api } = useClub();
+  const { api, admin } = useClub();
   const present = new Set(dossier?.documents.map((item) => item.kind));
-  const kinds = (Object.keys(documentLabels) as DocumentKind[]).filter(
+  const kinds = (Object.keys(documentLabels) as Exclude<DocumentKind, 'other'>[]).filter(
     (kind) => !present.has(kind),
   );
   return (
     <EntityForm
       title={
-        dossier ? `Compléter le dossier de ${user.first_name}` : `Dossier de ${user.first_name}`
+        admin
+          ? dossier
+            ? `Compléter le dossier de ${user.first_name}`
+            : `Dossier de ${user.first_name}`
+          : `Demander des pièces pour ${user.first_name}`
       }
       fields={[
         {
@@ -89,45 +128,69 @@ export function DossierRequestForm({
           options: kinds.map((kind) => ({ value: kind, label: documentLabels[kind] })),
           hint: 'Chaque étape est facultative.',
         },
-        ...(dossier?.payment_requested
-          ? []
-          : [
+        { name: 'other', label: 'Autre pièce', type: 'checkbox' },
+        {
+          name: 'other_label',
+          label: 'Nom de la pièce',
+          maxLength: 120,
+          visibleWhen: 'other',
+        },
+        ...(admin && !dossier?.payment_requested
+          ? [
               {
                 name: 'payment',
                 label: 'Paiement à régler auprès du club',
                 type: 'checkbox' as const,
                 hint: 'Le paiement se fait hors de la plateforme ; un administrateur valide sa réception.',
               },
-            ]),
-        ...(dossier
-          ? []
-          : [
-              {
-                name: 'note',
-                label: 'Message au joueur (facultatif)',
-                type: 'textarea' as const,
-                maxLength: 2000,
-              },
-            ]),
+            ]
+          : []),
+        {
+          name: 'note',
+          label: admin ? 'Message au joueur (facultatif)' : 'Description (facultative)',
+          type: 'textarea' as const,
+          maxLength: 2000,
+          hint: admin
+            ? undefined
+            : 'Lue par les administrateurs, qui transmettront la demande au joueur.',
+        },
       ]}
-      initial={{ documents: [], payment: false, note: '' }}
-      submit={dossier ? 'Ajouter au dossier' : 'Envoyer la demande'}
+      initial={{ documents: [], other: false, other_label: '', payment: false, note: '' }}
+      submit={
+        admin
+          ? dossier
+            ? 'Ajouter au dossier'
+            : 'Envoyer la demande'
+          : 'Envoyer aux administrateurs'
+      }
       onCancel={onCancel}
       onSave={async (values, signal) => {
-        const documents = Array.isArray(values.documents) ? values.documents : [];
-        const payment = values.payment === true;
+        const documents = requestedDocuments(values);
+        const payment = checked(values, 'payment');
         if (!documents.length && !payment)
           throw new Error('Choisissez au moins une pièce ou le paiement.');
-        if (dossier)
-          await api.request(`/dossiers/${dossier.id}`, 'PATCH', { documents, payment }, signal);
-        else
+        if (admin) {
           await api.request(
             '/dossiers',
             'POST',
             { user_id: user.user_id, documents, payment, note: str(values, 'note') },
             signal,
           );
-        onDone(`Demande envoyée à ${user.first_name}.`);
+          onDone(`Demande envoyée à ${user.first_name}.`);
+        } else {
+          await api.request(
+            '/requests',
+            'POST',
+            {
+              kind: 'document',
+              player_id: user.user_id,
+              documents,
+              description: str(values, 'note'),
+            },
+            signal,
+          );
+          onDone(`Demande transmise aux administrateurs pour ${user.first_name}.`);
+        }
       }}
     />
   );
@@ -143,7 +206,7 @@ export function DossierCard({
 }) {
   const { api, admin } = useClub();
   const request = useRequest();
-  const [rejecting, setRejecting] = useState<DocumentKind | null>(null);
+  const [rejecting, setRejecting] = useState<DossierDocument | null>(null);
   const [closing, setClosing] = useState(false);
   function act(path: string, body: object, message: string) {
     void request.run(async (signal) => {
@@ -160,15 +223,15 @@ export function DossierCard({
       </p>
       <ul className="club-plain-list club-participants">
         {dossier.documents.map((item) => (
-          <li key={item.kind}>
+          <li key={item.id}>
             <span>
-              {documentLabels[item.kind]}
+              {pieceName(item)}
               {item.uploaded_at && ` · déposée le ${dateLabel(item.uploaded_at)}`}
             </span>
             <span className="admin-actions">
               <Badge tone={statusLabels[item.status].tone}>{statusLabels[item.status].label}</Badge>
               {admin && item.has_file && (
-                <a className="admin-button" href={fileUrl(dossier, item.kind)} download>
+                <a className="admin-button" href={fileUrl(dossier, item)} download>
                   Ouvrir
                 </a>
               )}
@@ -180,9 +243,9 @@ export function DossierCard({
                     disabled={request.pending}
                     onClick={() =>
                       act(
-                        `/documents/${item.kind}/decision`,
+                        `/documents/${item.id}/decision`,
                         { accept: true, reason: '' },
-                        `${documentLabels[item.kind]} validé.`,
+                        `${pieceName(item)} validé.`,
                       )
                     }
                   >
@@ -192,7 +255,7 @@ export function DossierCard({
                     type="button"
                     className="admin-button danger"
                     disabled={request.pending}
-                    onClick={() => setRejecting(item.kind)}
+                    onClick={() => setRejecting(item)}
                   >
                     Refuser
                   </button>
@@ -224,20 +287,22 @@ export function DossierCard({
           </li>
         )}
       </ul>
-      <div className="admin-actions">
-        <button
-          type="button"
-          className="admin-button"
-          disabled={request.pending}
-          onClick={() => setClosing(true)}
-        >
-          Clore le dossier
-        </button>
-      </div>
+      {admin && (
+        <div className="admin-actions">
+          <button
+            type="button"
+            className="admin-button"
+            disabled={request.pending}
+            onClick={() => setClosing(true)}
+          >
+            Clore le dossier
+          </button>
+        </div>
+      )}
       {request.error && <ErrorNotice message={request.error} />}
       {rejecting && (
         <EntityForm
-          title={`Refuser : ${documentLabels[rejecting]}`}
+          title={`Refuser : ${pieceName(rejecting)}`}
           fields={[
             {
               name: 'reason',
@@ -252,13 +317,13 @@ export function DossierCard({
           onCancel={() => setRejecting(null)}
           onSave={async (values, signal) => {
             await api.request(
-              `/dossiers/${dossier.id}/documents/${rejecting}/decision`,
+              `/dossiers/${dossier.id}/documents/${rejecting.id}/decision`,
               'POST',
               { accept: false, reason: str(values, 'reason') },
               signal,
             );
             setRejecting(null);
-            onChanged(`${documentLabels[rejecting]} refusé ; le joueur est prévenu.`);
+            onChanged(`${pieceName(rejecting)} refusé ; le joueur est prévenu.`);
           }}
         />
       )}
@@ -283,20 +348,21 @@ export function DossierCard({
 }
 
 /** Application Inscriptions d’un joueur : son dossier en cours et le dépôt des pièces. */
-export function MyDossier() {
+export function MyDossier({ embedded = false }: { embedded?: boolean }) {
   const { api } = useClub();
   const loader = useCallback(
     (signal: AbortSignal) => api.request<Dossier | null>('/dossiers/me', 'GET', undefined, signal),
     [api],
   );
   const result = useLoad(loader);
-  const [uploading, setUploading] = useState<DocumentKind | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const dossier = result.data;
   // Sans dossier en cours, l’application reste fermée au joueur.
-  if (result.loaded && !result.error && !dossier?.id) return <Navigate to="/app" replace />;
-  function send(kind: DocumentKind, file: File) {
+  if (!embedded && result.loaded && !result.error && !dossier?.id)
+    return <Navigate to="/app" replace />;
+  function send(item: DossierDocument, file: File) {
     setError('');
     setNotice('');
     if (!ACCEPT.split(',').includes(file.type)) {
@@ -307,11 +373,11 @@ export function MyDossier() {
       setError('Le fichier dépasse 10 Mo.');
       return;
     }
-    setUploading(kind);
+    setUploading(item.id);
     api
-      .request(`/dossiers/${dossier!.id}/documents/${kind}/file`, 'PUT', file)
+      .request(`/dossiers/${dossier!.id}/documents/${item.id}/file`, 'PUT', file)
       .then(() => {
-        setNotice(`${documentLabels[kind]} déposé.`);
+        setNotice(`${pieceName(item)} déposé.`);
         result.reload();
       })
       .catch((reason: unknown) =>
@@ -337,9 +403,9 @@ export function MyDossier() {
           {dossier.note && <p>Message du club : {dossier.note}</p>}
           <ul className="club-plain-list club-participants">
             {dossier.documents.map((item) => (
-              <li key={item.kind}>
+              <li key={item.id}>
                 <span>
-                  <strong>{documentLabels[item.kind]}</strong>
+                  <strong>{pieceName(item)}</strong>
                   {documentHints[item.kind] && (
                     <span className="admin-hint"> · {documentHints[item.kind]}</span>
                   )}
@@ -349,13 +415,13 @@ export function MyDossier() {
                     {statusLabels[item.status].label}
                   </Badge>
                   {item.has_file && (
-                    <a className="admin-button" href={fileUrl(dossier, item.kind)} download>
+                    <a className="admin-button" href={fileUrl(dossier, item)} download>
                       Voir mon fichier
                     </a>
                   )}
                   {item.status !== 'validated' && (
                     <label className="admin-button">
-                      {uploading === item.kind
+                      {uploading === item.id
                         ? 'Envoi…'
                         : item.has_file
                           ? 'Remplacer le fichier'
@@ -365,11 +431,11 @@ export function MyDossier() {
                         className="visually-hidden"
                         accept={ACCEPT}
                         disabled={uploading !== null}
-                        aria-label={`Fichier : ${documentLabels[item.kind]}`}
+                        aria-label={`Fichier : ${pieceName(item)}`}
                         onChange={(change) => {
                           const file = change.target.files?.[0];
                           change.target.value = '';
-                          if (file) send(item.kind, file);
+                          if (file) send(item, file);
                         }}
                       />
                     </label>

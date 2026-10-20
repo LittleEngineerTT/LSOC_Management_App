@@ -36,6 +36,7 @@ from app.persistence.models import (
     License,
     LoginSession,
     Position,
+    StaffRequest,
     Team,
     User,
     listed,
@@ -207,6 +208,11 @@ def erase_account(db: Session, user: User) -> None:
         if request.decided_by == user_id:
             request.decider_name = "Compte supprimé"
             request.decision = ""
+    for staff in db.scalars(select(StaffRequest).where(StaffRequest.actor_id == user_id)):
+        staff.actor_name = "Compte supprimé"
+        staff.description = ""
+        if staff.status == "pending":
+            staff.status = "withdrawn"
     for state in db.scalars(select(FFVBMatchState)):
         state.protected = {
             key: None if value == user_id else value for key, value in state.protected.items()

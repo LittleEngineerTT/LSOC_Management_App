@@ -9,6 +9,7 @@ import { Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
 import { useUnread } from '../app/unread';
+import { RequestsList } from './StaffRequests';
 
 interface Conversation extends Thread {
   event: Event | null;
@@ -18,6 +19,47 @@ function conversationTitle(conversation: Conversation) {
 }
 
 export function MessagingPage() {
+  const { account } = useClub();
+  const [search, setSearch] = useSearchParams();
+  // Coachs et administrateurs suivent aussi leurs demandes dans la messagerie.
+  const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
+  const requests = staff && search.get('vue') === 'demandes';
+  return (
+    <>
+      <PanelHeading
+        title="Messagerie"
+        description={
+          staff
+            ? 'Conversations avec les administrateurs et demandes : modification d’événement, créneau, pièces d’un joueur ou autre.'
+            : 'Vos questions aux administrateurs. Pour en poser une nouvelle, ouvrez l’événement concerné dans le planning.'
+        }
+      />
+      {staff && (
+        <div className="admin-subtabs" role="group" aria-label="Vue de la messagerie">
+          {(
+            [
+              ['', 'Conversations'],
+              ['demandes', 'Demandes'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`admin-button${(search.get('vue') ?? '') === id ? ' selected' : ''}`}
+              aria-pressed={(search.get('vue') ?? '') === id}
+              onClick={() => setSearch(id ? { vue: id } : {})}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {requests ? <RequestsList /> : <Conversations />}
+    </>
+  );
+}
+
+function Conversations() {
   const { api, admin } = useClub();
   const { thread_counts: counts = {}, messages: unreadTotal, refresh } = useUnread();
   const request = useRequest();
@@ -54,14 +96,11 @@ export function MessagingPage() {
   const selected = conversations.find((item) => item.id === search.get('thread'));
   return (
     <>
-      <PanelHeading
-        title="Messagerie"
-        description={
-          admin
-            ? 'Questions des adhérents sur les événements. Chaque échange reste privé entre l’adhérent et les administrateurs.'
-            : 'Vos questions aux administrateurs. Pour en poser une nouvelle, ouvrez l’événement concerné dans le planning.'
-        }
-      />
+      {admin && (
+        <p className="admin-hint">
+          Chaque échange reste privé entre son auteur et les administrateurs.
+        </p>
+      )}
       {unreadTotal > 0 && (
         <div className="admin-actions club-notifications-all">
           <button

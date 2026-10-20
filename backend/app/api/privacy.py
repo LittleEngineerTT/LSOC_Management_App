@@ -26,6 +26,7 @@ from app.persistence.models import (
     QuestionMessage,
     QuestionThread,
     Registration,
+    StaffRequest,
     User,
     listed,
 )
@@ -106,6 +107,9 @@ def export(db: DB, actor: Actor) -> dict[str, Any]:
         "demandes_d_evenement": [
             plain(v)
             for v in db.scalars(select(CoachEventRequest).where(CoachEventRequest.actor_id == me))
+        ],
+        "demandes_aux_administrateurs": [
+            plain(v) for v in db.scalars(select(StaffRequest).where(StaffRequest.actor_id == me))
         ],
         "historique": [
             plain(v) for v in db.scalars(select(EventRevision).where(EventRevision.actor_id == me))
