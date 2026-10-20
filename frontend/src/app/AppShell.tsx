@@ -99,8 +99,9 @@ function Workspace({ account, section }: { account: Account | null; section: str
   const title = useRef<HTMLHeadingElement>(null);
   const admin = account?.roles.includes('admin') ?? false;
   const staff = admin || (account?.roles.includes('coach') ?? false);
-  const dossierOpen = useOpenDossier(account, staff);
   const unread = useUnread();
+  // Relu à chaque nouvelle notification : une demande de pièces fait apparaître l’application.
+  const dossier = useOpenDossier(account, unread.notifications);
   const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
     Accueil: {
       count: unread.notifications,
@@ -111,6 +112,10 @@ function Workspace({ account, section }: { account: Account | null; section: str
       label: admin
         ? ['question non lue', 'questions non lues']
         : ['réponse non lue', 'réponses non lues'],
+    },
+    Inscriptions: {
+      count: dossier.pending,
+      label: ['pièce à déposer', 'pièces à déposer'],
     },
   };
   const { refresh } = unread;
@@ -176,7 +181,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
             .filter((item) =>
               account
                 ? item.path === DOSSIER_PATH
-                  ? staff || dossierOpen
+                  ? staff || dossier.open
                   : !staffOnly.includes(item.path) || staff
                 : guestSections.includes(item.title),
             )
@@ -327,17 +332,35 @@ function ClubPage({ section }: { section: string }) {
 }
 
 /** Dossier d’inscription en cours : il ouvre l’application Inscriptions au joueur. */
-function useOpenDossier(account: Account | null, staff: boolean): boolean {
+/** Dossier d’inscription en cours du compte et nombre de pièces qu’il lui reste à déposer. */
+function useOpenDossier(
+  account: Account | null,
+  notifications: number,
+): { open: boolean; pending: number } {
   const { csrfToken, clear } = useSession();
-  const [open, setOpen] = useState(false);
+  const [state, setState] = useState({ open: false, pending: 0 });
   useEffect(() => {
-    if (!account || staff) return;
+    if (!account) return;
     const controller = new AbortController();
     createAdminApi(csrfToken, clear)
-      .request<{ id?: string } | null>('/dossiers/me', 'GET', undefined, controller.signal)
-      .then((value) => setOpen(Boolean(value?.id)))
+      .request<{ id?: string; documents?: { status: string }[] } | null>(
+        '/dossiers/me',
+        'GET',
+        undefined,
+        controller.signal,
+      )
+      .then((value) =>
+        setState({
+          open: Boolean(value?.id),
+          pending: value?.id
+            ? (value.documents ?? []).filter((item) =>
+                ['requested', 'rejected'].includes(item.status),
+              ).length
+            : 0,
+        }),
+      )
       .catch(() => undefined);
     return () => controller.abort();
-  }, [account, staff, csrfToken, clear]);
-  return open;
+  }, [account, notifications, csrfToken, clear]);
+  return state;
 }

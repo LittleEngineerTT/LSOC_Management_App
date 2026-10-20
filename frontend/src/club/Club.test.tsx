@@ -429,7 +429,7 @@ it('un joueur avec un dossier en cours accède à l’application et dépose une
   routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille', documents: [{ ...dossier.documents[1] }, { id: 'doc-qr', kind: 'reduction_proof', label: '', status: 'rejected', file_name: 'qr.png', uploaded_at: at('11:00'), decision: 'Code expiré', has_file: true }] };
   mutation = () => reply(routes['/dossiers/me']);
   open('/app');
-  await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions' }));
+  await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions 2 pièces à déposer' }));
   expect(await screen.findByRole('heading', { name: 'Mon inscription' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Étapes terminées : 0/3' })).toBeInTheDocument();
   expect(screen.getByText('Message du club : Avant la reprise')).toBeInTheDocument();
@@ -510,4 +510,26 @@ it('un administrateur qui a son propre dossier passe du suivi des joueurs à son
   expect(screen.getByLabelText('Fichier : Carte d’identité ou passeport')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Suivi des joueurs' }));
   expect(await screen.findByRole('region', { name: 'Loisir 1' })).toBeInTheDocument();
+});
+
+it('une demande de pièces en attente se suit sur la ligne du joueur et l’admin l’accepte sur place', async () => {
+  account = admin;
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1')];
+  routes['/requests'] = [staffRequest];
+  mutation = () => reply({ ...staffRequest, status: 'accepted' });
+  open('/app/inscriptions');
+  const team = await screen.findByRole('region', { name: 'Loisir 1' });
+  expect(within(team).getByText('Pièces demandées par Camille · en attente de validation')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Dossier ou demande en cours (1)' })).toBeInTheDocument();
+  await userEvent.click(within(team).getByRole('button', { name: 'Accepter la demande' }));
+  expect(await screen.findByText(/le dossier du joueur est ouvert/)).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/requests/r1/decision', method: 'POST', body: { accept: true, reason: '' } }]);
+});
+
+it('l’application Inscriptions apparaît chez le joueur avec le nombre de pièces à déposer', async () => {
+  routes['/unread'] = { messages: 0, notifications: 1, threads: [] };
+  routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille' };
+  open('/app');
+  const link = await screen.findByRole('link', { name: /Inscriptions/ });
+  expect(within(link).getByLabelText('1 pièce à déposer')).toBeInTheDocument();
 });

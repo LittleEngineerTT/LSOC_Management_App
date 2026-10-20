@@ -8,7 +8,10 @@ import {
 } from '../admin/LicensesPanel';
 import { dateLabel } from '../admin/time';
 import { Badge, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from '../admin/ui';
+import { ErrorNotice } from '../auth/components';
+import { useRequest } from '../auth/useRequest';
 import { useClub } from './context';
+import type { StaffRequest } from './StaffRequests';
 import { DossierCard, DossierRequestForm, MyDossier, progress, type Dossier } from './dossiers';
 
 // Étapes de l’inscription d’un joueur : sa licence joueur, jusqu’à « Active ».
@@ -17,12 +20,16 @@ type Filter = 'missing' | 'registered' | 'all' | 'dossier' | LicenseStatus;
 const filters: {
   id: Filter;
   label: string;
-  keep: (status: LicenseStatus, dossier: Dossier | undefined) => boolean;
+  keep: (status: LicenseStatus, dossier: Dossier | undefined, asked: boolean) => boolean;
 }[] = [
   { id: 'missing', label: 'Non inscrits', keep: (status) => status !== 'active' },
   { id: 'registered', label: 'Inscrits', keep: (status) => status === 'active' },
   { id: 'all', label: 'Tous', keep: () => true },
-  { id: 'dossier', label: 'Dossier en cours', keep: (_, dossier) => !!dossier },
+  {
+    id: 'dossier',
+    label: 'Dossier ou demande en cours',
+    keep: (_, dossier, asked) => !!dossier || asked,
+  },
   ...steps
     .filter((step) => step !== 'active')
     .map((step) => ({
@@ -84,6 +91,8 @@ function PlayersTracking() {
       Promise.all([
         api.list<License>('/licenses', false, signal),
         api.list<Dossier>('/dossiers', false, signal),
+        // Demandes de pièces en attente des administrateurs : celles du coach, toutes pour un admin.
+        api.list<StaffRequest>('/requests?status=pending', false, signal),
       ]),
     [api],
   );
@@ -96,8 +105,23 @@ function PlayersTracking() {
   const [notice, setNotice] = useState('');
   const [requesting, setRequesting] = useState<License | null>(null);
   const [opened, setOpened] = useState('');
-  const [licenses, dossiers] = result.data ?? [[], []];
+  const [licenses, dossiers, requests] = result.data ?? [[], [], []];
   const dossierOf = (userId: string) => dossiers.find((item) => item.user_id === userId);
+  const askedOf = (userId: string) =>
+    requests.filter((item) => item.kind === 'document' && item.player_id === userId);
+  const decision = useRequest();
+  function decide(item: StaffRequest, accept: boolean) {
+    void decision.run(async (signal) => {
+      await api.request(`/requests/${item.id}/decision`, 'POST', { accept, reason: '' }, signal);
+      setNotice(
+        accept
+          ? 'Demande acceptée : le dossier du joueur est ouvert et il en est prévenu.'
+          : 'Demande refusée ; le demandeur en est prévenu.',
+      );
+      if (accept && item.player_id) setOpened(item.player_id);
+      result.reload();
+    });
+  }
   // Joueurs seulement ; leurs équipes sont déjà limitées au périmètre du compte.
   const players = licenses
     .map((item) => ({ ...item, teams: item.teams.filter((entry) => entry.kind === 'player') }))
@@ -115,7 +139,9 @@ function PlayersTracking() {
   };
   const scoped = players.filter((player) => player.teams.some((entry) => inScope(entry.team_id)));
   const current = filters.find((item) => item.id === filter)!;
-  const shown = scoped.filter((player) => current.keep(player.status, dossierOf(player.user_id)));
+  const shown = scoped.filter((player) =>
+    current.keep(player.status, dossierOf(player.user_id), askedOf(player.user_id).length > 0),
+  );
   const groups =
     grouping === 'none'
       ? [{ id: '', name: 'Tous les joueurs', members: shown }]
@@ -194,7 +220,7 @@ function PlayersTracking() {
       <div className="admin-subtabs" role="group" aria-label="Étape d’inscription">
         {filters.map((item) => {
           const count = scoped.filter((player) =>
-            item.keep(player.status, dossierOf(player.user_id)),
+            item.keep(player.status, dossierOf(player.user_id), askedOf(player.user_id).length > 0),
           ).length;
           return (
             <button
@@ -211,6 +237,7 @@ function PlayersTracking() {
       </div>
       <LoadState result={result} />
       {notice && <Notice>{notice}</Notice>}
+      <ErrorNotice message={decision.error} />
       {editing && (
         <EntityForm
           key={editing.user_id}
@@ -259,6 +286,7 @@ function PlayersTracking() {
               <ul className="club-plain-list club-participants">
                 {group.members.map((player) => {
                   const dossier = dossierOf(player.user_id);
+                  const asked = askedOf(player.user_id);
                   const [done, total] = dossier ? progress(dossier) : [0, 0];
                   return (
                     <li key={player.user_id}>
@@ -277,6 +305,33 @@ function PlayersTracking() {
                           {licenseLabels[player.status]} · étape {steps.indexOf(player.status) + 1}/
                           {steps.length}
                         </Badge>
+                        {asked.map((item) => (
+                          <span key={item.id} className="admin-actions">
+                            <Badge tone="warning">
+                              Pièces demandées par {item.actor_name} · en attente de validation
+                            </Badge>
+                            {admin && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="admin-button"
+                                  disabled={decision.pending}
+                                  onClick={() => decide(item, true)}
+                                >
+                                  Accepter la demande
+                                </button>
+                                <button
+                                  type="button"
+                                  className="admin-button danger"
+                                  disabled={decision.pending}
+                                  onClick={() => decide(item, false)}
+                                >
+                                  Refuser
+                                </button>
+                              </>
+                            )}
+                          </span>
+                        ))}
                         {dossier && (
                           <Badge tone={done === total ? 'good' : 'warning'}>
                             Dossier · {done}/{total}
@@ -325,6 +380,8 @@ function PlayersTracking() {
                           onDone={(message) => {
                             setRequesting(null);
                             setNotice(message);
+                            // Le dossier ouvert par un admin s’affiche aussitôt pour le suivi.
+                            if (admin) setOpened(player.user_id);
                             result.reload();
                           }}
                         />
