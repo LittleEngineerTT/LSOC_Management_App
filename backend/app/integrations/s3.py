@@ -1,7 +1,8 @@
 """Client S3 minimal : dépôt et suppression d’objets signés en SigV4, au-dessus de httpx.
 
 Le bucket est en lecture publique : le navigateur lit les PDF directement à leur URL, dont le
-nom aléatoire de 64 caractères fait office de secret. Les tests remplacent `transport` par un
+nom aléatoire de 64 caractères fait office de secret. Les pièces des dossiers d’inscription
+y sont déposées chiffrées et ne se lisent que par l’API. Les tests remplacent `transport` par un
 S3 simulé.
 """
 
@@ -90,8 +91,8 @@ def signed_headers(
 
 def _send(
     method: str, key: str, body: bytes = b"", extra: dict[str, str] | None = None
-) -> tuple[int, str]:
-    """Statut HTTP et code d’erreur S3 (« NoSuchBucket »…), vide en cas de succès."""
+) -> tuple[int, str, bytes]:
+    """Statut HTTP, code d’erreur S3 (« NoSuchBucket »…, vide en cas de succès) et contenu."""
     if not configured():
         raise StorageError("Stockage des licences non configuré")
     url = object_url(key)
@@ -103,7 +104,7 @@ def _send(
     except httpx.HTTPError as error:
         raise StorageError("Stockage des licences injoignable") from error
     code = re.search(r"<Code>([^<]+)</Code>", response.text) if response.is_error else None
-    return response.status_code, code.group(1) if code else ""
+    return response.status_code, code.group(1) if code else "", response.content
 
 
 def refused(action: str, status: int, code: str) -> StorageError:
@@ -112,19 +113,28 @@ def refused(action: str, status: int, code: str) -> StorageError:
     return StorageError(f"{action} refusé par le stockage ({status}{f' {code}' if code else ''})")
 
 
-def put(key: str, body: bytes, content_type: str) -> None:
-    status, code = _send(
-        "PUT",
-        key,
-        body,
-        {"content-type": content_type, "content-disposition": 'inline; filename="licence.pdf"'},
+def put(
+    key: str,
+    body: bytes,
+    content_type: str,
+    disposition: str = 'inline; filename="licence.pdf"',
+) -> None:
+    status, code, _ = _send(
+        "PUT", key, body, {"content-type": content_type, "content-disposition": disposition}
     )
     if not 200 <= status < 300:
         raise refused("Dépôt", status, code)
 
 
+def get(key: str) -> bytes:
+    status, code, content = _send("GET", key)
+    if not 200 <= status < 300:
+        raise refused("Lecture", status, code)
+    return content
+
+
 def delete(key: str) -> None:
-    status, code = _send("DELETE", key)
+    status, code, _ = _send("DELETE", key)
     if not 200 <= status < 300 and code != "NoSuchKey":
         raise refused("Suppression", status, code)
 

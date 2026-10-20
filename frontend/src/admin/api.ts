@@ -60,6 +60,8 @@ export function createAdminApi(csrfToken: () => string | undefined, expired: () 
     try {
       const headers = new Headers({ Accept: 'application/json' });
       if (body) headers.set('Content-Type', raw ? body.type : 'application/json');
+      // Nom d’origine d’une pièce déposée, encodé pour tenir dans un en-tête.
+      if (body instanceof File) headers.set('X-File-Name', encodeURIComponent(body.name));
       if (csrf) headers.set('X-CSRF-Token', csrf);
       const response = await fetch(`/api/v1${path}`, {
         method,

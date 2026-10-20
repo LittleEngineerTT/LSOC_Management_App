@@ -527,6 +527,52 @@ LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]
 CoachLicenseStatus = Literal["none", "in_progress", "active"]
 
 
+DocumentKind = Literal["medical_certificate", "identity", "reduction_proof"]
+DocumentStatus = Literal["requested", "submitted", "validated", "rejected"]
+
+
+class DossierInput(Input):
+    user_id: str
+    documents: list[DocumentKind] = Field(default_factory=list, max_length=3)
+    payment: bool = False
+    note: str = Field(default="", max_length=2000)
+
+
+class DossierChange(Input):
+    """Étapes ajoutées à un dossier ouvert."""
+
+    documents: list[DocumentKind] = Field(default_factory=list, max_length=3)
+    payment: bool = False
+
+
+class DocumentDecisionInput(Input):
+    accept: bool
+    reason: str = Field(default="", max_length=2000)
+
+
+class DossierDocumentView(View):
+    kind: DocumentKind
+    status: DocumentStatus
+    file_name: str | None
+    uploaded_at: datetime | None
+    decision: str
+    # Fichier encore conservé : il disparaît à la clôture du dossier.
+    has_file: bool
+
+
+class DossierView(View):
+    id: str
+    user_id: str
+    first_name: str
+    opened_by: str | None
+    note: str
+    payment_requested: bool
+    payment_validated_at: datetime | None
+    created_at: datetime
+    closed_at: datetime | None
+    documents: list[DossierDocumentView]
+
+
 class LicenseInput(Input):
     """Numéro commun aux deux licences ; un statut absent reste inchangé."""
 

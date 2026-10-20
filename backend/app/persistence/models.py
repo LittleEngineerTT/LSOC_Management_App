@@ -95,6 +95,65 @@ class License(Base):
     file_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Dossier(Identity, Base):
+    """Procédure d’inscription ouverte pour un joueur par un administrateur ou un coach.
+
+    Chaque étape est facultative : les pièces demandées, et le paiement (réglé hors de la
+    plateforme, validé par un administrateur). Un seul dossier ouvert par joueur.
+    """
+
+    __tablename__ = "dossiers"
+    __table_args__ = (
+        Index(
+            "dossiers_one_open",
+            "user_id",
+            unique=True,
+            postgresql_where=text("closed_at IS NULL"),
+        ),
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
+    opened_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
+    # Message au joueur avec la demande.
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    payment_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    payment_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DossierDocument(Identity, Base):
+    """Pièce demandée dans un dossier ; le fichier disparaît à la clôture du dossier."""
+
+    __tablename__ = "dossier_documents"
+    __table_args__ = (
+        UniqueConstraint("dossier_id", "kind"),
+        CheckConstraint(
+            "kind IN ('medical_certificate','identity','reduction_proof')",
+            name="dossier_documents_kind_check",
+        ),
+        CheckConstraint(
+            "status IN ('requested','submitted','validated','rejected')",
+            name="dossier_documents_status_check",
+        ),
+    )
+    dossier_id: Mapped[str] = mapped_column(
+        ForeignKey("dossiers.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(10), default="requested")
+    # Fichier chiffré dans le bucket S3 : clé « dossiers/ » + 64 caractères aléatoires.
+    file_key: Mapped[str | None] = mapped_column(String(80))
+    file_name: Mapped[str | None] = mapped_column(String(200))
+    content_type: Mapped[str | None] = mapped_column(String(100))
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Motif d’un refus, transmis au joueur.
+    decision: Mapped[str] = mapped_column(Text, default="", server_default="")
+
+
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     hash: Mapped[str] = mapped_column(String(64), primary_key=True)

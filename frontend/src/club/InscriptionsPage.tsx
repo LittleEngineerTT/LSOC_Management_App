@@ -9,14 +9,20 @@ import {
 import { dateLabel } from '../admin/time';
 import { Badge, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from '../admin/ui';
 import { useClub } from './context';
+import { DossierCard, DossierRequestForm, MyDossier, progress, type Dossier } from './dossiers';
 
 // Étapes de l’inscription d’un joueur : sa licence joueur, jusqu’à « Active ».
 const steps: LicenseStatus[] = ['none', 'in_progress', 'payment_pending', 'active'];
-type Filter = 'missing' | 'registered' | 'all' | LicenseStatus;
-const filters: { id: Filter; label: string; keep: (status: LicenseStatus) => boolean }[] = [
+type Filter = 'missing' | 'registered' | 'all' | 'dossier' | LicenseStatus;
+const filters: {
+  id: Filter;
+  label: string;
+  keep: (status: LicenseStatus, dossier: Dossier | undefined) => boolean;
+}[] = [
   { id: 'missing', label: 'Non inscrits', keep: (status) => status !== 'active' },
   { id: 'registered', label: 'Inscrits', keep: (status) => status === 'active' },
   { id: 'all', label: 'Tous', keep: () => true },
+  { id: 'dossier', label: 'Dossier en cours', keep: (_, dossier) => !!dossier },
   ...steps
     .filter((step) => step !== 'active')
     .map((step) => ({
@@ -27,11 +33,22 @@ const filters: { id: Filter; label: string; keep: (status: LicenseStatus) => boo
 ];
 type Grouping = 'team' | 'section' | 'none';
 
-/** Suivi de l’inscription des joueurs, par équipe ou section et par étape. */
+/** Application Inscriptions : suivi des joueurs pour l’encadrement, son dossier pour un joueur. */
 export function InscriptionsPage() {
+  const { account } = useClub();
+  const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
+  return staff ? <PlayersTracking /> : <MyDossier />;
+}
+
+/** Suivi de l’inscription des joueurs, par équipe ou section et par étape. */
+function PlayersTracking() {
   const { api, admin, sections, teams } = useClub();
   const loader = useCallback(
-    (signal: AbortSignal) => api.list<License>('/licenses', false, signal),
+    (signal: AbortSignal) =>
+      Promise.all([
+        api.list<License>('/licenses', false, signal),
+        api.list<Dossier>('/dossiers', false, signal),
+      ]),
     [api],
   );
   const result = useLoad(loader);
@@ -41,8 +58,12 @@ export function InscriptionsPage() {
   const [team, setTeam] = useState('');
   const [editing, setEditing] = useState<License | null>(null);
   const [notice, setNotice] = useState('');
+  const [requesting, setRequesting] = useState<License | null>(null);
+  const [opened, setOpened] = useState('');
+  const [licenses, dossiers] = result.data ?? [[], []];
+  const dossierOf = (userId: string) => dossiers.find((item) => item.user_id === userId);
   // Joueurs seulement ; leurs équipes sont déjà limitées au périmètre du compte.
-  const players = (result.data ?? [])
+  const players = licenses
     .map((item) => ({ ...item, teams: item.teams.filter((entry) => entry.kind === 'player') }))
     .filter((item) => item.teams.length > 0);
   const reachable = teams.filter((item) =>
@@ -58,7 +79,7 @@ export function InscriptionsPage() {
   };
   const scoped = players.filter((player) => player.teams.some((entry) => inScope(entry.team_id)));
   const current = filters.find((item) => item.id === filter)!;
-  const shown = scoped.filter((player) => current.keep(player.status));
+  const shown = scoped.filter((player) => current.keep(player.status, dossierOf(player.user_id)));
   const groups =
     grouping === 'none'
       ? [{ id: '', name: 'Tous les joueurs', members: shown }]
@@ -136,7 +157,9 @@ export function InscriptionsPage() {
       </div>
       <div className="admin-subtabs" role="group" aria-label="Étape d’inscription">
         {filters.map((item) => {
-          const count = scoped.filter((player) => item.keep(player.status)).length;
+          const count = scoped.filter((player) =>
+            item.keep(player.status, dossierOf(player.user_id)),
+          ).length;
           return (
             <button
               key={item.id}
@@ -198,38 +221,90 @@ export function InscriptionsPage() {
                 {group.name} <span className="admin-hint">· {group.members.length}</span>
               </h3>
               <ul className="club-plain-list club-participants">
-                {group.members.map((player) => (
-                  <li key={player.user_id}>
-                    <span>
-                      <strong>{player.first_name}</strong>
-                      {grouping !== 'team' && ` · ${teamNames(player)}`}
-                      {player.updated_at && (
-                        <span className="admin-hint">
-                          {' '}
-                          · mis à jour le {dateLabel(player.updated_at)}
-                        </span>
-                      )}
-                    </span>
-                    <span className="admin-actions">
-                      <Badge tone={licenseTones[player.status]}>
-                        {licenseLabels[player.status]} · étape {steps.indexOf(player.status) + 1}/
-                        {steps.length}
-                      </Badge>
-                      {admin && (
+                {group.members.map((player) => {
+                  const dossier = dossierOf(player.user_id);
+                  const [done, total] = dossier ? progress(dossier) : [0, 0];
+                  return (
+                    <li key={player.user_id}>
+                      <span>
+                        <strong>{player.first_name}</strong>
+                        {grouping !== 'team' && ` · ${teamNames(player)}`}
+                        {player.updated_at && (
+                          <span className="admin-hint">
+                            {' '}
+                            · mis à jour le {dateLabel(player.updated_at)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="admin-actions">
+                        <Badge tone={licenseTones[player.status]}>
+                          {licenseLabels[player.status]} · étape {steps.indexOf(player.status) + 1}/
+                          {steps.length}
+                        </Badge>
+                        {dossier && (
+                          <Badge tone={done === total ? 'good' : 'warning'}>
+                            Dossier · {done}/{total}
+                          </Badge>
+                        )}
+                        {dossier && (
+                          <button
+                            type="button"
+                            className={`admin-button${opened === player.user_id ? ' selected' : ''}`}
+                            aria-expanded={opened === player.user_id}
+                            onClick={() =>
+                              setOpened(opened === player.user_id ? '' : player.user_id)
+                            }
+                          >
+                            Dossier
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="admin-button"
                           onClick={() => {
                             setNotice('');
-                            setEditing(player);
+                            setRequesting(player);
                           }}
                         >
-                          Modifier
+                          {dossier ? 'Compléter' : 'Demander des pièces'}
                         </button>
+                        {admin && (
+                          <button
+                            type="button"
+                            className="admin-button"
+                            onClick={() => {
+                              setNotice('');
+                              setEditing(player);
+                            }}
+                          >
+                            Modifier
+                          </button>
+                        )}
+                      </span>
+                      {requesting?.user_id === player.user_id && (
+                        <DossierRequestForm
+                          user={player}
+                          dossier={dossier}
+                          onCancel={() => setRequesting(null)}
+                          onDone={(message) => {
+                            setRequesting(null);
+                            setNotice(message);
+                            result.reload();
+                          }}
+                        />
                       )}
-                    </span>
-                  </li>
-                ))}
+                      {dossier && opened === player.user_id && (
+                        <DossierCard
+                          dossier={dossier}
+                          onChanged={(message) => {
+                            setNotice(message);
+                            result.reload();
+                          }}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))

@@ -42,7 +42,8 @@ beforeEach(() => {
     const path = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '');
     const method = init?.method ?? 'GET';
     if (method !== 'GET') {
-      const body: unknown = init?.body ? JSON.parse(String(init.body)) : undefined;
+      // Un fichier déposé est gardé tel quel, avec son nom transmis en en-tête.
+      const body: unknown = init?.body instanceof Blob ? { file: init.body, name: new Headers(init.headers).get('X-File-Name') } : init?.body ? JSON.parse(String(init.body)) : undefined;
       mutations.push({ path, method, body });
       return mutation(path, method, body);
     }
@@ -370,4 +371,62 @@ it('un adhérent sans rôle coach n’accède pas à l’onglet Inscriptions', a
   open('/app/inscriptions');
   expect(await screen.findByRole('heading', { name: 'Accueil' })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'Inscriptions' })).not.toBeInTheDocument();
+});
+
+const dossier = { id: 'd1', user_id: 'u1', first_name: 'Andréa', opened_by: 'a1', note: 'Avant la reprise', payment_requested: true, payment_validated_at: null, created_at: at('10:00'), closed_at: null, documents: [{ kind: 'medical_certificate', status: 'submitted', file_name: 'certificat.pdf', uploaded_at: at('11:00'), decision: '', has_file: true }, { kind: 'identity', status: 'requested', file_name: null, uploaded_at: null, decision: '', has_file: false }] };
+
+it('l’encadrement demande des pièces à un joueur puis traite son dossier', async () => {
+  account = admin;
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1'), license('u2', 'Bao', 'in_progress', 't1')];
+  routes['/dossiers'] = [dossier];
+  mutation = () => reply(dossier, 201);
+  open('/app/inscriptions');
+  const team = await screen.findByRole('region', { name: 'Loisir 1' });
+  expect(within(team).getByText('Dossier · 0/3')).toBeInTheDocument();
+  await userEvent.click(within(team).getByRole('button', { name: 'Demander des pièces' }));
+  await userEvent.click(within(team).getByLabelText('Certificat médical'));
+  await userEvent.click(within(team).getByLabelText('Justificatif de réduction'));
+  await userEvent.type(within(team).getByLabelText(/Message au joueur/), 'Merci');
+  await userEvent.click(within(team).getByRole('button', { name: 'Envoyer la demande' }));
+  expect(await screen.findByText('Demande envoyée à Bao.')).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/dossiers', method: 'POST', body: { user_id: 'u2', documents: ['medical_certificate', 'reduction_proof'], payment: false, note: 'Merci' } }]);
+  // La liste rechargée remplace la région affichée.
+  const reloaded = await screen.findByRole('region', { name: 'Loisir 1' });
+  await userEvent.click(within(reloaded).getByRole('button', { name: 'Dossier' }));
+  expect(within(reloaded).getByRole('link', { name: 'Ouvrir' })).toHaveAttribute('href', '/api/v1/dossiers/d1/documents/medical_certificate/file');
+  await userEvent.click(within(reloaded).getByRole('button', { name: 'Valider' }));
+  await userEvent.click(await within(await screen.findByRole('region', { name: 'Loisir 1' })).findByRole('button', { name: 'Valider le paiement' }));
+  await waitFor(() => expect(mutations.slice(1)).toEqual([
+    { path: '/dossiers/d1/documents/medical_certificate/decision', method: 'POST', body: { accept: true, reason: '' } },
+    { path: '/dossiers/d1/payment', method: 'POST', body: {} },
+  ]));
+});
+
+it('un coach suit le dossier sans ouvrir ni valider les pièces', async () => {
+  account = { ...member, roles: ['member', 'coach'] };
+  routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1')];
+  routes['/dossiers'] = [dossier];
+  open('/app/inscriptions');
+  const team = await screen.findByRole('region', { name: 'Loisir 1' });
+  await userEvent.click(within(team).getByRole('button', { name: 'Dossier' }));
+  expect(within(team).getByText('Déposée, en vérification')).toBeInTheDocument();
+  expect(within(team).queryByRole('link', { name: 'Ouvrir' })).not.toBeInTheDocument();
+  expect(within(team).queryByRole('button', { name: 'Valider' })).not.toBeInTheDocument();
+  expect(within(team).getByRole('button', { name: 'Clore le dossier' })).toBeEnabled();
+});
+
+it('un joueur avec un dossier en cours accède à l’application et dépose une pièce', async () => {
+  routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille', documents: [{ ...dossier.documents[1] }, { kind: 'reduction_proof', status: 'rejected', file_name: 'qr.png', uploaded_at: at('11:00'), decision: 'Code expiré', has_file: true }] };
+  mutation = () => reply(routes['/dossiers/me']);
+  open('/app');
+  await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions' }));
+  expect(await screen.findByRole('heading', { name: 'Mon inscription' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Étapes terminées : 0/3' })).toBeInTheDocument();
+  expect(screen.getByText('Message du club : Avant la reprise')).toBeInTheDocument();
+  expect(screen.getByText('Motif : Code expiré')).toBeInTheDocument();
+  expect(screen.getByText('En attente')).toBeInTheDocument();
+  const file = new File(['%PDF-1.7'], 'carte d’identité.pdf', { type: 'application/pdf' });
+  await userEvent.upload(screen.getByLabelText('Fichier : Carte d’identité ou passeport'), file);
+  expect(await screen.findByText('Carte d’identité ou passeport déposé.')).toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/dossiers/d1/documents/identity/file', method: 'PUT', body: { file, name: 'carte%20d%E2%80%99identit%C3%A9.pdf' } }]);
 });

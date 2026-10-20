@@ -521,3 +521,31 @@
   gap: 8px;
   flex-shrink: 0;
 }
+/* Dossier d’inscription : pièces demandées et dépôt par le joueur. */
+.club-dossier {
+  margin-top: 8px;
+}
+.club-dossier .club-dossier-reason {
+  flex-basis: 100%;
+  margin: 0;
+  color: #617282;
+}
+.club-dossier label.admin-button {
+  cursor: pointer;
+}
+.club-dossier label.admin-button:focus-within {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.club-participants li > .admin-form,
+.club-participants li > .club-dossier {
+  flex-basis: 100%;
+}

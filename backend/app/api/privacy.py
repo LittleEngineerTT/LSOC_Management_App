@@ -15,6 +15,8 @@ from app.persistence.models import (
     Base,
     ChangeRequest,
     CoachEventRequest,
+    Dossier,
+    DossierDocument,
     Event,
     EventRevision,
     Follow,
@@ -70,6 +72,18 @@ def export(db: DB, actor: Actor) -> dict[str, Any]:
             plain(v) for v in db.scalars(select(Registration).where(Registration.user_id == me))
         ],
         "suivis": [plain(v) for v in db.scalars(select(Follow).where(Follow.user_id == me))],
+        "dossiers_d_inscription": [
+            plain(v) for v in db.scalars(select(Dossier).where(Dossier.user_id == me))
+        ],
+        # État des pièces seulement : les fichiers se téléchargent depuis l’application.
+        "pieces_demandees": [
+            plain(v)
+            for v in db.scalars(
+                select(DossierDocument)
+                .join(Dossier, Dossier.id == DossierDocument.dossier_id)
+                .where(Dossier.user_id == me)
+            )
+        ],
         "evenements_referent": [
             plain(v) for v in db.scalars(select(Event).where(Event.referent_id == me))
         ],

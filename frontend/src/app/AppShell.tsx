@@ -4,6 +4,7 @@ import type { Account } from '../api/auth';
 import { AuthLayout, ClubMark, ErrorNotice, Icon, SessionStatus } from '../auth/components';
 import { useSession } from '../auth/session';
 import { useRequest } from '../auth/useRequest';
+import { createAdminApi } from '../admin/api';
 import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
 import { CountBadge, UnreadProvider, useUnread } from './unread';
@@ -35,8 +36,10 @@ const applications = [
   { path: '/app/inscriptions', title: 'Inscriptions', icon: 'clipboard' },
   { path: '/app/administration', title: 'Administration', icon: 'shield' },
 ] as const;
-// Applications réservées aux administrateurs et aux coachs.
-const staffOnly = ['/app/administration', '/app/inscriptions'];
+// Application réservée aux administrateurs et aux coachs.
+const staffOnly = ['/app/administration'];
+// Ouverte à l’encadrement, et à un joueur pendant le traitement de son dossier d’inscription.
+const DOSSIER_PATH = '/app/inscriptions';
 // Un invité ne voit que l’accueil et les matchs FFVB du planning.
 const guestSections = ['Accueil', 'Planning'];
 const sectionTitles: Record<string, string> = {
@@ -96,6 +99,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
   const title = useRef<HTMLHeadingElement>(null);
   const admin = account?.roles.includes('admin') ?? false;
   const staff = admin || (account?.roles.includes('coach') ?? false);
+  const dossierOpen = useOpenDossier(account, staff);
   const unread = useUnread();
   const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
     Accueil: {
@@ -171,7 +175,9 @@ function Workspace({ account, section }: { account: Account | null; section: str
           {applications
             .filter((item) =>
               account
-                ? !staffOnly.includes(item.path) || staff
+                ? item.path === DOSSIER_PATH
+                  ? staff || dossierOpen
+                  : !staffOnly.includes(item.path) || staff
                 : guestSections.includes(item.title),
             )
             .map((item) => (
@@ -318,4 +324,20 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Inscriptions' && <InscriptionsPage />}
     </>
   );
+}
+
+/** Dossier d’inscription en cours : il ouvre l’application Inscriptions au joueur. */
+function useOpenDossier(account: Account | null, staff: boolean): boolean {
+  const { csrfToken, clear } = useSession();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!account || staff) return;
+    const controller = new AbortController();
+    createAdminApi(csrfToken, clear)
+      .request<{ id?: string } | null>('/dossiers/me', 'GET', undefined, controller.signal)
+      .then((value) => setOpen(Boolean(value?.id)))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [account, staff, csrfToken, clear]);
+  return open;
 }
