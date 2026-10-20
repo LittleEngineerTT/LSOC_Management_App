@@ -12,7 +12,7 @@ export const fieldLabels: Record<string, string> = {
   starts_at: 'Début',
   ends_at: 'Fin',
   courts: 'Terrains',
-  referent_id: 'Référent',
+  referent_ids: 'Référents',
   direct_edit: 'Modification directe',
   cancelled: 'Annulé',
   kickoff_at: 'Coup d’envoi',
@@ -55,8 +55,14 @@ export function Changes({ values }: { values: Record<string, unknown> }) {
       return value
         .map((id) => catalog.teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée')
         .join(', ');
-    if (key === 'referent_id')
-      return catalog.users.find((user) => user.id === value)?.first_name ?? 'Compte supprimé';
+    if (key === 'referent_ids' && Array.isArray(value))
+      return (
+        value
+          .map(
+            (id) => catalog.users.find((user) => user.id === id)?.first_name ?? 'Compte supprimé',
+          )
+          .join(', ') || 'Aucun'
+      );
     if (
       ['starts_at', 'ends_at', 'kickoff_at', 'ffvb_suspended_until'].includes(key) &&
       typeof value === 'string'

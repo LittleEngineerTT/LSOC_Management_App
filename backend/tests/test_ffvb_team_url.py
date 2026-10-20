@@ -20,7 +20,7 @@ def test_team_url_with_encoded_season_and_extra_parameters_selects_the_team(admi
     monkeypatch.setattr(ffvb, 'fetch', lambda *args: HTML)
     admin.put('/api/v1/ffvb/club', json={'club_code': '0926620'})
     section = admin.post('/api/v1/sections', json={'name': 'Régionale'}).json()['id']
-    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES 1', 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES 1', 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     result = admin.post('/api/v1/ffvb/sources/preview', json={'url': TEAM_URL})
     assert result.status_code == 200, result.text
     body = result.json()
@@ -39,7 +39,7 @@ def test_lettered_match_codes_and_played_matches_without_venue() -> None:
 
 def test_sync_skips_unknown_played_matches_and_keeps_known_venues(admin: TestClient) -> None:
     section, gym = setup_planning(admin)
-    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES 1', 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES 1', 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     source = admin.post('/api/v1/ffvb/sources', json={'team_id': team, 'season': '2026/2027', 'entity': 'LIIDF', 'pool': '2MC', 'team_number': '9', 'team_name': 'LSO COLOMBES 1', 'club_code': '0926620'})
     assert source.status_code == 201, source.text
     assert admin.post('/api/v1/ffvb/gym-mappings', json={'official_name': 'GYMNASE AMBROISE PARÉ', 'gymnasium_id': gym}).status_code == 201

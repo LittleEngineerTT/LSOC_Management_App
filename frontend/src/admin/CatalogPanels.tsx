@@ -4,6 +4,7 @@ import type { Assignment, Gymnasium, Position, Section, Team } from './types';
 import { displayName } from './UsersPanel';
 import { TeamSourceWarningPreference } from './SourceWarnings';
 import {
+  choices,
   Confirm,
   Empty,
   EntityForm,
@@ -218,10 +219,10 @@ export function SectionsTeamsPanel() {
     setEditing(value);
     setNotice('');
   };
-  const referentName = (team: Team) =>
-    catalog.users.find((user) => user.id === team.referent_id)?.first_name ??
-    (team.referent_id && referents[team.referent_id]) ??
-    'À attribuer';
+  const referentNames = (team: Team) =>
+    team.referent_ids
+      .map((id) => catalog.users.find((user) => user.id === id)?.first_name ?? referents[id] ?? id)
+      .join(', ') || 'À attribuer';
   const teamFields: FormField[] = [
     name,
     {
@@ -232,13 +233,13 @@ export function SectionsTeamsPanel() {
       options: catalog.sections.map((section) => ({ value: section.id, label: section.name })),
     },
     {
-      name: 'referent_id',
-      label: 'Référent',
-      type: 'select',
+      name: 'referent_ids',
+      label: 'Référents',
+      type: 'choices',
       options: catalog.users
         .filter((user) => user.active)
         .map((user) => ({ value: user.id, label: user.first_name })),
-      hint: 'Un référent actif est requis avant d’activer une source FFVB.',
+      hint: 'Chaque référent a les mêmes droits sur l’équipe. Un référent actif est requis avant d’activer une source FFVB.',
     },
   ];
   // Les sections sans équipe passent en bas, dans l’ordre reçu.
@@ -292,7 +293,7 @@ export function SectionsTeamsPanel() {
               : {
                   name: editing.item?.name ?? '',
                   section_id: editing.item?.section_id ?? editing.section ?? '',
-                  referent_id: editing.item?.referent_id ?? '',
+                  referent_ids: editing.item?.referent_ids ?? [],
                 }
           }
           submit={editing.item ? 'Enregistrer' : 'Créer'}
@@ -304,7 +305,7 @@ export function SectionsTeamsPanel() {
                 : {
                     name: str(values, 'name'),
                     section_id: str(values, 'section_id'),
-                    referent_id: str(values, 'referent_id') || null,
+                    referent_ids: choices(values, 'referent_ids'),
                   };
             await api.request(
               editing.item ? `${path(editing.kind)}/${editing.item.id}` : path(editing.kind),
@@ -375,7 +376,7 @@ export function SectionsTeamsPanel() {
                   <article className="admin-row" key={team.id}>
                     <div className="admin-row-copy">
                       <h4>{team.name}</h4>
-                      <p>Référent : {referentName(team)}</p>
+                      <p>Référents : {referentNames(team)}</p>
                       {roster(team).length > 0 && (
                         <div className="admin-roster" aria-label={`Joueurs de ${team.name}`}>
                           {roster(team).map((group) => (

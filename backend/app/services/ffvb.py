@@ -22,7 +22,7 @@ from app.persistence.models import (
     User,
 )
 from app.services.events import check_capacity, lock_gyms, lock_planning, revision, snapshot
-from app.services.notifications import admins, email, event_changed
+from app.services.notifications import active_referents, admins, email, event_changed
 
 
 def defaults(db: Session) -> ClubSettings:
@@ -282,8 +282,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     if not source.enabled:
         return False
     team = get(db, Team, source.team_id)
-    referent = db.get(User, team.referent_id) if team.referent_id else None
-    if referent is None or not referent.active:
+    if not active_referents(db, team.referent_ids):
         lock_planning(db)
         source.next_check_at = now() + timedelta(minutes=source.interval_minutes)
         source.last_error = "Un référent actif doit être configuré sur l’équipe"
@@ -312,8 +311,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
         )
         return False
     db.refresh(team)
-    referent = db.get(User, team.referent_id) if team.referent_id else None
-    if referent is None or not referent.active:
+    if not active_referents(db, team.referent_ids):
         source.last_error = "Un référent actif doit être configuré sur l’équipe"
         return False
     venues = Venues(db)
@@ -372,7 +370,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                 starts_at=match.kickoff_at,
                 ends_at=match.kickoff_at + timedelta(minutes=after),
                 courts=courts if official["gymnasium_id"] else 0,
-                referent_id=team.referent_id,
+                referent_ids=list(team.referent_ids),
                 ffvb_match_id=state.id,
                 kickoff_at=match.kickoff_at,
                 before_minutes=before,

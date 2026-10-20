@@ -6,7 +6,7 @@ async function prepare(page: Page) {
     id: 'outside-event', title: 'Séance à fermer', kind: 'training',
     starts_at: '2026-10-14T17:00:00Z', ends_at: '2026-10-14T19:00:00Z',
     section_ids: [], gymnasium_id: null, location: 'Colombes', courts: 1,
-    referent_id: null, direct_edit: false, cancelled: false, version: 1,
+    referent_ids: [], direct_edit: false, cancelled: false, version: 1,
     series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null,
     before_minutes: 75, after_minutes: 150, match_courts: 3,
     occupancy_unknown: false, registration_section_ids: [], registration_limit: null,

@@ -9,7 +9,7 @@ const member = { id: 'm1', username: 'camille', first_name: 'Camille', category:
 const admin = { ...member, id: 'a1', username: 'admin', first_name: 'Alix', roles: ['admin'] };
 const day = addDays(mondayOf(today()), 2);
 function at(time: string) { return new Date(`${day}T${time}:00+02:00`).toISOString(); }
-const training = { id: 'e1', title: 'Entraînement loisir', kind: 'training', section_ids: ['s1'], gymnasium_id: 'g1', location: '', starts_at: at('18:00'), ends_at: at('20:00'), courts: 2, referent_id: 'm1', direct_edit: false, cancelled: false, version: 3, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [] as string[], registration_limit: null as number | null, registration_count: 0 };
+const training = { id: 'e1', title: 'Entraînement loisir', kind: 'training', section_ids: ['s1'], gymnasium_id: 'g1', location: '', starts_at: at('18:00'), ends_at: at('20:00'), courts: 2, referent_ids: ['m1'], direct_edit: false, cancelled: false, version: 3, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [] as string[], registration_limit: null as number | null, registration_count: 0 };
 let account: typeof member;
 let routes: Record<string, unknown>;
 let mutations: { path: string; method: string; body: unknown }[];
@@ -27,7 +27,7 @@ beforeEach(() => {
   mutation = () => reply({}, 201);
   routes = {
     '/sections': [{ id: 's1', name: 'Loisir' }],
-    '/teams': [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: 'a1' }],
+    '/teams': [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }],
     '/gymnasiums': [{ id: 'g1', name: 'Gymnase Ambroise Paré', capacity: 3 }],
     '/follows': [],
     '/users/m1/assignments': [{ id: 'as1', user_id: 'm1', team_id: 't1', kind: 'player' }],
@@ -75,7 +75,7 @@ it('un référent sans droit direct envoie une demande avec les seuls champs mod
   open('/app/planning?event=e1');
   const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   await userEvent.click(within(dialog).getByRole('button', { name: 'Proposer une modification' }));
-  expect(within(dialog).queryByLabelText('Référent')).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole('group', { name: 'Référents' })).not.toBeInTheDocument();
   const courts = within(dialog).getByLabelText('Terrains occupés');
   await userEvent.clear(courts);
   await userEvent.type(courts, '1');
@@ -112,7 +112,7 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Série créée : 2 occurrences.')).toBeInTheDocument();
   expect(attempts).toBe(2);
-  expect(mutations[1]).toMatchObject({ path: '/series', body: { until: addDays(today(), 7), weekdays: [weekday], force: true, event: { title: 'Entraînement compétition', section_ids: ['s1'], gymnasium_id: 'g1', courts: 1, referent_id: 'a1' } } });
+  expect(mutations[1]).toMatchObject({ path: '/series', body: { until: addDays(today(), 7), weekdays: [weekday], force: true, event: { title: 'Entraînement compétition', section_ids: ['s1'], gymnasium_id: 'g1', courts: 1, referent_ids: ['a1'] } } });
 });
 
 it('la messagerie affiche les pastilles, marque le fil comme lu sur demande et envoie une réponse', async () => {
@@ -171,13 +171,13 @@ it('les gymnases signalent un dépassement et mes sections présentent mon rôle
   await userEvent.click(screen.getByRole('link', { name: 'Mes sections' }));
   const card = (await screen.findByRole('heading', { name: 'Loisir' })).closest('section')!;
   expect(within(card).getByText('Joueur')).toBeInTheDocument();
-  expect(await within(card).findByText(/Référent de l’équipe : Alix/)).toBeInTheDocument();
+  await waitFor(() => expect(card).toHaveTextContent('Référents de l’équipe : Alix'));
   expect(await within(card).findByRole('link', { name: 'Entraînement loisir' })).toBeInTheDocument();
 });
 
 it('un adhérent demande à s’inscrire avec son poste présélectionné et un message', async () => {
   const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
-  const openSession = { ...training, id: 'e2', title: 'Séance ouverte', referent_id: 'a1', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 1 };
+  const openSession = { ...training, id: 'e2', title: 'Séance ouverte', referent_ids: ['a1'], starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 1 };
   routes['/positions'] = [{ id: 'p1', name: 'Libéro' }, { id: 'p2', name: 'Passeur' }];
   routes['/users/m1/assignments'] = [{ id: 'as1', user_id: 'm1', team_id: 't1', kind: 'player', position_id: 'p2' }];
   routes['/events/e2'] = openSession;
@@ -203,7 +203,7 @@ it('le référent accepte une demande en attente en voyant le poste et le messag
   account = admin;
   const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
   routes['/positions'] = [{ id: 'p2', name: 'Passeur' }];
-  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance ouverte', referent_id: 'a1', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 0 };
+  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance ouverte', referent_ids: ['a1'], starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 0 };
   routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 0, pending: 1, registered: false, status: null, decision: '', eligible: false, participants: [{ user_id: 'm1', first_name: 'Morgan', created_at: later, status: 'pending', position_id: 'p2', message: 'Première fois' }] };
   mutation = () => reply({}, 200);
   open('/app/planning?event=e2');
@@ -325,7 +325,7 @@ it('la messagerie affiche une conversation sans événement par son sujet', asyn
 });
 
 it('le coach référent supprime son événement ; un simple adhérent ne voit pas le bouton', async () => {
-  routes['/events/e1'] = { ...training, referent_id: 'm1' };
+  routes['/events/e1'] = { ...training, referent_ids: ['m1'] };
   open('/app/planning?event=e1');
   let dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   expect(within(dialog).queryByRole('button', { name: 'Supprimer' })).not.toBeInTheDocument();
@@ -344,7 +344,7 @@ const license = (user_id: string, first_name: string, status: string, team_id: s
 it('l’onglet Inscriptions montre d’abord les joueurs non inscrits, par équipe, section et étape', async () => {
   account = admin;
   routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
-  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null }, { id: 't2', name: 'Régionale', section_id: 's2', referent_id: null }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] }, { id: 't2', name: 'Régionale', section_id: 's2', referent_ids: [] }];
   routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1'), license('u2', 'Bao', 'payment_pending', 't2'), license('u3', 'Chloé', 'active', 't1'), { ...license('u4', 'Dominique', 'none', 't1'), teams: [{ team_id: 't1', kind: 'coach' }] }];
   open('/app/inscriptions');
   expect(await screen.findByRole('heading', { name: 'Inscriptions' })).toBeInTheDocument();
@@ -429,4 +429,13 @@ it('un joueur avec un dossier en cours accède à l’application et dépose une
   await userEvent.upload(screen.getByLabelText('Fichier : Carte d’identité ou passeport'), file);
   expect(await screen.findByText('Carte d’identité ou passeport déposé.')).toBeInTheDocument();
   expect(mutations).toEqual([{ path: '/dossiers/d1/documents/identity/file', method: 'PUT', body: { file, name: 'carte%20d%E2%80%99identit%C3%A9.pdf' } }]);
+});
+
+it('un événement à plusieurs référents les présente tous et reconnaît chacun', async () => {
+  routes['/events/e1'] = { ...training, team_ids: ['t1'], referent_ids: ['a1', 'm1'] };
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  const referents = within(dialog).getByText('Référents').nextElementSibling!;
+  await waitFor(() => expect(referents).toHaveTextContent('Alix, Camille'));
+  expect(within(dialog).getByRole('button', { name: /Modifier|Proposer une modification/ })).toBeInTheDocument();
 });

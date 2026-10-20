@@ -32,7 +32,7 @@ beforeEach(() => {
     if (path === '/auth/me') return reply(admin);
     if (path === '/users') return reply([admin, bob, ana, cleo]);
     if (path === '/sections') return reply([{ id: 's1', name: 'Compétition' }]);
-    if (path === '/teams') return reply([{ id: 't1', name: 'Régionale', section_id: 's1', referent_id: 'a' }]);
+    if (path === '/teams') return reply([{ id: 't1', name: 'Régionale', section_id: 's1', referent_ids: ['a'] }]);
     if (path === '/positions') return reply([{ id: 'p1', name: 'Passeur' }, { id: 'p2', name: 'Libéro' }]);
     if (path === '/assignments') return reply(assignments);
     if (path === '/users/b/assignments') return reply([assignments[0]]);

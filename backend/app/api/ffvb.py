@@ -30,7 +30,6 @@ from app.persistence.models import (
     GymMapping,
     Gymnasium,
     Team,
-    User,
 )
 from app.services.events import lock_planning
 from app.services.ffvb import (
@@ -42,6 +41,7 @@ from app.services.ffvb import (
     resolve,
     sync_source,
 )
+from app.services.notifications import active_referents
 
 router = APIRouter(prefix="/ffvb", tags=["FFVB"])
 
@@ -64,7 +64,7 @@ def validate_source(
     elif body.club_code != config.club_code:
         raise HTTPException(409, "Le code du club est déjà configuré et ne peut pas être modifié")
     team = get(db, Team, body.team_id)
-    if body.enabled and (team.referent_id is None or not get(db, User, team.referent_id).active):
+    if body.enabled and not active_referents(db, team.referent_ids):
         raise HTTPException(422, "Configurer un référent actif sur cette équipe")
     left, right = body.season.split("/")
     if int(right) != int(left) + 1:

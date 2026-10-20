@@ -150,12 +150,13 @@ class GymView(SectionView):
 
 class TeamInput(NameInput):
     section_id: str
-    referent_id: str | None = None
+    # Référents de l’équipe, à égalité de droits ; vide : à désigner.
+    referent_ids: list[str] = Field(default_factory=list, max_length=10)
 
 
 class TeamView(SectionView):
     section_id: str
-    referent_id: str | None
+    referent_ids: list[str]
     ffvb_source_warning_ignored: bool
 
 
@@ -221,7 +222,7 @@ class EventInput(Interval):
     gymnasium_id: str | None = None
     location: str = Field(default="", max_length=200)
     courts: int = Field(ge=0, le=100)
-    referent_id: str
+    referent_ids: list[str] = Field(min_length=1, max_length=10)
     direct_edit: bool = False
     registration_section_ids: list[str] = Field(default_factory=list)
     registration_team_ids: list[str] = Field(default_factory=list)
@@ -238,7 +239,7 @@ class EventPatch(Input):
     starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime | None = None
     courts: int | None = Field(default=None, ge=0, le=100)
-    referent_id: str | None = None
+    referent_ids: list[str] | None = Field(default=None, min_length=1, max_length=10)
     direct_edit: bool | None = None
     cancelled: bool | None = None
     match_courts: int | None = Field(default=None, gt=0, le=100)
@@ -277,7 +278,7 @@ class EventView(View):
     starts_at: datetime
     ends_at: datetime
     courts: int
-    referent_id: str | None
+    referent_ids: list[str]
     direct_edit: bool
     cancelled: bool
     version: int

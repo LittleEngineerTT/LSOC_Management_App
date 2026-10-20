@@ -14,7 +14,7 @@ def test_preview_detects_club_team_from_calendar(admin: TestClient, monkeypatch:
     monkeypatch.setattr(ffvb, 'fetch', lambda *args: html)
     admin.put('/api/v1/ffvb/club', json={'club_code': '0926620'})
     section = admin.post('/api/v1/sections', json={'name': 'Compétition'}).json()['id']
-    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     result = admin.post('/api/v1/ffvb/sources/preview', json={'url': URL})
     assert result.status_code == 200, result.text
     body = result.json()

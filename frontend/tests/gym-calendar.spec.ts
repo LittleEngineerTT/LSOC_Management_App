@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', roles: ['member'], active: true, email: null };
-const base = { kind: 'training', gymnasium_id: 'g1', section_ids: [], location: '', starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', courts: 2, referent_id: 'm', direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
+const base = { kind: 'training', gymnasium_id: 'g1', section_ids: [], location: '', starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', courts: 2, referent_ids: ['m'], direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
 const events = [{ ...base, id: 'e1', title: 'Séance locale' }, { ...base, id: 'e2', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'match-1', starts_at: '2026-10-16T16:00:00Z', ends_at: '2026-10-16T20:00:00Z' }];
 async function prepare(page: Page) {
   const calls: URL[] = [];

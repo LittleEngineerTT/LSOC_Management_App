@@ -23,7 +23,7 @@ beforeEach(() => {
     const path = url.pathname.replace('/api/v1', '');
     if (path === '/auth/me') return reply(account);
     if (path === '/sections') return reply([{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }]);
-    if (path === '/teams') return reply([{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null }, { id: 't2', name: 'Régionale', section_id: 's2', referent_id: null }]);
+    if (path === '/teams') return reply([{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] }, { id: 't2', name: 'Régionale', section_id: 's2', referent_ids: [] }]);
     if (path === '/users') return reply([admin]);
     if (path === '/licenses/me') return reply({ status: 'payment_pending', coach_status: 'active', coach: account.id === 'm' });
     if (path === '/licenses/c' && init?.method === 'PUT') return reply(licenses[1]);

@@ -135,7 +135,7 @@ def test_coach_reads_only_the_licenses_of_his_teams(admin: TestClient, bucket: d
     assert carla.put('/api/v1/licenses/bob', json={'status': 'active', 'number': 'bob'}).status_code == 403
     # Le référent d’une équipe la voit aussi, sans y être rattaché comme coach.
     add_user('dave', ['member', 'coach'])
-    assert admin.put(f'/api/v1/teams/{team_l}', json={'name': 'Loisir 1', 'section_id': loisir, 'referent_id': 'dave'}).status_code == 200
+    assert admin.put(f'/api/v1/teams/{team_l}', json={'name': 'Loisir 1', 'section_id': loisir, 'referent_ids': ['dave']}).status_code == 200
     assert [item['user_id'] for item in login('dave').get('/api/v1/licenses').json()] == ['alice']
     # Un adhérent n’y a pas accès.
     assert login('alice').get('/api/v1/licenses').status_code == 403

@@ -9,7 +9,7 @@ def test_club_code_is_set_once_and_reused(admin: TestClient) -> None:
     assert admin.put('/api/v1/ffvb/club', json={'club_code': '0926620'}).status_code == 200
     assert admin.put('/api/v1/ffvb/club', json={'club_code': '9999999'}).status_code == 409
     section = admin.post('/api/v1/sections', json={'name': 'Compétition'}).json()['id']
-    team = admin.post('/api/v1/teams', json={'name': 'Équipe', 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': 'Équipe', 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     body = {'team_id': team, 'season': '2026/2027', 'entity': 'PTIDF92', 'pool': 'BRC', 'team_number': '6', 'team_name': 'LSO COLOMBES', 'club_code': '0926620', 'interval_days': 7}
     result = admin.post('/api/v1/ffvb/sources', json=body)
     assert result.status_code == 201, result.text
@@ -21,7 +21,7 @@ def test_club_code_is_set_once_and_reused(admin: TestClient) -> None:
 
 def test_days_are_validated_and_first_legacy_source_initializes_club(admin: TestClient) -> None:
     section = admin.post('/api/v1/sections', json={'name': 'Compétition'}).json()['id']
-    team = admin.post('/api/v1/teams', json={'name': 'Équipe', 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': 'Équipe', 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     body = {'team_id': team, 'season': '2026/2027', 'entity': 'PTIDF92', 'pool': 'BRC', 'team_number': '6', 'team_name': 'LSO COLOMBES', 'club_code': '0926620', 'interval_days': 0}
     assert admin.post('/api/v1/ffvb/sources', json=body).status_code == 422
     body['interval_days'] = 366
@@ -38,7 +38,7 @@ def test_multiple_legacy_clubs_can_be_administered_without_rewriting_their_codes
         db.add(Section(id='s', name='Legacy'))
         db.flush()
         for identifier, code in [('one', '0926620'), ('two', '9999999')]:
-            db.add(Team(id='team-' + identifier, name=identifier, section_id='s', referent_id='admin'))
+            db.add(Team(id='team-' + identifier, name=identifier, section_id='s', referent_ids=['admin']))
             db.flush()
             db.add(FFVBSource(id=identifier, team_id='team-' + identifier, season='2026/2027', entity='PTIDF92', pool='BRC', team_number='6', team_name=identifier, club_code=code))
     assert admin.get('/api/v1/ffvb/club').json()['club_code'] is None

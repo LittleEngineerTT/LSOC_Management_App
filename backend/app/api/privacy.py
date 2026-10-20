@@ -27,6 +27,7 @@ from app.persistence.models import (
     QuestionThread,
     Registration,
     User,
+    listed,
 )
 
 router = APIRouter(prefix="/me", tags=["Comptes"])
@@ -85,7 +86,7 @@ def export(db: DB, actor: Actor) -> dict[str, Any]:
             )
         ],
         "evenements_referent": [
-            plain(v) for v in db.scalars(select(Event).where(Event.referent_id == me))
+            plain(v) for v in db.scalars(select(Event).where(listed(Event.referent_ids, me)))
         ],
         "notifications": [
             plain(v) for v in db.scalars(select(Notification).where(Notification.user_id == me))

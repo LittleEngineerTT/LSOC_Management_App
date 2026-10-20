@@ -48,7 +48,7 @@ export function useMyEvents() {
       )
         reasons.push('open');
       if (isFollowed(follows, event)) reasons.push('followed');
-      if (event.referent_id === account.id) reasons.push('referent');
+      if (event.referent_ids.includes(account.id)) reasons.push('referent');
       if (event.section_ids.some((id) => sectionIds.has(id))) reasons.push('section');
       return { event, reasons };
     })

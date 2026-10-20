@@ -138,6 +138,12 @@ def decision_message(
         )
 
 
+def active_referents(db: Session, ids: list[str]) -> list[User]:
+    """Comptes actifs parmi des référents, dans l’ordre de la liste."""
+    users = {user.id: user for user in db.scalars(select(User).where(User.id.in_(ids)))}
+    return [users[i] for i in ids if i in users and users[i].active]
+
+
 def registered_users(db: Session, event: Event) -> set[str]:
     """Inscrits et demandes en attente : une demande refusée ne rend plus concerné."""
     return set(
@@ -172,7 +178,7 @@ def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> No
         else set()
     )
     registered = registered_users(db, event)
-    recipients = members | registered | ({event.referent_id} if event.referent_id else set())
+    recipients = members | registered | set(event.referent_ids)
     day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
     for user in db.scalars(select(User).where(User.id.in_(recipients))):
         notify(
@@ -182,17 +188,19 @@ def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> No
             "event_cancelled",
             f"Événement annulé : {event.title} du {day}",
             event.id,
-            user.followed_email or (user.id == event.referent_id and user.referent_email),
+            user.followed_email or (user.id in event.referent_ids and user.referent_email),
             body=f"Le gymnase est indisponible sur ce créneau ({block.title}).",
         )
 
 
 def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
     # Sans lien vers l’événement : la notification survit à sa suppression.
-    recipients = concerned(db, event) | ({event.referent_id} if event.referent_id else set())
+    recipients = concerned(db, event) | set(event.referent_ids)
     day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
     for user in db.scalars(select(User).where(User.id.in_(recipients - {actor_id}))):
-        email_wanted = user.followed_email or (user.id == event.referent_id and user.referent_email)
+        email_wanted = user.followed_email or (
+            user.id in event.referent_ids and user.referent_email
+        )
         notify(
             db,
             user,
@@ -221,7 +229,7 @@ def changed_recipients(db: Session, event: Event, actor_id: str | None) -> dict[
     followed |= registered_users(db, event)
     recipients: dict[str, bool] = {}
     for user in db.scalars(select(User).where(User.active.is_(True))):
-        is_ref = user.id == event.referent_id
+        is_ref = user.id in event.referent_ids
         is_admin = "admin" in user.roles and actor_id is not None and actor_id != user.id
         if user.id not in followed and not is_ref and not is_admin:
             continue

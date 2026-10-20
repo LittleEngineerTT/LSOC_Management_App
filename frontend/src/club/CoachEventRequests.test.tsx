@@ -26,7 +26,7 @@ const proposal = {
   starts_at: `${day}T16:00:00Z`,
   ends_at: `${day}T18:00:00Z`,
   courts: 0,
-  referent_id: 'coach',
+  referent_ids: ['coach'],
   direct_edit: false,
   registration_section_ids: [],
   registration_team_ids: ['t3'],
@@ -110,9 +110,9 @@ beforeEach(() => {
       { id: 's2', name: 'Compétition' },
     ],
     '/teams': [
-      { id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null },
-      { id: 't2', name: 'Loisir 2', section_id: 's1', referent_id: null },
-      { id: 't3', name: 'Compétition 1', section_id: 's2', referent_id: null },
+      { id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] },
+      { id: 't2', name: 'Loisir 2', section_id: 's1', referent_ids: [] },
+      { id: 't3', name: 'Compétition 1', section_id: 's2', referent_ids: [] },
     ],
     '/gymnasiums': [{ id: 'g1', name: 'Paré', capacity: 3 }],
     '/users': [coach, admin],
@@ -161,7 +161,7 @@ it('dépose une demande pour plusieurs équipes coachées, avec ouverture ciblé
   );
   // Directive du 11 octobre : un coach peut aussi proposer une récurrence.
   expect(screen.getByLabelText('Répéter chaque semaine')).not.toBeChecked();
-  expect(screen.queryByLabelText('Référent')).not.toBeInTheDocument();
+  expect(screen.queryByRole('group', { name: 'Référents' })).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/Forcer/)).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
   expect(await screen.findByText(/Indiquez le nombre maximal d’inscrits/)).toBeInTheDocument();
@@ -292,12 +292,12 @@ it('inclut les ouvertures de mes équipes sans ouvrir toute leur section dans mo
     { id: 'a1', user_id: 'coach', team_id: 't1', kind: 'player' },
   ];
   routes['/events'] = [
-    { ...event, referent_id: 'admin', section_ids: ['s2'], registration_team_ids: ['t1'] },
+    { ...event, referent_ids: ['admin'], section_ids: ['s2'], registration_team_ids: ['t1'] },
     {
       ...event,
       id: 'e2',
       title: 'Autre équipe uniquement',
-      referent_id: 'admin',
+      referent_ids: ['admin'],
       section_ids: ['s2'],
       registration_team_ids: ['t2'],
     },
@@ -305,7 +305,7 @@ it('inclut les ouvertures de mes équipes sans ouvrir toute leur section dans mo
       ...event,
       id: 'e3',
       title: 'Ouverture section',
-      referent_id: 'admin',
+      referent_ids: ['admin'],
       section_ids: ['s2'],
       registration_team_ids: [],
       registration_section_ids: ['s1'],
@@ -426,8 +426,8 @@ it('un adhérent référent d’une équipe, sans rôle coach, peut demander un 
   account = { ...coach, roles: ['member'] };
   routes['/users/coach/assignments'] = [{ id: 'a9', user_id: 'coach', team_id: 't1', kind: 'player' }];
   routes['/teams'] = [
-    { id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: null },
-    { id: 't2', name: 'Loisir 2', section_id: 's1', referent_id: 'coach' },
+    { id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] },
+    { id: 't2', name: 'Loisir 2', section_id: 's1', referent_ids: ['coach'] },
   ];
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));

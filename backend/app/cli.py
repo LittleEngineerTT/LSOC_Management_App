@@ -78,7 +78,7 @@ def main() -> None:
         gym = Gymnasium(name="Démonstration — Gymnase", capacity=3)
         db.add_all([section, gym])
         db.flush()
-        team = Team(name="LSO COLOMBES", section_id=section.id, referent_id=admin.id)
+        team = Team(name="LSO COLOMBES", section_id=section.id, referent_ids=[admin.id])
         db.add(team)
         db.flush()
         source = FFVBSource(
@@ -107,7 +107,7 @@ def main() -> None:
                 starts_at=start,
                 ends_at=start + timedelta(hours=2),
                 courts=2,
-                referent_id=admin.id,
+                referent_ids=[admin.id],
             ),
             admin,
         )

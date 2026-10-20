@@ -12,7 +12,7 @@ def setup_planning(admin: TestClient, capacity: int = 3) -> tuple[str, str]:
 
 
 def payload(section: str, gym: str | None, start: str = '2026-10-15T18:00:00+02:00', end: str = '2026-10-15T20:00:00+02:00', courts: int = 2, referent: str = 'admin') -> dict[str, object]:
-    return {'title': 'Entraînement', 'kind': 'training', 'section_ids': [section], 'gymnasium_id': gym, 'starts_at': start, 'ends_at': end, 'courts': courts, 'referent_id': referent}
+    return {'title': 'Entraînement', 'kind': 'training', 'section_ids': [section], 'gymnasium_id': gym, 'starts_at': start, 'ends_at': end, 'courts': courts, 'referent_ids': [referent]}
 
 
 def test_partial_overlap_adjacent_and_capacity_force(admin: TestClient) -> None:

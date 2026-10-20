@@ -15,7 +15,7 @@ def test_guest_reads_only_ffvb_matches_without_internal_fields(admin: TestClient
     assert events.status_code == 200, events.text
     assert events.json() and all(e['ffvb_match_id'] for e in events.json())
     assert local not in {e['id'] for e in events.json()}
-    assert not {'referent_id', 'description', 'registration_count', 'courts'} & set(events.json()[0])
+    assert not {'referent_ids', 'description', 'registration_count', 'courts'} & set(events.json()[0])
     match = events.json()[0]['id']
     assert guest.get(f'/api/v1/public/events/{match}').status_code == 200
     # Un événement local n’est pas plus visible par son identifiant.

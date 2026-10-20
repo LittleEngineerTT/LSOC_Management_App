@@ -27,7 +27,8 @@ export interface Gymnasium extends Section {
 }
 export interface Team extends Section {
   section_id: string;
-  referent_id: string | null;
+  /** Référents de l’équipe, à égalité de droits ; vide : à désigner. */
+  referent_ids: string[];
   ffvb_source_warning_ignored?: boolean;
 }
 export interface Assignment {
@@ -130,7 +131,8 @@ export interface Event {
   starts_at: string;
   ends_at: string;
   courts: number;
-  referent_id: string | null;
+  /** Référents de l’événement, à égalité de droits. */
+  referent_ids: string[];
   direct_edit: boolean;
   cancelled: boolean;
   version: number;
@@ -212,7 +214,7 @@ export interface EventProposal extends Record<string, unknown> {
   starts_at: string;
   ends_at: string;
   courts: number;
-  referent_id: string;
+  referent_ids: string[];
   direct_edit: boolean;
   registration_section_ids: string[];
   registration_team_ids: string[];

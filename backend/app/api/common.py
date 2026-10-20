@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import digest, now
 from app.persistence.database import SessionFactory
-from app.persistence.models import Assignment, LoginSession, Team, User
+from app.persistence.models import Assignment, LoginSession, Team, User, listed
 
 session_cookie = APIKeyCookie(name="lsoc_session", auto_error=False)
 
@@ -116,7 +116,7 @@ def coached_teams(db: Session, actor: User) -> set[str] | None:
         return None
     if "coach" not in actor.roles:
         raise HTTPException(403, "Accès réservé aux administrateurs et aux coachs")
-    referent = db.scalars(select(Team.id).where(Team.referent_id == actor.id))
+    referent = db.scalars(select(Team.id).where(listed(Team.referent_ids, actor.id)))
     coached = db.scalars(
         select(Assignment.team_id).where(Assignment.user_id == actor.id, Assignment.kind == "coach")
     )

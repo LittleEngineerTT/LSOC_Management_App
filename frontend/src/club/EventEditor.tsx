@@ -59,7 +59,7 @@ export function EventEditor({
   // Événement sans section ni équipe organisatrice : enregistré après confirmation.
   const [unorganized, setUnorganized] = useState<FormValues | null>(null);
   const ffvb = !!event?.ffvb_match_id;
-  const direct = admin || (!!event && event.referent_id === account.id && event.direct_edit);
+  const direct = admin || (!!event && event.referent_ids.includes(account.id) && event.direct_edit);
   const gymOptions = gymnasiums.map((gym) => ({
     value: gym.id,
     label: `${gym.name} (${gym.capacity} terrain${gym.capacity > 1 ? 's' : ''})`,
@@ -163,19 +163,19 @@ export function EventEditor({
     ...(admin
       ? [
           {
-            name: 'referent_id',
-            label: 'Référent',
-            type: 'select' as const,
-            required: true,
+            name: 'referent_ids',
+            label: 'Référents',
+            type: 'choices' as const,
+            hint: 'Au moins un ; chaque référent a les mêmes droits sur l’événement.',
             options: users
               .filter((user) => user.active)
               .map((user) => ({ value: user.id, label: user.first_name })),
           },
           {
             name: 'direct_edit',
-            label: 'Le référent peut modifier sans validation',
+            label: 'Les référents peuvent modifier sans validation',
             type: 'checkbox' as const,
-            hint: 'Ce droit est retiré automatiquement lors d’un changement de référent, sauf s’il est coché à nouveau.',
+            hint: 'Ce droit est retiré automatiquement lors d’un changement de référents, sauf s’il est coché à nouveau.',
           },
           {
             name: 'registration_section_ids',
@@ -214,7 +214,7 @@ export function EventEditor({
         after_minutes: String(event.after_minutes),
         courts: String(event.courts),
         match_courts: String(event.match_courts),
-        referent_id: event.referent_id ?? '',
+        referent_ids: event.referent_ids,
         direct_edit: event.direct_edit,
         cancelled: event.cancelled,
         registration_section_ids: event.registration_section_ids,
@@ -232,7 +232,7 @@ export function EventEditor({
         location: '',
         ...scheduleInitial(defaultDay),
         courts: '1',
-        referent_id: account.id,
+        referent_ids: [account.id],
         direct_edit: false,
         registration_section_ids: [],
         registration_team_ids: [],
@@ -269,8 +269,8 @@ export function EventEditor({
       if (fields.some((field) => field.name === name) && num(values, name) !== original[name])
         result[name] = num(values, name);
     if (admin) {
-      if (str(values, 'referent_id') !== (original.referent_id ?? ''))
-        result.referent_id = str(values, 'referent_id');
+      if (!sameList(choices(values, 'referent_ids'), original.referent_ids))
+        result.referent_ids = choices(values, 'referent_ids');
       if (checked(values, 'direct_edit') !== original.direct_edit)
         result.direct_edit = checked(values, 'direct_edit');
       if (!sameList(choices(values, 'registration_section_ids'), original.registration_section_ids))
@@ -290,6 +290,8 @@ export function EventEditor({
     const open = openToRegistrations(values);
     if (admin && open && registrationLimit(values) === null)
       throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
+    if (admin && !choices(values, 'referent_ids').length)
+      throw new Error('Choisissez au moins un référent.');
     // Seul l’administrateur choisit les organisateurs ; les autres ne les modifient pas.
     // Un événement déjà enregistré sans organisateur ne redemande pas la confirmation.
     const already = !!event && !event.section_ids.length && !event.team_ids?.length;
@@ -322,7 +324,7 @@ export function EventEditor({
           starts_at: when.starts_at,
           ends_at: when.ends_at,
           courts: gym ? num(values, 'courts') : 0,
-          referent_id: str(values, 'referent_id'),
+          referent_ids: choices(values, 'referent_ids'),
           direct_edit: checked(values, 'direct_edit'),
           registration_section_ids: choices(values, 'registration_section_ids'),
           registration_team_ids: choices(values, 'registration_team_ids'),

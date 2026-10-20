@@ -158,7 +158,7 @@ export function SourcesPanel({
     const team = catalog.teams.find((team) => team.id === str(values, 'team_id'));
     if (
       checked(values, 'enabled') &&
-      !catalog.users.find((user) => user.id === team?.referent_id)?.active
+      !catalog.users.some((user) => team?.referent_ids.includes(user.id) && user.active)
     )
       throw new Error('Attribuez d’abord un référent actif à cette équipe.');
     const body = {
@@ -242,7 +242,7 @@ export function SourcesPanel({
             if (
               !value.warning &&
               candidate?.team_id &&
-              catalog.users.find((user) => user.id === team?.referent_id)?.active
+              catalog.users.some((user) => team?.referent_ids.includes(user.id) && user.active)
             ) {
               try {
                 await save(draft, signal, null);

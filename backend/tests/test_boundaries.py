@@ -40,12 +40,12 @@ def test_user_delete_scrubs_history_and_private_questions(admin: TestClient) -> 
     assert admin.delete('/api/v1/users/member').status_code==204
     assert admin.get(f'/api/v1/questions/{thread}/messages').status_code==404
     event_data=admin.get(f'/api/v1/events/{event}').json()
-    assert event_data['referent_id'] is None and event_data['direct_edit'] is False
+    assert event_data['referent_ids'] == [] and event_data['direct_edit'] is False
     with SessionFactory() as db:
         revisions=list(db.scalars(select(EventRevision)))
         own=[r for r in revisions if r.actor_name=='member']
         assert len(own)==1 and own[0].actor_id is None
-        assert all(r.before.get('referent_id') is None and r.after.get('referent_id') is None for r in revisions)
+        assert all(not r.before.get('referent_ids') and not r.after.get('referent_ids') for r in revisions)
 
 
 def test_invitation_concurrent_single_use(admin: TestClient) -> None:

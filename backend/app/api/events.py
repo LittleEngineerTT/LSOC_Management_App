@@ -244,7 +244,7 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> Change
     resolve_admin_alerts(db, f"request:{request.id}")
     decision_message(
         db,
-        {event.referent_id, request.actor_id},
+        {*event.referent_ids, request.actor_id},
         f"request-decided:{request.id}",
         f"Modification {'acceptée' if body.accept else 'refusée'} : {event.title}",
         body.reason,
@@ -283,7 +283,7 @@ def remove(
         )
     is_admin = "admin" in actor.roles
     if not is_admin and (
-        "coach" not in actor.roles or any(target.referent_id != actor.id for target in targets)
+        "coach" not in actor.roles or any(actor.id not in target.referent_ids for target in targets)
     ):
         raise HTTPException(
             403, "Suppression réservée aux administrateurs et au coach référent de l’événement"

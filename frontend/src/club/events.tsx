@@ -81,8 +81,8 @@ export function EventRow({ event }: { event: Event }) {
           {event.cancelled && <Badge tone="danger">Annulé</Badge>}
           <EventOrigin event={event} />
           {!guest && event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
-          {!guest && event.referent_id === account.id && <Badge tone="good">Référent</Badge>}
-          {!guest && !event.referent_id && <Badge tone="warning">Sans référent</Badge>}
+          {!guest && event.referent_ids.includes(account.id) && <Badge tone="good">Référent</Badge>}
+          {!guest && !event.referent_ids.length && <Badge tone="warning">Sans référent</Badge>}
           {isFollowed(follows, event) && <Badge>Suivi</Badge>}
           {registrationOpen(event) && (
             <Badge tone={atLimit(event) ? 'warning' : 'good'}>

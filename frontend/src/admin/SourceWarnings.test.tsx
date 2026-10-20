@@ -9,7 +9,7 @@ it('affiche les équipes sans source et mémorise le choix d’ignorer ou réact
   let ignored = false;
   const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const path = new URL(String(input), 'http://localhost').pathname;
-    const team = { id: 't', name: 'Loisir A', section_id: 's', referent_id: null, ffvb_source_warning_ignored: ignored };
+    const team = { id: 't', name: 'Loisir A', section_id: 's', referent_ids: [], ffvb_source_warning_ignored: ignored };
     let value: unknown = [];
     if (path.endsWith('/auth/me')) value = { id: 'a', first_name: 'Admin', category: 'adult', roles: ['admin'], active: true };
     if (path.endsWith('/users')) value = [{ id: 'a', first_name: 'Admin', category: 'adult', roles: ['admin'], active: true }];

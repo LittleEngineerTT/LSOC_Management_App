@@ -175,7 +175,7 @@ export function GuestClubProvider({ children }: { children: ReactNode }) {
       return {
         sections,
         // Ni référent ni capacité ne sont publics ; aucune page invité ne les lit.
-        teams: teams.map((team) => ({ ...team, referent_id: null })),
+        teams: teams.map((team) => ({ ...team, referent_ids: [] })),
         gymnasiums: gymnasiums.map((gym) => ({ ...gym, capacity: 0 })),
       };
     },
@@ -287,4 +287,19 @@ export function sectionGroups(
       .filter((team) => team.section_id === section.id)
       .map((team) => ({ value: team.id, label: team.name })),
   }));
+}
+
+/** Prénoms de plusieurs comptes (référents…), séparés par des virgules. */
+export function PersonNames({ ids, empty }: { ids: string[]; empty: string }) {
+  if (!ids.length) return <>{empty}</>;
+  return (
+    <>
+      {ids.map((id, index) => (
+        <span key={id}>
+          {index > 0 && ', '}
+          <PersonName id={id} />
+        </span>
+      ))}
+    </>
+  );
 }

@@ -51,11 +51,11 @@ def test_license_number_becomes_the_id_everywhere(admin: TestClient) -> None:
     assert licensed.json()['user_id'] == 'LIC-2026-42'
     assert admin.get(f'/api/v1/users/{identifier}').status_code == 404
     assert admin.get('/api/v1/users/LIC-2026-42').json()['first_name'] == identifier
-    assert admin.get(f'/api/v1/events/{event}').json()['referent_id'] == 'LIC-2026-42'
+    assert admin.get(f'/api/v1/events/{event}').json()['referent_ids'] == ['LIC-2026-42']
     with SessionFactory() as db:
         assert db.get(License, 'LIC-2026-42') is not None
         revisions = list(db.scalars(select(EventRevision).where(EventRevision.event_id == event)))
-        assert all(r.after.get('referent_id') == 'LIC-2026-42' for r in revisions)
+        assert all(r.after.get('referent_ids') == ['LIC-2026-42'] for r in revisions)
     # Un numéro déjà porté par un autre compte est refusé.
     other = create(admin, 'Alex', 'Petit')
     assert admin.put(f'/api/v1/licenses/{other}', json={'status': 'in_progress', 'number': 'LIC-2026-42'}).status_code == 409

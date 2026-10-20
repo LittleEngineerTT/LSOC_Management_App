@@ -15,7 +15,7 @@ DEPARTMENTAL = (FIXTURES / 'ffvb-original.html').read_bytes()
 
 
 def source(admin: TestClient, section: str, team_name: str, entity: str, pool: str) -> str:
-    team = admin.post('/api/v1/teams', json={'name': team_name, 'section_id': section, 'referent_id': 'admin'}).json()['id']
+    team = admin.post('/api/v1/teams', json={'name': team_name, 'section_id': section, 'referent_ids': ['admin']}).json()['id']
     response = admin.post('/api/v1/ffvb/sources', json={'team_id': team, 'season': '2026/2027', 'entity': entity, 'pool': pool, 'team_number': '1', 'team_name': team_name, 'club_code': '0926620'})
     assert response.status_code == 201, response.text
     return str(response.json()['id'])

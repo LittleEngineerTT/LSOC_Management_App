@@ -31,7 +31,7 @@ beforeEach(() => {
     const path = url.pathname.replace('/api/v1', '');
     if (path === '/auth/me') return reply(account);
     if (path === '/sections') return reply([{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }]);
-    if (path === '/teams') return reply([{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_id: 'a' }, { id: 't2', name: 'Régionale', section_id: 's2', referent_id: null }]);
+    if (path === '/teams') return reply([{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a'] }, { id: 't2', name: 'Régionale', section_id: 's2', referent_ids: [] }]);
     // Le serveur limite la liste d’un coach aux membres de ses équipes.
     if (path === '/users' && account === coach) return reply([{ ...admin, id: 'b', first_name: 'Bob', roles: ['member'] }, { ...coach }]);
     if (path === '/assignments' && account === coach) return reply([{ id: 'x2', user_id: 'b', team_id: 't2', kind: 'player' }, { id: 'x3', user_id: 'c', team_id: 't2', kind: 'coach' }]);
@@ -103,7 +103,7 @@ it('donne au coach une administration limitée, en lecture seule', async () => {
   await userEvent.click(screen.getByRole('link', { name: 'Sections et équipes' }));
   await userEvent.click(await screen.findByText('Loisir'));
   expect(screen.getByRole('heading', { name: 'Loisir 1' })).toBeVisible();
-  expect(screen.getByText('Référent : Admin')).toBeInTheDocument();
+  expect(screen.getByText('Référents : Admin')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /Ajouter|Modifier|Supprimer/ })).not.toBeInTheDocument();
 });
 

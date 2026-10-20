@@ -6,7 +6,7 @@ import { AuthApp } from '../auth/AuthApp';
 import { today, dayLabel, addDays } from './calendar';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', active: true, roles: ['member'], email: null };
-const base = { section_ids: [], gymnasium_id: null, location: 'Paré', courts: 1, referent_id: 'm', registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false };
+const base = { section_ids: [], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false };
 const events = [
   { ...base, id: 'local', title: 'Entraînement local', kind: 'training', ffvb_match_id: null },
   { ...base, id: 'ffvb', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'match-1' },

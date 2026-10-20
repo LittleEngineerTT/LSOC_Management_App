@@ -6,7 +6,7 @@ import { AuthApp } from '../auth/AuthApp';
 import { splitGymIntervals } from './gymCalendar';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', active: true, roles: ['member'], email: null };
-const base = { gymnasium_id: 'g1', kind: 'training', section_ids: [], location: '', courts: 2, referent_id: 'm', cancelled: false, registration_section_ids: [], registration_count: 0, registration_limit: null, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z' };
+const base = { gymnasium_id: 'g1', kind: 'training', section_ids: [], location: '', courts: 2, referent_ids: ['m'], cancelled: false, registration_section_ids: [], registration_count: 0, registration_limit: null, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z' };
 const events = [{ ...base, id: 'e1', title: 'Séance locale', ffvb_match_id: null }, { ...base, id: 'e2', title: 'Match fédéral', ffvb_match_id: 'ffvb' }];
 const blocks = [{ id: 'b1', gymnasium_id: 'g1', title: 'Travaux', courts: 1, starts_at: '2026-10-13T22:00:00Z', ends_at: '2026-10-15T22:00:00Z' }];
 afterEach(() => vi.unstubAllGlobals());

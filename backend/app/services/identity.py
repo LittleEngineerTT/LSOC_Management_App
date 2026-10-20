@@ -14,12 +14,14 @@ from app.persistence.models import (
     Assignment,
     ChangeRequest,
     CoachEventRequest,
+    Event,
     EventRevision,
     FFVBMatchState,
     License,
     Section,
     Team,
     User,
+    listed,
 )
 from app.services.notifications import admins
 
@@ -70,9 +72,11 @@ def desired_id(db: Session, user: User) -> str:
 
 
 def replace_in(values: dict[str, Any], old: str, new: str) -> dict[str, Any] | None:
-    if values.get("referent_id") != old:
+    if old not in values.get("referent_ids", []):
         return None
-    return values | {"referent_id": new}
+    return values | {
+        "referent_ids": [new if item == old else item for item in values["referent_ids"]]
+    }
 
 
 def rename_user(db: Session, user: User, new_id: str) -> User:
@@ -99,6 +103,11 @@ def rename_user(db: Session, user: User, new_id: str) -> User:
         changed = replace_in(dict(request.proposal), old, new_id)
         if changed is not None:
             request.proposal = changed
+    # Les référents sont des listes JSON, hors des clés étrangères.
+    for team in db.scalars(select(Team).where(listed(Team.referent_ids, old))):
+        team.referent_ids = [new_id if item == old else item for item in team.referent_ids]
+    for event in db.scalars(select(Event).where(listed(Event.referent_ids, old))):
+        event.referent_ids = [new_id if item == old else item for item in event.referent_ids]
     for state in db.scalars(select(FFVBMatchState)):
         if old in state.protected.values():
             state.protected = {

@@ -25,7 +25,7 @@ type Row = Record<string, unknown>;
 async function prepare(page: Page) {
   const calls: { path: string; method: string; body: Row; query: URLSearchParams }[] = [];
   const account = { id: 'admin', username: 'admin', first_name: 'Admin', roles: ['admin'], active: true, email: null };
-  const base = { section_ids: ['s'], gymnasium_id: 'g', location: '', courts: 1, referent_id: 'admin', direct_edit: false, cancelled: false, version: 1, registration_section_ids: [], registration_team_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z' };
+  const base = { section_ids: ['s'], gymnasium_id: 'g', location: '', courts: 1, referent_ids: ['admin'], direct_edit: false, cancelled: false, version: 1, registration_section_ids: [], registration_team_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z' };
   const events = [
     { ...base, id: 'local', title: 'Entraînement local', kind: 'training', ffvb_match_id: null },
     { ...base, id: 'ffvb', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'm', kickoff_at: '2026-10-14T17:00:00Z' },

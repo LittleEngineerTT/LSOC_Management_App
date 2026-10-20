@@ -23,7 +23,7 @@ beforeEach(() => {
     const path = new URL(String(input), 'http://localhost').pathname;
     if (path.endsWith('/auth/me')) return reply(admin);
     if (path.endsWith('/users')) return reply([admin]);
-    if (path.endsWith('/teams')) return reply([{ id: 't', name: 'Seniors M1', section_id: 's', referent_id: 'a' }]);
+    if (path.endsWith('/teams')) return reply([{ id: 't', name: 'Seniors M1', section_id: 's', referent_ids: ['a'] }]);
     if (path.endsWith('/sections')) return reply([{ id: 's', name: 'Seniors' }]);
     if (path.endsWith('/club')) { if (init?.method === 'PUT') clubCode = '0926620'; return reply({ club_code: clubCode }); }
     if (path.endsWith('/preview')) return reply({ season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', club_code: clubCode, candidates: [{ team_name: 'LSO COLOMBES', team_number: '6', team_id: linked ? 't' : null }], warning: null });

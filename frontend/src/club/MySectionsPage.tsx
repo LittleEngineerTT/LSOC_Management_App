@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Badge, Empty, LoadState, PanelHeading, playerDetails } from '../admin/ui';
 import { dayLabel, horizonLabel, parisDay, timeRange } from './calendar';
-import { PersonName, useClub, useMySections } from './context';
+import { PersonNames, useClub, useMySections } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
@@ -52,8 +52,8 @@ export function MySectionsPage() {
                     {playerDetails(assignment, positions)}
                     <span className="admin-hint">
                       {' '}
-                      Référent de l’équipe :{' '}
-                      {team?.referent_id ? <PersonName id={team.referent_id} /> : 'à désigner'}
+                      Référents de l’équipe :{' '}
+                      <PersonNames ids={team?.referent_ids ?? []} empty="à désigner" />
                     </span>
                   </li>
                 ))}

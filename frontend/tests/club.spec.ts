@@ -14,10 +14,10 @@ function at(offset: number, time: string) {
   date.setUTCDate(date.getUTCDate() + offset);
   return new Date(`${date.toISOString().slice(0, 10)}T${time}:00+01:00`).toISOString();
 }
-const base = { section_ids: ['section-1'], location: '', referent_id: 'member-1', direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
+const base = { section_ids: ['section-1'], location: '', referent_ids: ['member-1'], direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
 const events: Row[] = [
   { ...base, id: 'event-1', title: 'Entraînement loisir du mercredi soir', kind: 'training', gymnasium_id: 'gym-1', starts_at: at(2, '19:00'), ends_at: at(2, '21:00'), courts: 2, series_id: 'series-1', registration_section_ids: ['section-1'], registration_limit: 12, registration_count: 5 },
-  { ...base, id: 'event-2', title: 'LSO COLOMBES / AS SP BOURG LA REINE 2', kind: 'match', gymnasium_id: 'gym-1', starts_at: at(4, '19:15'), ends_at: at(4, '23:00'), courts: 3, ffvb_match_id: 'match-1', kickoff_at: at(4, '20:30'), referent_id: 'admin-1' },
+  { ...base, id: 'event-2', title: 'LSO COLOMBES / AS SP BOURG LA REINE 2', kind: 'match', gymnasium_id: 'gym-1', starts_at: at(4, '19:15'), ends_at: at(4, '23:00'), courts: 3, ffvb_match_id: 'match-1', kickoff_at: at(4, '20:30'), referent_ids: ['admin-1'] },
 ];
 
 async function prepare(page: Page) {
@@ -39,7 +39,7 @@ async function prepare(page: Page) {
     const data: Record<string, unknown> = {
       '/auth/me': account,
       '/sections': [{ id: 'section-1', name: 'Loisir mixte' }],
-      '/teams': [{ id: 'team-1', name: 'Loisir 1', section_id: 'section-1', referent_id: 'admin-1' }],
+      '/teams': [{ id: 'team-1', name: 'Loisir 1', section_id: 'section-1', referent_ids: ['admin-1'] }],
       '/gymnasiums': [{ id: 'gym-1', name: 'Gymnase Ambroise Paré', capacity: 3 }, { id: 'gym-2', name: 'Gymnase Jules Ladoumègue', capacity: 2 }],
       '/users/member-1/assignments': [{ id: 'assignment-1', user_id: 'member-1', team_id: 'team-1', kind: 'player' }],
       '/profiles/admin-1': { id: 'admin-1', first_name: 'Alix', category: 'adult' },

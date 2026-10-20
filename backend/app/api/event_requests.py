@@ -51,7 +51,7 @@ def coach_team(db: Session, actor: User, team_id: str) -> Team:
             Assignment.kind == "coach",
         )
     )
-    if team.referent_id != actor.id and not coaching:
+    if actor.id not in team.referent_ids and not coaching:
         raise HTTPException(
             403, "Demande réservée aux équipes dont vous êtes référent ou que vous entraînez"
         )
@@ -105,7 +105,7 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
         **body.model_dump(exclude={"team_id", "team_ids", "note", "until", "weekdays"}),
         team_ids=team_ids,
         section_ids=[team.section_id],
-        referent_id=actor.id,
+        referent_ids=[actor.id],
         direct_edit=False,
     )
     # Valider les références et l’ouverture sans insérer d’événement ni réserver de terrain.
@@ -218,7 +218,7 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
                 "section_ids": [team.section_id],
                 # Une demande antérieure aux équipes multiples n’a que son équipe principale.
                 "team_ids": value.proposal.get("team_ids") or [team.id],
-                "referent_id": requester.id,
+                "referent_ids": [requester.id],
                 "direct_edit": False,
             }
         )
@@ -243,10 +243,10 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
     title = f"Demande {'acceptée' if body.accept else 'refusée'} : {value.proposal['title']}"
     resolve_admin_alerts(db, f"event-request:{value.id}")
     # Le demandeur est le référent proposé de l’événement ; la décision va dans sa messagerie.
-    referent = value.proposal.get("referent_id")
+    referents = [str(item) for item in value.proposal.get("referent_ids") or []]
     decision_message(
         db,
-        {value.actor_id, str(referent) if referent else None},
+        {value.actor_id, *referents},
         f"event-request-decided:{value.id}",
         title,
         body.reason,

@@ -95,9 +95,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const unknown = [
           ...new Set(
             teams.flatMap((team) =>
-              team.referent_id && !users.some((user) => user.id === team.referent_id)
-                ? [team.referent_id]
-                : [],
+              team.referent_ids.filter((id) => !users.some((user) => user.id === id)),
             ),
           ),
         ];
@@ -119,7 +117,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         const scope = teams
           .filter(
             (team) =>
-              team.referent_id === accountId ||
+              team.referent_ids.includes(accountId) ||
               mine.some((item) => item.team_id === team.id && item.kind === 'coach'),
           )
           .map((team) => team.id);

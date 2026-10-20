@@ -15,7 +15,7 @@ from test_worker import Inbox
 
 def test_worker_source_failure_does_not_roll_back_other_sources(admin: TestClient, monkeypatch) -> None:
     bad,section,_=configure(admin)
-    team=admin.post('/api/v1/teams',json={'name':'Second Team','section_id':section,'referent_id':'admin'}).json()['id']
+    team=admin.post('/api/v1/teams',json={'name':'Second Team','section_id':section,'referent_ids': ['admin']}).json()['id']
     good=admin.post('/api/v1/ffvb/sources',json={'team_id':team,'season':'2026/2027','entity':'PTIDF92','pool':'BRC','team_number':'6','team_name':'LSO COLOMBES','club_code':'0926620'}).json()['id']
     original=worker.sync_source
     def synchronize(db,source,client):

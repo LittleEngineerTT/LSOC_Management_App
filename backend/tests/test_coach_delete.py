@@ -25,7 +25,7 @@ def test_coach_deletes_following_occurrences_only_if_referent_of_each(admin: Tes
     body = payload(section, gym, referent='coach')
     events = admin.post('/api/v1/series', json={'event': body, 'until': '2026-10-29'}).json()
     assert len(events) == 3
-    taken = admin.patch(f"/api/v1/events/{events[2]['id']}", json={'base_version': 1, 'changes': {'referent_id': 'admin'}})
+    taken = admin.patch(f"/api/v1/events/{events[2]['id']}", json={'base_version': 1, 'changes': {'referent_ids': ['admin']}})
     assert taken.status_code == 200
     coach = login('coach')
     assert coach.delete(f"/api/v1/events/{events[0]['id']}", params={'scope': 'following'}).status_code == 403

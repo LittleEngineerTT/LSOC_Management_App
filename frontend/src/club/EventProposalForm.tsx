@@ -10,7 +10,7 @@ export function useCoachedTeams() {
   const coach = account.roles.includes('coach');
   return teams.filter(
     (team) =>
-      team.referent_id === account.id ||
+      team.referent_ids.includes(account.id) ||
       (coach &&
         assignments.some(
           (assignment) =>

@@ -38,6 +38,7 @@ from app.persistence.models import (
     Position,
     Team,
     User,
+    listed,
 )
 from app.services.identity import alert_duplicates, rekey
 from app.services.notifications import admins, notify
@@ -151,6 +152,10 @@ def delete_user(user_id: str, db: DB, actor: Admin) -> None:
     erase_account(db, get(db, User, user_id))
 
 
+def without(ids: list[str], user_id: str) -> list[str]:
+    return [item for item in ids if item != user_id]
+
+
 def erase_account(db: Session, user: User) -> None:
     """Efface un compte et ses traces : par un administrateur, par la personne ou à expiration."""
     user_id = user.id
@@ -175,15 +180,17 @@ def erase_account(db: Session, user: User) -> None:
     for revision in db.scalars(select(EventRevision)):
         for field in ("before", "after"):
             values = dict(getattr(revision, field))
-            if values.get("referent_id") == user_id:
-                values["referent_id"] = None
+            if user_id in values.get("referent_ids", []):
+                values["referent_ids"] = without(values["referent_ids"], user_id)
                 setattr(revision, field, values)
     for change in db.scalars(select(ChangeRequest)):
         if change.actor_id == user_id and change.status == "pending":
             change.status = "withdrawn"
-        if change.changes.get("referent_id") == user_id:
+        if user_id in change.changes.get("referent_ids", []):
             values = dict(change.changes)
-            values.pop("referent_id")
+            remaining = without(values.pop("referent_ids"), user_id)
+            if remaining:
+                values["referent_ids"] = remaining
             change.changes = values
             if change.status == "pending":
                 change.status = "withdrawn"
@@ -193,7 +200,7 @@ def erase_account(db: Session, user: User) -> None:
             request.note = ""
             request.decision = ""
             values = dict(request.proposal)
-            values["referent_id"] = None
+            values["referent_ids"] = without(values.get("referent_ids", []), user_id)
             request.proposal = values
             if request.status == "pending":
                 request.status = "withdrawn"
@@ -204,10 +211,12 @@ def erase_account(db: Session, user: User) -> None:
         state.protected = {
             key: None if value == user_id else value for key, value in state.protected.items()
         }
-    for event in db.scalars(select(Event).where(Event.referent_id == user_id)):
-        event.referent_id = None
-        event.direct_edit = False
+    for event in db.scalars(select(Event).where(listed(Event.referent_ids, user_id))):
+        event.referent_ids = without(event.referent_ids, user_id)
         event.version += 1
+        if event.referent_ids:
+            continue
+        event.direct_edit = False
         admins(
             db,
             f"orphan:{event.id}:{event.version}",
@@ -215,8 +224,10 @@ def erase_account(db: Session, user: User) -> None:
             f"Référent à réattribuer : {event.title}",
             event.id,
         )
-    for team in db.scalars(select(Team).where(Team.referent_id == user_id)):
-        team.referent_id = None
+    for team in db.scalars(select(Team).where(listed(Team.referent_ids, user_id))):
+        team.referent_ids = without(team.referent_ids, user_id)
+        if team.referent_ids:
+            continue
         admins(
             db,
             f"team-orphan:{team.id}:{issue_marker()}",

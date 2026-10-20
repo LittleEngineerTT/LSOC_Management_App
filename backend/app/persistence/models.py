@@ -14,11 +14,20 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    cast,
     func,
     select,
     text,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, column_property, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    InstrumentedAttribute,
+    Mapped,
+    column_property,
+    mapped_column,
+)
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.security import now
 
@@ -190,9 +199,8 @@ class Team(Identity, Base):
     __tablename__ = "teams"
     name: Mapped[str] = mapped_column(String(120))
     section_id: Mapped[str] = mapped_column(ForeignKey("sections.id"))
-    referent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
-    )
+    # Référents de l’équipe, à égalité de droits ; liste vide : à désigner.
+    referent_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     ffvb_source_warning_ignored: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false"
     )
@@ -304,9 +312,8 @@ class Event(Identity, Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     courts: Mapped[int] = mapped_column(Integer)
-    referent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"), index=True
-    )
+    # Référents de l’événement, à égalité de droits.
+    referent_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     direct_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -545,3 +552,8 @@ class ClubSettings(Base):
     club_code: Mapped[str | None] = mapped_column(String(30))
     # Dernière remise à zéro des licences (1er août) : chaque saison se refait.
     licenses_reset_on: Mapped[date | None] = mapped_column(Date)
+
+
+def listed(column: InstrumentedAttribute[list[str]], value: str) -> ColumnElement[bool]:
+    """Liste JSON (référents, sections…) qui contient `value`."""
+    return cast(column, JSONB).contains([value])

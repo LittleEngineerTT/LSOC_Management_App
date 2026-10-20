@@ -96,5 +96,5 @@ def test_coach_can_request_a_recurring_event(admin: TestClient) -> None:
     assert decided.status_code == 200, decided.text
     events = admin.get('/api/v1/events').json()
     assert [e['starts_at'][:10] for e in events] == ['2026-10-13', '2026-10-15', '2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29']
-    assert len({e['series_id'] for e in events}) == 1 and events[0]['referent_id'] == 'coach'
+    assert len({e['series_id'] for e in events}) == 1 and events[0]['referent_ids'] == ['coach']
     assert decided.json()['event_id'] == events[0]['id']

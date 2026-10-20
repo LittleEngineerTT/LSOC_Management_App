@@ -60,7 +60,7 @@ def test_coach_proposal_is_private_and_creates_no_event(admin: TestClient) -> No
     request = request_event(coach, team, gym)
     assert request["status"] == "pending" and request["event_id"] is None
     assert request["proposal"]["section_ids"] == [section]
-    assert request["proposal"]["referent_id"] == "coach"
+    assert request["proposal"]["referent_ids"] == ["coach"]
     assert request["proposal"]["direct_edit"] is False
     assert request["note"] == "Pour préparer le tournoi"
     assert admin.get("/api/v1/events").json() == []
@@ -84,7 +84,7 @@ def test_requires_coach_assignment_and_forbids_privileged_fields(admin: TestClie
     for field, value in [
         ("force", True),
         ("section_ids", [section]),
-        ("referent_id", "admin"),
+        ("referent_ids", ["admin"]),
         ("direct_edit", True),
         ("series_id", "series"),
     ]:
@@ -120,7 +120,7 @@ def test_acceptance_is_admin_only_and_single_under_concurrency(admin: TestClient
     assert accepted["status"] == "accepted" and accepted["decision"] == "Validé"
     assert accepted["decider_name"] == "Admin" and accepted["decided_at"] is not None
     event = admin.get(f"/api/v1/events/{accepted['event_id']}").json()
-    assert event["section_ids"] == [section] and event["referent_id"] == "coach"
+    assert event["section_ids"] == [section] and event["referent_ids"] == ["coach"]
     assert event["direct_edit"] is False and event["series_id"] is None
     assert len(admin.get("/api/v1/events").json()) == 1
     assert coach.get("/api/v1/event-requests").json() == []
@@ -310,11 +310,11 @@ def test_delete_account_scrubs_proposals_notes_and_deciders(admin: TestClient) -
     for request in requests:
         assert request["actor_id"] is None and request["actor_name"] == "Compte supprimé"
         assert request["note"] == "" and request["decision"] == ""
-        assert request["proposal"].get("referent_id") is None
+        assert request["proposal"].get("referent_ids") == []
     assert next(r for r in requests if r["id"] == pending["id"])["status"] == "withdrawn"
     with SessionFactory() as db:
-        assert all(r.after.get("referent_id") is None for r in db.scalars(select(EventRevision)))
-        assert all(e.referent_id is None for e in db.scalars(select(Event)))
+        assert all(not r.after.get("referent_ids") for r in db.scalars(select(EventRevision)))
+        assert all(e.referent_ids == [] for e in db.scalars(select(Event)))
 
 
 def test_admin_role_revoked_while_decision_waits_is_rechecked(

@@ -26,7 +26,7 @@ async function prepare(page: Page) {
       expect(req.headers()['x-csrf-token']).toBe('csrf');
       mutations.push({ path, body });
       const { team_id, note, ...proposal } = body;
-      const result = { id: 'request', team_id, actor_id: 'coach', actor_name: 'Camille', note, proposal: { ...proposal, section_ids: ['s1'], referent_id: 'coach', direct_edit: false }, status: 'pending', created_at: '2026-10-11T12:00:00Z', event_id: null, decision: '' };
+      const result = { id: 'request', team_id, actor_id: 'coach', actor_name: 'Camille', note, proposal: { ...proposal, section_ids: ['s1'], referent_ids: ['coach'], direct_edit: false }, status: 'pending', created_at: '2026-10-11T12:00:00Z', event_id: null, decision: '' };
       requests.push(result);
       return reply(result, 201);
     }

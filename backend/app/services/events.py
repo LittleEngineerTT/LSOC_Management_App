@@ -190,8 +190,11 @@ def validate_event(db: Session, event: Event) -> None:
         )
     for identifier in event.section_ids:
         get(db, Section, identifier)
-    if event.referent_id is not None and not get(db, User, event.referent_id).active:
-        raise HTTPException(422, "Le référent doit être actif")
+    if len(set(event.referent_ids)) != len(event.referent_ids):
+        raise HTTPException(422, "Référent en double")
+    for identifier in event.referent_ids:
+        if not get(db, User, identifier).active:
+            raise HTTPException(422, "Chaque référent doit être actif")
     if event.gymnasium_id is None and event.courts != 0:
         raise HTTPException(422, "Un événement sans gymnase local doit occuper zéro terrain")
     if event.gymnasium_id is not None:
@@ -268,17 +271,17 @@ def team_events(db: Session, team: Team) -> list[Event]:
     )
 
 
-def reassign_team_events(db: Session, team: Team, previous: str | None, actor: User) -> None:
-    """Reporte le nouveau référent d’équipe sur ses événements, passés compris.
+def reassign_team_events(db: Session, team: Team, previous: list[str], actor: User) -> None:
+    """Reporte les nouveaux référents d’équipe sur ses événements, passés compris.
 
-    Un événement confié par un admin à un autre référent que celui de l’équipe garde
+    Un événement confié par un admin à d’autres référents que ceux de l’équipe garde
     ce choix explicite.
     """
     for event in team_events(db, team):
-        if event.referent_id not in (previous, None) or event.referent_id == team.referent_id:
+        if event.referent_ids not in (previous, []) or event.referent_ids == team.referent_ids:
             continue
         before = snapshot(event)
-        event.referent_id = team.referent_id
+        event.referent_ids = list(team.referent_ids)
         event.direct_edit = False
         event.version += 1
         db.flush()
@@ -398,12 +401,12 @@ def permission(
 ) -> None:
     is_admin = "admin" in actor.roles
     if not is_admin:
-        if event.referent_id != actor.id or (direct and not event.direct_edit):
+        if actor.id not in event.referent_ids or (direct and not event.direct_edit):
             raise HTTPException(
                 403, "Modification réservée au référent autorisé ou aux administrateurs"
             )
         if patch.model_fields_set & {
-            "referent_id",
+            "referent_ids",
             "direct_edit",
             "section_ids",
             "team_ids",
@@ -460,8 +463,8 @@ def change_event(
     before = snapshot(event)
     values = patch.model_dump(exclude_unset=True)
     if (
-        "referent_id" in values
-        and values["referent_id"] != event.referent_id
+        "referent_ids" in values
+        and values["referent_ids"] != event.referent_ids
         and "direct_edit" not in values
     ):
         values["direct_edit"] = False

@@ -16,7 +16,7 @@ HTML = Path(__file__).with_name('fixtures').joinpath('ffvb-original.html').read_
 
 def configure(admin: TestClient) -> tuple[str,str,str]:
     section,gym=setup_planning(admin)
-    team=admin.post('/api/v1/teams',json={'name':'LSO COLOMBES','section_id':section,'referent_id':'admin'}).json()['id']
+    team=admin.post('/api/v1/teams',json={'name':'LSO COLOMBES','section_id':section,'referent_ids': ['admin']}).json()['id']
     source=admin.post('/api/v1/ffvb/sources',json={'team_id':team,'season':'2026/2027','entity':'PTIDF92','pool':'BRC','team_number':'6','team_name':'LSO COLOMBES','club_code':'0926620'})
     assert source.status_code==201,source.text
     assert admin.post('/api/v1/ffvb/gym-mappings',json={'official_name':'GYMNASE AMBROISE PARE','gymnasium_id':gym}).status_code==201

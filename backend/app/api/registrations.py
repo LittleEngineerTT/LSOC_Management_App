@@ -13,7 +13,13 @@ from app.api.schemas import (
 from app.core.security import now, token
 from app.persistence.models import Assignment, Event, Position, Registration, Team, User
 from app.services.events import lock_planning
-from app.services.notifications import PARIS, admins, notify, resolve_admin_alerts
+from app.services.notifications import (
+    PARIS,
+    active_referents,
+    admins,
+    notify,
+    resolve_admin_alerts,
+)
 
 router = APIRouter(tags=["Inscriptions"])
 
@@ -71,7 +77,7 @@ def full(db: Session, event: Event) -> bool:
 
 def reviewer(event: Event, user: User) -> bool:
     """Les demandes se traitent par un administrateur ou le référent de l’événement."""
-    return "admin" in user.roles or event.referent_id == user.id
+    return "admin" in user.roles or user.id in event.referent_ids
 
 
 def request_key(value: Registration) -> str:
@@ -186,8 +192,9 @@ def register(event_id: str, body: RegistrationInput, db: DB, actor: Actor) -> Re
     title = f"Demande d’inscription de {actor.first_name} : {event.title} du {day(event)}"
     text = f"Poste : {position.name}" + (f"\n\n{body.message}" if body.message else "")
     admins(db, request_key(value), "registration_request", title, event.id, body=text)
-    referent = db.get(User, event.referent_id) if event.referent_id else None
-    if referent is not None and "admin" not in referent.roles and referent.id != actor.id:
+    for referent in active_referents(db, event.referent_ids):
+        if "admin" in referent.roles or referent.id == actor.id:
+            continue
         notify(
             db,
             referent,

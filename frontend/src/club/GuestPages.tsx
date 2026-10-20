@@ -39,7 +39,7 @@ function asEvent(event: PublicEvent): Event {
   return {
     ...event,
     courts: 0,
-    referent_id: null,
+    referent_ids: [],
     direct_edit: false,
     version: 0,
     series_id: null,

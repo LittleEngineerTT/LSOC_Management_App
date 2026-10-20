@@ -18,7 +18,7 @@ import type {
 } from '../admin/types';
 import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, str } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
-import { PersonName, useClub, type Follow, type Thread } from './context';
+import { PersonName, PersonNames, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
 import { kindLabels, registrationOpen, usePlace, useSectionNames, useTeamNames } from './events';
 
@@ -31,7 +31,7 @@ const restorable = [
   'starts_at',
   'ends_at',
   'courts',
-  'referent_id',
+  'referent_ids',
   'direct_edit',
   'cancelled',
   'match_courts',
@@ -139,7 +139,7 @@ function EventBody({
   const place = usePlace();
   const sectionNames = useSectionNames();
   const teamNames = useTeamNames();
-  const referent = event.referent_id === account.id;
+  const referent = event.referent_ids.includes(account.id);
   const [history, setHistory] = useState(false);
   const [deleting, setDeleting] = useState(false);
   return (
@@ -188,9 +188,9 @@ function EventBody({
           </div>
         )}
         <div>
-          <dt>Référent</dt>
+          <dt>{event.referent_ids.length > 1 ? 'Référents' : 'Référent'}</dt>
           <dd>
-            {event.referent_id ? <PersonName id={event.referent_id} /> : 'À réattribuer'}
+            <PersonNames ids={event.referent_ids} empty="À réattribuer" />
             {event.direct_edit && ' · modification directe autorisée'}
           </dd>
         </div>
