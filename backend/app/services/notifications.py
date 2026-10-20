@@ -71,10 +71,11 @@ def admins(
     title: str,
     event_id: str | None = None,
     link: str | None = None,
+    body: str = "",
 ) -> None:
     for user in db.scalars(select(User).where(User.active.is_(True))):
         if "admin" in user.roles:
-            notify(db, user, key, kind, title, event_id, user.admin_email, link=link)
+            notify(db, user, key, kind, title, event_id, user.admin_email, body=body, link=link)
 
 
 def resolve_admin_alerts(db: Session, key: str) -> None:
@@ -137,6 +138,17 @@ def decision_message(
         )
 
 
+def registered_users(db: Session, event: Event) -> set[str]:
+    """Inscrits et demandes en attente : une demande refusée ne rend plus concerné."""
+    return set(
+        db.scalars(
+            select(Registration.user_id).where(
+                Registration.event_id == event.id, Registration.status != "rejected"
+            )
+        )
+    )
+
+
 def concerned(db: Session, event: Event) -> set[str]:
     """Comptes qui suivent l’événement ou sa série, ou y sont inscrits."""
     followed = set(
@@ -149,9 +161,7 @@ def concerned(db: Session, event: Event) -> set[str]:
             )
         )
     )
-    return followed | set(
-        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
-    )
+    return followed | registered_users(db, event)
 
 
 def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> None:
@@ -161,9 +171,7 @@ def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> No
         if event.team_ids
         else set()
     )
-    registered = set(
-        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
-    )
+    registered = registered_users(db, event)
     recipients = members | registered | ({event.referent_id} if event.referent_id else set())
     day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
     for user in db.scalars(select(User).where(User.id.in_(recipients))):
@@ -210,9 +218,7 @@ def changed_recipients(db: Session, event: Event, actor_id: str | None) -> dict[
         )
     )
     # Un inscrit est prévenu comme s’il suivait l’événement.
-    followed |= set(
-        db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
-    )
+    followed |= registered_users(db, event)
     recipients: dict[str, bool] = {}
     for user in db.scalars(select(User).where(User.active.is_(True))):
         is_ref = user.id == event.referent_id

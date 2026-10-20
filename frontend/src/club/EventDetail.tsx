@@ -6,8 +6,17 @@ import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { useLoad } from '../admin/data';
 import { fieldLabels } from '../admin/changes';
 import { dateLabel } from '../admin/time';
-import type { Event, Match, RegistrationSummary, Revision } from '../admin/types';
-import { Badge, Confirm, Empty, LoadState, Notice } from '../admin/ui';
+import type {
+  Assignment,
+  Event,
+  Match,
+  Participant,
+  RegistrationStatus,
+  RegistrationSummary,
+  Revision,
+  Team,
+} from '../admin/types';
+import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, str } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
 import { PersonName, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
@@ -313,8 +322,31 @@ function FollowButtons({ event }: { event: Event }) {
   );
 }
 
+const requestLabels: Record<RegistrationStatus, { label: string; tone: string }> = {
+  pending: { label: 'Demande en attente', tone: 'warning' },
+  accepted: { label: 'Vous êtes inscrit', tone: 'good' },
+  rejected: { label: 'Demande refusée', tone: 'danger' },
+};
+
+/** Poste du joueur, de préférence dans une équipe ouverte à l’inscription. */
+function defaultPosition(
+  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids'>,
+  assignments: Assignment[],
+  teams: Pick<Team, 'id' | 'section_id'>[],
+): string {
+  const players = assignments.filter((item) => item.kind === 'player' && item.position_id);
+  const open = players.find(
+    (item) =>
+      event.registration_team_ids?.includes(item.team_id) ||
+      event.registration_section_ids.includes(
+        teams.find((team) => team.id === item.team_id)?.section_id ?? '',
+      ),
+  );
+  return (open ?? players[0])?.position_id ?? '';
+}
+
 function Registrations({ event, onChanged }: { event: Event; onChanged: () => void }) {
-  const { api, admin } = useClub();
+  const { api, admin, assignments, teams, positions } = useClub();
   const sectionNames = useSectionNames();
   const teamNames = useTeamNames();
   const loader = useCallback(
@@ -329,22 +361,24 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
   );
   const result = useLoad(loader);
   const request = useRequest();
+  const [asking, setAsking] = useState(false);
+  const [deciding, setDeciding] = useState<Participant | null>(null);
   const [removing, setRemoving] = useState<{ user_id: string; first_name: string } | null>(null);
   const summary = result.data;
   const started = Date.parse(event.starts_at) <= Date.now();
   const full = !!summary && summary.limit !== null && summary.count >= summary.limit;
+  // Les anciennes réponses n’ont que `registered`.
+  const status = summary?.status ?? (summary?.registered ? 'accepted' : null);
+  const canAsk = !!summary?.open && summary.eligible && !event.cancelled && !started;
+  const positionName = (id: string | null) =>
+    positions.find((position) => position.id === id)?.name ?? 'poste supprimé';
   function refresh() {
     result.reload();
     onChanged();
   }
-  function toggle(registered: boolean) {
+  function withdraw() {
     void request.run(async (signal) => {
-      await api.request(
-        `/events/${event.id}/registration`,
-        registered ? 'DELETE' : 'POST',
-        registered ? undefined : {},
-        signal,
-      );
+      await api.request(`/events/${event.id}/registration`, 'DELETE', undefined, signal);
       refresh();
     });
   }
@@ -370,30 +404,62 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
               {summary.limit !== null && ` sur ${summary.limit}`}
             </strong>
             {full && ' · complet'}
+            {(summary.pending ?? 0) > 0 &&
+              ` · ${summary.pending} demande${summary.pending > 1 ? 's' : ''} en attente`}
           </p>
-          {summary.registered ? (
+          {status ? (
             <div className="admin-actions club-detail-actions">
-              <Badge tone="good">Vous êtes inscrit</Badge>
-              {!started && (
+              <Badge tone={requestLabels[status].tone}>{requestLabels[status].label}</Badge>
+              {status === 'pending' && !started && (
+                <>
+                  <button
+                    type="button"
+                    className="admin-button"
+                    disabled={request.pending}
+                    onClick={() => setAsking(true)}
+                  >
+                    Modifier la demande
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-button"
+                    disabled={request.pending}
+                    onClick={withdraw}
+                  >
+                    Annuler la demande
+                  </button>
+                </>
+              )}
+              {status === 'accepted' && !started && (
                 <button
                   type="button"
                   className="admin-button"
                   disabled={request.pending}
-                  onClick={() => toggle(true)}
+                  onClick={withdraw}
                 >
                   Se désinscrire
                 </button>
               )}
+              {status === 'rejected' && canAsk && (
+                <button
+                  type="button"
+                  className="admin-button"
+                  disabled={request.pending || full}
+                  onClick={() => setAsking(true)}
+                >
+                  Refaire une demande
+                </button>
+              )}
             </div>
-          ) : summary.open && summary.eligible && !event.cancelled && !started ? (
+          ) : canAsk ? (
             <div className="admin-actions club-detail-actions">
               <button
                 type="button"
                 className="admin-button primary"
                 disabled={request.pending || full}
-                onClick={() => toggle(false)}
+                onClick={() => setAsking(true)}
               >
-                {full ? 'Séance complète' : 'S’inscrire'}
+                {full ? 'Séance complète' : 'Demander l’inscription'}
               </button>
             </div>
           ) : (
@@ -406,30 +472,132 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
               </p>
             )
           )}
+          {status === 'rejected' && summary.decision && (
+            <p className="admin-hint">Motif : {summary.decision}</p>
+          )}
           {request.error && <ErrorNotice message={request.error} />}
+          {asking && (
+            <EntityForm
+              title="Demande d’inscription"
+              markRequired
+              fields={[
+                {
+                  name: 'position_id',
+                  label: 'Poste pour lequel vous voulez vous entraîner',
+                  type: 'select',
+                  required: true,
+                  options: positions.map((position) => ({
+                    value: position.id,
+                    label: position.name,
+                  })),
+                },
+                {
+                  name: 'message',
+                  label: 'Message (facultatif)',
+                  type: 'textarea',
+                  maxLength: 1000,
+                  hint: 'Lu par l’administration et le référent de la séance.',
+                },
+              ]}
+              initial={{
+                position_id: defaultPosition(event, assignments, teams),
+                message: '',
+              }}
+              submit={status === 'pending' ? 'Modifier la demande' : 'Envoyer la demande'}
+              onCancel={() => setAsking(false)}
+              onSave={async (values, signal) => {
+                await api.request(
+                  `/events/${event.id}/registration`,
+                  'POST',
+                  { position_id: str(values, 'position_id'), message: str(values, 'message') },
+                  signal,
+                );
+                setAsking(false);
+                refresh();
+              }}
+            />
+          )}
           {summary.participants &&
             (summary.participants.length ? (
               <ul className="club-plain-list club-participants">
                 {summary.participants.map((participant) => (
                   <li key={participant.user_id}>
                     <span>
-                      {participant.first_name} · inscrit le {dateLabel(participant.created_at)}
+                      {participant.first_name}
+                      {` · ${positionName(participant.position_id)}`}
+                      {participant.status === 'pending'
+                        ? ` · demande du ${dateLabel(participant.created_at)}`
+                        : ` · inscrit le ${dateLabel(participant.created_at)}`}
                     </span>
-                    {admin && (
-                      <button
-                        type="button"
-                        className="admin-button danger"
-                        onClick={() => setRemoving(participant)}
-                      >
-                        Retirer
-                      </button>
+                    {participant.status === 'pending' && <Badge tone="warning">En attente</Badge>}
+                    <span className="admin-actions">
+                      {participant.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="admin-button"
+                          onClick={() => setDeciding(participant)}
+                        >
+                          Traiter
+                        </button>
+                      )}
+                      {admin && (
+                        <button
+                          type="button"
+                          className="admin-button danger"
+                          onClick={() => setRemoving(participant)}
+                        >
+                          Retirer
+                        </button>
+                      )}
+                    </span>
+                    {participant.message && (
+                      <p className="club-participant-message">« {participant.message} »</p>
                     )}
                   </li>
                 ))}
               </ul>
             ) : (
-              <Empty>Aucun inscrit pour le moment.</Empty>
+              <Empty>Aucune demande ni inscrit pour le moment.</Empty>
             ))}
+          {deciding && (
+            <EntityForm
+              key={deciding.user_id}
+              title={`Demande de ${deciding.first_name} · ${positionName(deciding.position_id)}`}
+              fields={[
+                {
+                  name: 'accept',
+                  label: 'Décision',
+                  type: 'select',
+                  required: true,
+                  options: [
+                    { value: 'yes', label: 'Accepter' },
+                    { value: 'no', label: 'Refuser' },
+                  ],
+                },
+                {
+                  name: 'reason',
+                  label: 'Message au joueur (facultatif)',
+                  type: 'textarea',
+                  maxLength: 2000,
+                },
+              ]}
+              initial={{ accept: '', reason: '' }}
+              submit="Enregistrer la décision"
+              onCancel={() => setDeciding(null)}
+              onSave={async (values, signal) => {
+                await api.request(
+                  `/events/${event.id}/registrations/${deciding.user_id}/decision`,
+                  'POST',
+                  { accept: str(values, 'accept') === 'yes', reason: str(values, 'reason') },
+                  signal,
+                );
+                setDeciding(null);
+                refresh();
+              }}
+            >
+              {deciding.message && <p className="club-wide">Message : {deciding.message}</p>}
+            </EntityForm>
+          )}
         </>
       )}
       {removing && (

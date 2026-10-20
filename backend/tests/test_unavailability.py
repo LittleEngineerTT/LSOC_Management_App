@@ -1,6 +1,7 @@
 from conftest import add_user, login
 from fastapi.testclient import TestClient
 from test_events import payload as base_payload, setup_planning
+from test_registrations import ask, position
 
 
 def payload(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -27,7 +28,8 @@ def test_unavailability_cancels_silently_and_notifies_team_registered_and_refere
     assert admin.post('/api/v1/users/registered/assignments', json={'team_id': other, 'kind': 'player'}).status_code == 201
     body = payload(section, gym, courts=2, referent='referent') | {'team_ids': [team], 'registration_section_ids': [section], 'registration_limit': 10}
     event = admin.post('/api/v1/events', json=body).json()
-    assert login('registered').post(f"/api/v1/events/{event['id']}/registration").status_code == 201
+    # Une demande en attente suffit pour être prévenu.
+    assert ask(login('registered'), event['id'], position(admin)).status_code == 201
     # Une indisponibilité partielle qui laisse assez de terrains ne change rien.
     small = admin.post('/api/v1/availability-blocks', json=BLOCK | {'gymnasium_id': gym, 'courts': 1})
     assert small.status_code == 201

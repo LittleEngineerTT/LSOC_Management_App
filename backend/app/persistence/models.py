@@ -201,12 +201,25 @@ class EventSeries(Identity, Base):
 
 
 class Registration(Identity, Base):
+    """Demande d’inscription ; seule une demande acceptée compte parmi les inscrits."""
+
     __tablename__ = "registrations"
-    __table_args__ = (UniqueConstraint("user_id", "event_id"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_id"),
+        CheckConstraint(
+            "status IN ('pending','accepted','rejected')", name="registrations_status_check"
+        ),
+    )
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
     )
     event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    # Poste sur lequel le joueur veut s’entraîner ; vide si l’administration l’a supprimé.
+    position_id: Mapped[str | None] = mapped_column(ForeignKey("positions.id", ondelete="SET NULL"))
+    message: Mapped[str] = mapped_column(Text, default="", server_default="")
+    decision: Mapped[str] = mapped_column(Text, default="", server_default="")
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -254,7 +267,7 @@ class Event(Identity, Base):
     registration_limit: Mapped[int | None] = mapped_column(Integer)
     registration_count: Mapped[int] = column_property(
         select(func.count(Registration.id))
-        .where(Registration.event_id == id)
+        .where(Registration.event_id == id, Registration.status == "accepted")
         .correlate_except(Registration)
         .scalar_subquery()
     )

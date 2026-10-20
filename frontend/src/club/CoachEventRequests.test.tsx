@@ -332,7 +332,7 @@ it('affiche une ouverture uniquement par équipe et permet l’inscription selon
   open('/app/planning?event=e1');
   const dialog = await screen.findByRole('dialog', { name: 'Séance équipe' });
   expect(await within(dialog).findByText(/Ouvert aux équipes : Compétition 1/)).toBeInTheDocument();
-  expect(within(dialog).getByRole('button', { name: 'S’inscrire' })).toBeEnabled();
+  expect(within(dialog).getByRole('button', { name: 'Demander l’inscription' })).toBeEnabled();
 });
 
 it('l’administrateur ouvre un événement à une équipe avec une limite obligatoire', async () => {

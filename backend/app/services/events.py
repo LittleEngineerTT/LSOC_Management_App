@@ -212,7 +212,9 @@ def validate_event(db: Session, event: Event) -> None:
         raise HTTPException(422, "Une séance ouverte exige une limite d’inscrits")
     if event.registration_limit is not None:
         registered = db.scalar(
-            select(func.count(Registration.id)).where(Registration.event_id == event.id)
+            select(func.count(Registration.id)).where(
+                Registration.event_id == event.id, Registration.status == "accepted"
+            )
         )
         if (registered or 0) > event.registration_limit:
             raise HTTPException(422, "La limite ne peut pas être inférieure au nombre d’inscrits")

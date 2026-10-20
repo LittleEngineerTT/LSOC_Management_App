@@ -463,10 +463,29 @@ class ThreadView(View):
     subject: str
 
 
+RegistrationStatus = Literal["pending", "accepted", "rejected"]
+
+
+class RegistrationInput(Input):
+    # Poste sur lequel le joueur veut s’entraîner.
+    position_id: str = Field(min_length=1, max_length=36)
+    message: str = Field(default="", max_length=1000)
+
+
+class RegistrationDecisionInput(Input):
+    accept: bool
+    reason: str = Field(default="", max_length=2000)
+
+
 class RegistrationView(View):
     id: str
     user_id: str
     event_id: str
+    status: RegistrationStatus
+    position_id: str | None
+    message: str
+    decision: str
+    decided_at: datetime | None
     created_at: datetime
 
 
@@ -474,15 +493,24 @@ class ParticipantView(View):
     user_id: str
     first_name: str
     created_at: datetime
+    status: RegistrationStatus
+    position_id: str | None
+    message: str
 
 
 class RegistrationSummary(View):
     event_id: str
     open: bool
     limit: int | None
+    # Inscrits acceptés ; les demandes en attente sont comptées à part.
     count: int
+    pending: int
     registered: bool
+    # Demande du compte connecté : en attente, acceptée, refusée ou aucune.
+    status: RegistrationStatus | None
+    decision: str
     eligible: bool
+    # Demandes en attente et inscrits, réservés aux administrateurs et au référent.
     participants: list[ParticipantView] | None
 
 

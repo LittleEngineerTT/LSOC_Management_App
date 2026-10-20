@@ -174,22 +174,45 @@ it('les gymnases signalent un dépassement et mes sections présentent mon rôle
   expect(await within(card).findByRole('link', { name: 'Entraînement loisir' })).toBeInTheDocument();
 });
 
-it('un adhérent s’inscrit à une séance ouverte à sa section tant que la limite n’est pas atteinte', async () => {
+it('un adhérent demande à s’inscrire avec son poste présélectionné et un message', async () => {
   const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
   const openSession = { ...training, id: 'e2', title: 'Séance ouverte', referent_id: 'a1', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 1 };
+  routes['/positions'] = [{ id: 'p1', name: 'Libéro' }, { id: 'p2', name: 'Passeur' }];
+  routes['/users/m1/assignments'] = [{ id: 'as1', user_id: 'm1', team_id: 't1', kind: 'player', position_id: 'p2' }];
   routes['/events/e2'] = openSession;
-  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 1, registered: false, eligible: true, participants: null };
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 1, pending: 0, registered: false, status: null, decision: '', eligible: true, participants: null };
   mutation = (path) => {
-    routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 2, registered: true, eligible: true, participants: null };
-    return reply({ id: 'r1', user_id: 'm1', event_id: 'e2', created_at: later }, path.endsWith('/registration') ? 201 : 404);
+    routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 1, pending: 1, registered: false, status: 'pending', decision: '', eligible: true, participants: null };
+    return reply({ id: 'r1', user_id: 'm1', event_id: 'e2', status: 'pending', position_id: 'p2', message: 'Première fois', decision: '', decided_at: null, created_at: later }, path.endsWith('/registration') ? 201 : 404);
   };
   open('/app/planning?event=e2');
   const dialog = await screen.findByRole('dialog', { name: 'Séance ouverte' });
   expect(await within(dialog).findByText('1 inscrit sur 2')).toBeInTheDocument();
-  await userEvent.click(within(dialog).getByRole('button', { name: 'S’inscrire' }));
-  expect(await within(dialog).findByText('Vous êtes inscrit')).toBeInTheDocument();
-  expect(within(dialog).getByText('2 inscrits sur 2')).toBeInTheDocument();
-  expect(mutations).toEqual([{ path: '/events/e2/registration', method: 'POST', body: {} }]);
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Demander l’inscription' }));
+  expect(within(dialog).getByLabelText(/Poste pour lequel vous voulez vous entraîner/)).toHaveValue('p2');
+  await userEvent.type(within(dialog).getByLabelText(/Message/), 'Première fois');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Envoyer la demande' }));
+  expect(await within(dialog).findByText('Demande en attente')).toBeInTheDocument();
+  expect(within(dialog).getByText(/1 demande en attente/)).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Annuler la demande' })).toBeEnabled();
+  expect(mutations).toEqual([{ path: '/events/e2/registration', method: 'POST', body: { position_id: 'p2', message: 'Première fois' } }]);
+});
+
+it('le référent accepte une demande en attente en voyant le poste et le message', async () => {
+  account = admin;
+  const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  routes['/positions'] = [{ id: 'p2', name: 'Passeur' }];
+  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance ouverte', referent_id: 'a1', starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_section_ids: ['s1'], registration_limit: 2, registration_count: 0 };
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: 2, count: 0, pending: 1, registered: false, status: null, decision: '', eligible: false, participants: [{ user_id: 'm1', first_name: 'Morgan', created_at: later, status: 'pending', position_id: 'p2', message: 'Première fois' }] };
+  mutation = () => reply({}, 200);
+  open('/app/planning?event=e2');
+  const dialog = await screen.findByRole('dialog', { name: 'Séance ouverte' });
+  expect(await within(dialog).findByText(/Morgan · Passeur/)).toBeInTheDocument();
+  expect(within(dialog).getByText('« Première fois »')).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Traiter' }));
+  await userEvent.selectOptions(within(dialog).getByLabelText('Décision'), 'yes');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Enregistrer la décision' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/events/e2/registrations/m1/decision', method: 'POST', body: { accept: true, reason: '' } }]));
 });
 
 it('une séance complète ou réservée à une autre section n’accepte pas d’inscription', async () => {
@@ -204,7 +227,7 @@ it('une séance complète ou réservée à une autre section n’accepte pas d�
   open('/app/planning?event=e2');
   const other = (await screen.findAllByRole('dialog', { name: 'Séance ouverte' })).at(-1)!;
   expect(await within(other).findByText(/réservées aux adhérents des sections indiquées/)).toBeInTheDocument();
-  expect(within(other).queryByRole('button', { name: 'S’inscrire' })).not.toBeInTheDocument();
+  expect(within(other).queryByRole('button', { name: 'Demander l’inscription' })).not.toBeInTheDocument();
 });
 
 it('un administrateur ouvre une séance en fixant obligatoirement une limite', async () => {

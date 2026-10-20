@@ -151,19 +151,42 @@ export interface Event {
   /** Équipes organisatrices ; absentes des anciens contrats. */
   team_ids?: string[];
 }
+/** Demande d’inscription : seule une demande acceptée compte parmi les inscrits. */
+export type RegistrationStatus = 'pending' | 'accepted' | 'rejected';
+export interface Participant {
+  user_id: string;
+  first_name: string;
+  created_at: string;
+  status: RegistrationStatus;
+  /** Poste demandé ; vide si l’administration l’a supprimé depuis. */
+  position_id: string | null;
+  message: string;
+}
 export interface RegistrationSummary {
   event_id: string;
   open: boolean;
   limit: number | null;
+  /** Inscrits acceptés ; les demandes en attente sont dans `pending`. */
   count: number;
+  pending: number;
   registered: boolean;
+  /** Demande du compte connecté. */
+  status: RegistrationStatus | null;
+  /** Message joint à la décision sur cette demande. */
+  decision: string;
   eligible: boolean;
-  participants: { user_id: string; first_name: string; created_at: string }[] | null;
+  /** Demandes en attente et inscrits, pour les administrateurs et le référent. */
+  participants: Participant[] | null;
 }
 export interface Registration {
   id: string;
   user_id: string;
   event_id: string;
+  status: RegistrationStatus;
+  position_id: string | null;
+  message: string;
+  decision: string;
+  decided_at: string | null;
   created_at: string;
 }
 export interface ChangeRequest {

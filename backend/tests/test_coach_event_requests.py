@@ -8,6 +8,7 @@ from sqlalchemy import select, text
 from test_events import payload, setup_planning
 from test_ffvb_settings_migration import legacy_schema, migrate  # noqa: F401
 from test_migrations import run
+from test_registrations import ask, decide, position
 
 from app.persistence.database import SessionFactory, engine
 from app.persistence.models import Event, EventRevision, User
@@ -239,14 +240,16 @@ def test_team_opening_does_not_open_section_and_unions_explicit_sections(admin: 
     event = admin.post(
         f"/api/v1/event-requests/{request['id']}/decision", json={"accept": True}
     ).json()["event_id"]
-    assert login("outsider").post(f"/api/v1/events/{event}/registration").status_code == 403
+    setter = position(admin)
+    assert ask(login("outsider"), event, setter).status_code == 403
     teamplayer, sectionplayer = login("teamplayer"), login("sectionplayer")
     assert teamplayer.get(f"/api/v1/events/{event}/registrations").json()["eligible"] is True
     assert sectionplayer.get(f"/api/v1/events/{event}/registrations").json()["eligible"] is True
-    assert teamplayer.post(f"/api/v1/events/{event}/registration").status_code == 201
+    assert ask(teamplayer, event, setter).status_code == 201
+    assert ask(sectionplayer, event, setter).status_code == 201
+    assert decide(admin, event, "teamplayer", True).status_code == 200
     assert (
-        sectionplayer.post(f"/api/v1/events/{event}/registration").json()["detail"]["code"]
-        == "registration_full"
+        decide(admin, event, "sectionplayer", True).json()["detail"]["code"] == "registration_full"
     )
     assert (
         coach.patch(

@@ -34,7 +34,10 @@ export function useMyEvents() {
   const sectionIds = new Set(mySections.map((section) => section.id));
   const teamIds = new Set(assignments.map((assignment) => assignment.team_id));
   const [list, registrations] = result.data ?? [[], []];
-  const registered = new Set(registrations.map((item) => item.event_id));
+  // Une demande en attente ou refusée ne vaut pas inscription.
+  const registered = new Set(
+    registrations.filter((item) => item.status === 'accepted').map((item) => item.event_id),
+  );
   const events = list
     .map((event) => {
       const reasons: Reason[] = [];
