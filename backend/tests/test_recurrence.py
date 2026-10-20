@@ -59,6 +59,22 @@ def test_delete_one_occurrence_or_the_following_ones(admin: TestClient) -> None:
     assert admin.delete(f'/api/v1/events/{single}?scope=following').status_code == 422
 
 
+def test_series_change_sends_one_notification_and_single_change_keeps_its_own(admin: TestClient) -> None:
+    section, _ = setup_planning(admin)
+    events = series(admin, section, '2026-11-03', None)
+    add_user()
+    member = login()
+    assert member.post(f"/api/v1/series/{events[0]['series_id']}/follow").status_code == 201
+    changed = admin.patch(f"/api/v1/series/{events[0]['series_id']}", json={'from_event_id': events[1]['id'], 'base_version': 1, 'changes': {'title': 'Séance du mardi'}})
+    assert changed.status_code == 200, changed.text
+    assert len(changed.json()) == 3
+    notifications = member.get('/api/v1/notifications').json()
+    assert [(n['title'], n['event_id']) for n in notifications] == [('La série d’événements Séance du mardi a été modifiée', events[1]['id'])]
+    assert admin.patch(f"/api/v1/events/{events[2]['id']}", json={'base_version': 2, 'changes': {'title': 'Exception'}}).status_code == 200
+    titles = [n['title'] for n in member.get('/api/v1/notifications').json()]
+    assert sorted(titles) == ['La série d’événements Séance du mardi a été modifiée', 'Événement modifié : Exception']
+
+
 def test_ffvb_matches_cannot_be_deleted_individually(admin: TestClient) -> None:
     source, _, _ = configure(admin)
     sync(source)

@@ -197,7 +197,8 @@ def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
         )
 
 
-def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
+def changed_recipients(db: Session, event: Event, actor_id: str | None) -> dict[str, bool]:
+    """Destinataires d’une modification, avec l’envoi ou non d’un e-mail à chacun."""
     followed = set(
         db.scalars(
             select(Follow.user_id).where(
@@ -212,22 +213,53 @@ def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
     followed |= set(
         db.scalars(select(Registration.user_id).where(Registration.event_id == event.id))
     )
+    recipients: dict[str, bool] = {}
     for user in db.scalars(select(User).where(User.active.is_(True))):
         is_ref = user.id == event.referent_id
         is_admin = "admin" in user.roles and actor_id is not None and actor_id != user.id
         if user.id not in followed and not is_ref and not is_admin:
             continue
-        send = user.id != actor_id and (
+        recipients[user.id] = user.id != actor_id and bool(
             (user.id in followed and user.followed_email)
             or (is_ref and user.referent_email)
             or (is_admin and user.admin_email)
         )
+    return recipients
+
+
+def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
+    for user_id, send in changed_recipients(db, event, actor_id).items():
         notify(
             db,
-            user,
+            db.get_one(User, user_id),
             f"event:{event.id}:{event.version}",
             "event_changed",
             f"Événement modifié : {event.title}",
             event.id,
+            send,
+        )
+
+
+def series_changed(db: Session, events: list[Event], actor_id: str | None) -> None:
+    """Une seule notification par compte pour une modification de série.
+
+    Chaque compte concerné par au moins une occurrence modifiée est prévenu une fois, par
+    e-mail si l’une d’elles le justifie ; la notification ouvre la première occurrence.
+    """
+    if not events:
+        return
+    recipients: dict[str, bool] = {}
+    for event in events:
+        for user_id, send in changed_recipients(db, event, actor_id).items():
+            recipients[user_id] = recipients.get(user_id, False) or send
+    first = events[0]
+    for user_id, send in recipients.items():
+        notify(
+            db,
+            db.get_one(User, user_id),
+            f"series:{first.series_id}:{first.id}:{first.version}",
+            "event_changed",
+            f"La série d’événements {first.title} a été modifiée",
+            first.id,
             send,
         )

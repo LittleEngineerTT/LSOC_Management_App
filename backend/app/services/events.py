@@ -440,6 +440,7 @@ def change_event(
     acknowledge_ffvb: bool = False,
     exception: bool = True,
     defer_capacity: bool = False,
+    notify_change: bool = True,
 ) -> Event:
     lock_gyms(
         db,
@@ -484,7 +485,8 @@ def change_event(
     db.flush()
     forced = False if defer_capacity else check_capacity(db, event, actor, force)
     revision(db, event, actor, before, "update", forced)
-    event_changed(db, event, actor.id)
+    if notify_change:
+        event_changed(db, event, actor.id)
     return event
 
 

@@ -45,7 +45,12 @@ from app.services.events import (
     revision,
     snapshot,
 )
-from app.services.notifications import admins, decision_message, resolve_admin_alerts
+from app.services.notifications import (
+    admins,
+    decision_message,
+    resolve_admin_alerts,
+    series_changed,
+)
 
 router = APIRouter(tags=["Planning"])
 
@@ -349,8 +354,11 @@ def update_series(series_id: str, body: SeriesChange, db: DB, actor: Actor) -> l
                 body.acknowledge_ffvb,
                 exception=False,
                 defer_capacity=True,
+                notify_change=False,
             )
         )
+    # Une notification pour la série, au lieu d’une par occurrence.
+    series_changed(db, result, actor.id)
     db.flush()
     conflicts = []
     for event in result:
