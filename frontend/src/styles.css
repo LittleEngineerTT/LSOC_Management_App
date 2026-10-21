@@ -401,6 +401,9 @@
     margin: 0;
   }
   .guest-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-height: 48px;
     border: 1px solid #c7d2d8;
     border-radius: 7px;
