@@ -16,6 +16,7 @@ import { GymnasiumsPage } from '../club/GymnasiumsPage';
 import { MessagingPage } from '../club/MessagingPage';
 import { MyPlanningPage } from '../club/MyPlanningPage';
 import { MySectionsPage } from '../club/MySectionsPage';
+import { OurClubPage } from '../club/OurClubPage';
 import { InscriptionsPage } from '../club/InscriptionsPage';
 
 const clubSections = [
@@ -25,12 +26,14 @@ const clubSections = [
   'Messagerie',
   'Mon planning',
   'Mes sections',
+  'Notre club',
   'Inscriptions',
 ];
 
 const applications = [
   { path: '/app', title: 'Accueil', icon: 'home' },
   { path: '/app/planning', title: 'Planning', icon: 'calendar' },
+  { path: '/app/notre-club', title: 'Notre club', icon: 'users' },
   { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
   { path: '/app/inscriptions', title: 'Inscriptions', icon: 'clipboard' },
@@ -41,7 +44,7 @@ const staffOnly = ['/app/administration'];
 // Ouverte à l’encadrement, et à un joueur pendant le traitement de son dossier d’inscription.
 const DOSSIER_PATH = '/app/inscriptions';
 // Un invité ne voit que l’accueil et les matchs FFVB du planning.
-const guestSections = ['Accueil', 'Planning'];
+const guestSections = ['Accueil', 'Planning', 'Notre club'];
 const sectionTitles: Record<string, string> = {
   '/app': 'Accueil',
   ...Object.fromEntries(applications.map((item) => [item.path, item.title])),
@@ -304,6 +307,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
             <GuestClubProvider>
               {section === 'Accueil' && <GuestHome />}
               {section === 'Planning' && <GuestPlanning />}
+              {section === 'Notre club' && <OurClubPage />}
             </GuestClubProvider>
           )}
           {account && clubSections.includes(section) && (
@@ -326,6 +330,7 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mon planning' && <MyPlanningPage />}
       {section === 'Mes sections' && <MySectionsPage />}
+      {section === 'Notre club' && <OurClubPage />}
       {section === 'Inscriptions' && <InscriptionsPage />}
     </>
   );

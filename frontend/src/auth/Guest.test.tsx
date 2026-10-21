@@ -46,7 +46,7 @@ it('continue en invité : accueil sans notifications, menu réduit et API publiq
   expect(await within(results).findByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
   expect(within(results).getByText('Seniors')).toBeInTheDocument();
   const menu = screen.getByRole('navigation', { name: 'Applications' });
-  expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning']);
+  expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning', 'Notre club']);
   expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();
   expect(screen.getAllByRole('link', { name: 'Se connecter' }).length).toBeGreaterThan(0);
   const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname);

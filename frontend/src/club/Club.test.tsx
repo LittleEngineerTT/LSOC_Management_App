@@ -576,3 +576,16 @@ it('l’accueil fait défiler les résultats récents de chaque source FFVB avec
   expect(within(results).getByText('Sets : 23:21 · 21:8 · 18:21 · 21:9 · points 83 – 59')).toBeInTheDocument();
   expect(within(results).getByText('Loisir')).toBeInTheDocument();
 });
+
+it('Notre club présente la section configurée : image, puis blocs titrés et horaires', async () => {
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's3', name: 'Loisirs compétition' }];
+  open('/app/notre-club');
+  expect(await screen.findByRole('heading', { name: 'Notre club' })).toBeInTheDocument();
+  const page = await screen.findByRole('article', { name: /Loisirs compétition/ });
+  expect(within(page).getByRole('img', { name: 'Photo : Loisirs compétition' })).toHaveAttribute('src', '/notre-club/placeholder.svg');
+  expect(within(page).getByRole('heading', { name: 'Notre section' })).toBeInTheDocument();
+  expect(within(page).getAllByText(/Loisirs compétition accueille|Débutants motivés|Les rencontres du championnat/)).toHaveLength(3);
+  const schedule = within(page).getByRole('heading', { name: 'Entraînements' }).parentElement!;
+  expect(schedule).toHaveTextContent('Lundi : 20 h 30 – 22 h 30Jeudi : 21 h 00 – 22 h 30');
+  expect(schedule).toHaveTextContent('Au gymnase Ambroise Paré, Colombes.');
+});
