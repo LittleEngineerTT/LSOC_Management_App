@@ -52,7 +52,9 @@ test('connexion, accueil, menus, restauration et déconnexion CSRF', async ({ pa
   await expect(page.locator('#profile-options')).toHaveCount(0);
   await page.getByRole('button', { name: 'Options du profil de Camille' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  // Déconnecté, on reste sur le site du club, en invité.
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeVisible();
 });
 
 test('récupération, validation de confirmation et réinitialisation', async ({ page }) => {

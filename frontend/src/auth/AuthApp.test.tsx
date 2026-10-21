@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +27,8 @@ function respond(path: string, body: unknown, status = 200) {
     const url = String(input);
     if (url === `/api/v1/auth/${path}`) return reply(body, status);
     if (url === '/api/v1/auth/me') return reply({ detail: 'Connexion requise' }, 401);
+    // L’accueil invité lit les données publiques.
+    if (url.startsWith('/api/v1/public/')) return reply([]);
     throw new Error(`Unexpected request ${url}`);
   });
 }
@@ -38,7 +40,12 @@ async function fillPassword(password = 'nouveau-password-123', confirmation = pa
 }
 
 beforeEach(() => {
-  fetchMock = vi.fn<typeof fetch>().mockResolvedValue(reply({ detail: 'Connexion requise' }, 401));
+  // Sans session : 401 pour le compte, données publiques vides pour l’accueil invité.
+  fetchMock = vi
+    .fn<typeof fetch>()
+    .mockImplementation(async (input) =>
+      String(input).includes('/api/v1/public/') ? reply([]) : reply({ detail: 'Connexion requise' }, 401),
+    );
   vi.stubGlobal('fetch', fetchMock);
   document.cookie = 'lsoc_csrf=; Max-Age=0; path=/';
   localStorage.clear();
@@ -71,13 +78,16 @@ describe('session et connexion', () => {
     fetchMock.mockImplementation(async (input) => {
       if (String(input).endsWith('/me')) return reply(user);
       if (String(input).endsWith('/logout')) return reply(null, 204);
+      if (String(input).includes('/api/v1/public/')) return reply([]);
+      if (String(input).startsWith('/api/v1/')) return reply([]);
       throw new Error('Unexpected request');
     });
     open();
     await screen.findByRole('heading', { name: 'Accueil' });
     await userEvent.click(screen.getByRole('button', { name: 'Options du profil de Camille' }));
     await userEvent.click(screen.getByRole('button', { name: 'Se déconnecter' }));
-    await screen.findByRole('button', { name: 'Se connecter' });
+    // Déconnecté, on reste sur le site du club, en invité.
+    await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' });
     const request = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/logout'))?.[1];
     expect(new Headers(request?.headers).get('X-CSRF-Token')).toBe('cookie-csrf');
   });
@@ -124,10 +134,27 @@ describe('session et connexion', () => {
     expect(password).toHaveAttribute('type', 'password');
   });
 
-  it('protège l’accueil si la session est absente', async () => {
-    open('/app');
+  it('ouvre le site en invité sans session et garde la connexion pour les pages réservées', async () => {
+    open('/');
+    await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' });
+    expect(screen.getAllByRole('link', { name: 'Se connecter' }).length).toBeGreaterThan(0);
+    cleanup();
+    open('/app/messagerie?thread=t1');
     await screen.findByRole('button', { name: 'Se connecter' });
     expect(screen.queryByRole('navigation', { name: 'Applications' })).not.toBeInTheDocument();
+  });
+
+  it('ramène à la page demandée après la connexion', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/auth/me')) return reply({ detail: 'Connexion requise' }, 401);
+      if (String(input).endsWith('/auth/login')) return reply({ user, csrf_token: 'csrf' });
+      return reply([]);
+    });
+    open('/app/mon-planning');
+    await userEvent.type(await screen.findByLabelText('Identifiant'), 'camille');
+    await userEvent.type(screen.getByLabelText('Mot de passe'), 'valid-password-12345');
+    await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mon planning' })).toBeInTheDocument();
   });
 
   it('affiche les menus demandés et le contenu de chaque section', async () => {
@@ -224,9 +251,9 @@ describe('invitation sans vérification e-mail', () => {
     }));
   });
 
-  it('redirige les anciens liens de vérification vers la connexion sans consommer de jeton', async () => {
+  it('redirige les anciens liens de vérification vers le site sans consommer de jeton', async () => {
     open(`/verify-email?token=${token}`);
-    await screen.findByRole('button', { name: 'Se connecter' });
+    await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' });
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/verify-email'))).toBe(false);
   });
 

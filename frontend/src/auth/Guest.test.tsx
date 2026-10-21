@@ -34,9 +34,9 @@ function open(path = '/login') {
   return fetchMock;
 }
 
-it('continue en invité : accueil sans notifications, menu réduit et API publique seule', async () => {
-  const fetchMock = open();
-  await userEvent.click(await screen.findByRole('button', { name: 'Continuer en tant qu’invité' }));
+it('arrive en invité : accueil sans notifications, menu réduit et API publique seule', async () => {
+  // Sans session, le site s’ouvre directement en invité.
+  const fetchMock = open('/');
   expect(await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeInTheDocument();
   expect(await screen.findByRole('link', { name: 'LSO Colombes – Paris' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: /Notifications/ })).not.toBeInTheDocument();
@@ -54,7 +54,6 @@ it('continue en invité : accueil sans notifications, menu réduit et API publiq
 });
 
 it('montre au planning les seuls matchs FFVB, en lecture seule', async () => {
-  window.sessionStorage.setItem('lsoc_guest', '1');
   const fetchMock = open('/app/planning?semaine=2099-10-12');
   const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
   await userEvent.click(await within(calendar).findByRole('link', { name: /LSO Colombes – Paris/ }));
@@ -66,13 +65,14 @@ it('montre au planning les seuls matchs FFVB, en lecture seule', async () => {
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/public/events?starts_at='))).toBe(true);
 });
 
-it('renvoie un invité vers l’accueil pour les sections réservées', async () => {
-  window.sessionStorage.setItem('lsoc_guest', '1');
+it('envoie un invité vers la connexion pour les sections réservées, puis peut revenir au site', async () => {
   open('/app/messagerie');
+  expect(await screen.findByRole('button', { name: 'Se connecter' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('link', { name: 'Retour au site du club' }));
   expect(await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeInTheDocument();
 });
 
-it('sans choix invité, une page de l’application exige toujours la connexion', async () => {
+it('ouvre directement le planning des matchs en invité', async () => {
   open('/app/planning');
-  expect(await screen.findByRole('button', { name: 'Continuer en tant qu’invité' })).toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: 'Calendrier de la semaine' })).toBeInTheDocument();
 });

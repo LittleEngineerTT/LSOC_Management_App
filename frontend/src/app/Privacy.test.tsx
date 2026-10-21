@@ -55,7 +55,7 @@ it('exporte ses données et supprime son compte après confirmation par mot de p
   await userEvent.clear(within(dialog).getByLabelText('Mot de passe'));
   await userEvent.type(within(dialog).getByLabelText('Mot de passe'), 'secret');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer mon compte' }));
-  expect(await screen.findByRole('button', { name: 'Continuer en tant qu’invité' })).toBeInTheDocument();
+  expect(await screen.findByRole('link', { name: 'Retour au site du club' })).toBeInTheDocument();
   expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/me/delete') && init?.method === 'POST')).toBe(true);
   click.mockRestore();
 });

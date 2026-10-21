@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate, NavLink, useLocation } from 'react-router-dom';
+import { Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { Account } from '../api/auth';
 import { AuthLayout, ClubMark, ErrorNotice, Icon, SessionStatus } from '../auth/components';
 import { useSession } from '../auth/session';
@@ -70,8 +70,15 @@ export function AppShell() {
       </AuthLayout>
     );
   if (!session.account) {
-    if (!session.guest) return <Navigate to="/login" replace />;
-    if (!section || !guestSections.includes(section)) return <Navigate to="/app" replace />;
+    if (!section) return <Navigate to="/app" replace />;
+    // Page réservée aux adhérents (lien d’un e-mail…) : connexion, puis retour à la page.
+    if (!guestSections.includes(section))
+      return (
+        <Navigate
+          to={`/login?suite=${encodeURIComponent(location.pathname + location.search)}`}
+          replace
+        />
+      );
     return <Workspace key={`invité:${location.pathname}`} account={null} section={section} />;
   }
   // Les coachs ont une administration limitée : sections, équipes et licences de leurs équipes.
@@ -93,6 +100,7 @@ export function AppShell() {
 function Workspace({ account, section }: { account: Account | null; section: string }) {
   const session = useSession();
   const request = useRequest();
+  const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigation = useRef<HTMLElement>(null);
@@ -267,7 +275,11 @@ function Workspace({ account, section }: { account: Account | null; section: str
                       type="button"
                       disabled={request.pending}
                       onClick={() => {
-                        void request.run(session.logout);
+                        // Déconnecté, on reste sur le site du club, en invité.
+                        void request.run(async (signal) => {
+                          await session.logout(signal);
+                          navigate('/app');
+                        });
                       }}
                     >
                       <Icon name="exit" />

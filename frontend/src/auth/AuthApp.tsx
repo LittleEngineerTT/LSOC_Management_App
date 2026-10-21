@@ -19,7 +19,7 @@ export function AuthApp() {
   return (
     <SessionProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to="/app" replace />} />
         <Route
           path="/login"
           element={
@@ -70,7 +70,7 @@ export function AuthApp() {
         />
         <Route path="/confidentialite" element={<PrivacyPage />} />
         <Route path="/app/*" element={<AppShell />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </SessionProvider>
   );
