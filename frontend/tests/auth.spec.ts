@@ -96,8 +96,10 @@ test('invitation activée sans e-mail et sans double consommation', async ({ pag
   await page.getByRole('button', { name: 'Activer mon compte' }).click();
   await expect(page.getByRole('heading', { name: 'Votre compte est activé.' })).toBeVisible();
   expect(activations).toBe(1);
+  // Ancien lien de vérification : on arrive sur le site, en invité, sans consommer de jeton.
+  await page.route('**/api/v1/public/**', (route) => route.fulfill({ json: [] }));
   await page.goto(`/verify-email?token=${token}`);
-  await expect(page.getByRole('button', { name: 'Se connecter', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeVisible();
 });
 
 test('erreurs de lien et de réseau lisibles', async ({ page }) => {

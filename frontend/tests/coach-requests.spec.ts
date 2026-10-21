@@ -7,7 +7,7 @@ async function prepare(page: Page) {
   const mutations: { path: string; body: Row }[] = [];
   const coach = { id: 'coach', username: 'camille', first_name: 'Camille', roles: ['member', 'coach'], active: true, email: null };
   const accountAdmin = { ...coach, id: 'admin', username: 'admin', first_name: 'Admin', roles: ['admin'] };
-  const teams = [{ id: 't1', name: 'Compétition 1', section_id: 's1' }, { id: 't2', name: 'Compétition 2', section_id: 's1' }, { id: 't3', name: 'Loisir 1', section_id: 's2' }];
+  const teams = [{ id: 't1', name: 'Compétition 1', section_id: 's1', referent_ids: [] }, { id: 't2', name: 'Compétition 2', section_id: 's1', referent_ids: [] }, { id: 't3', name: 'Loisir 1', section_id: 's2', referent_ids: [] }];
   await page.context().addCookies([{ name: 'lsoc_csrf', value: 'csrf', domain: 'localhost', path: '/' }]);
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request();
@@ -59,7 +59,7 @@ test('un coach multiéquipes propose une séance ouverte puis l’admin accepte 
   await expect(page.getByRole('alert')).toContainText('maximal');
   expect(mutations).toHaveLength(0);
   await page.getByLabel('Nombre maximal d’inscrits').fill('12');
-  await page.getByLabel('Commentaire').fill('Préparation tournoi');
+  await page.getByLabel('Description de la demande').fill('Préparation tournoi');
   await page.getByRole('button', { name: 'Envoyer la demande', exact: true }).click();
   const mine = page.getByRole('region', { name: 'Mes demandes d’événements' });
   await expect(mine).toContainText('En attente');

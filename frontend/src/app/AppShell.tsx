@@ -275,11 +275,10 @@ function Workspace({ account, section }: { account: Account | null; section: str
                       type="button"
                       disabled={request.pending}
                       onClick={() => {
-                        // Déconnecté, on reste sur le site du club, en invité.
-                        void request.run(async (signal) => {
-                          await session.logout(signal);
-                          navigate('/app');
-                        });
+                        // Déconnecté, on reste sur le site du club, en invité : l’accueil d’abord,
+                        // sinon une page réservée (Mon profil…) renverrait vers la connexion.
+                        navigate('/app');
+                        void request.run(session.logout);
                       }}
                     >
                       <Icon name="exit" />

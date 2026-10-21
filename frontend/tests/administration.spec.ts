@@ -101,7 +101,7 @@ test('création des sections, équipes et gymnases, modification et suppression'
   await page.getByRole('button', { name: 'Ajouter une équipe', exact: true }).click();
   await page.getByLabel('Nom', { exact: true }).fill('Loisir A');
   await page.getByLabel('Section', { exact: true }).selectOption({ label: 'Loisir' });
-  await page.getByLabel('Référent', { exact: true }).selectOption('admin-1');
+  await page.getByRole('group', { name: 'Référents', exact: true }).getByLabel('Admin', { exact: true }).check();
   await page.getByRole('button', { name: 'Créer', exact: true }).click();
   await openSection(page, 'Loisir');
   await expect(page.getByRole('heading', { name: 'Loisir A', exact: true })).toBeVisible();
