@@ -567,6 +567,7 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   const results = await screen.findByRole('region', { name: 'Résultats des matchs' });
   // Première carte : toutes les sections, deux dernières semaines, du plus récent au plus ancien.
   expect(await within(results).findByRole('heading', { name: /Toutes les sections/ })).toBeInTheDocument();
+  expect(within(results).queryByRole('button', { name: 'Mettre en pause' })).not.toBeInTheDocument();
   const recent = within(results).getAllByRole('listitem');
   expect(recent.map((item) => item.textContent)).toEqual([expect.stringContaining('PARIS UC'), expect.stringContaining('MEUDON CHAVILLE SEVRES VOLLEY 2')]);
   expect(within(results).queryByText('RUEIL 2')).not.toBeInTheDocument();

@@ -147,7 +147,9 @@ export function RecentResults() {
     <section className="admin-card club-results" aria-label="Résultats des matchs">
       <h3>Résultats des matchs</h3>
       <LoadState result={result} />
-      {result.loaded && !result.error && <Carousel label="Résultats par section" slides={cards} />}
+      {result.loaded && !result.error && (
+        <Carousel label="Résultats par section" slides={cards} pausable={false} />
+      )}
     </section>
   );
 }

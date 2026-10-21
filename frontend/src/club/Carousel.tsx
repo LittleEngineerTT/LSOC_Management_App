@@ -10,11 +10,14 @@ export function Carousel({
   label,
   slides,
   interval = 5000,
+  pausable = true,
 }: {
   label: string;
   slides: ReactNode[];
   /** Délai entre deux informations, en millisecondes. */
   interval?: number;
+  /** Bouton « Mettre en pause » ; le survol et le focus suspendent toujours le défilement. */
+  pausable?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -84,14 +87,16 @@ export function Carousel({
           >
             ›
           </button>
-          <button
-            type="button"
-            className="admin-button"
-            aria-pressed={paused}
-            onClick={() => setPaused(!paused)}
-          >
-            {paused ? 'Reprendre le défilement' : 'Mettre en pause'}
-          </button>
+          {pausable && (
+            <button
+              type="button"
+              className="admin-button"
+              aria-pressed={paused}
+              onClick={() => setPaused(!paused)}
+            >
+              {paused ? 'Reprendre le défilement' : 'Mettre en pause'}
+            </button>
+          )}
         </div>
       )}
     </div>
