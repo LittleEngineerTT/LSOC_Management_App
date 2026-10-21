@@ -4,7 +4,7 @@ import { createAdminApi } from '../admin/api';
 import { useLoad } from '../admin/data';
 import { licenseLabels, licenseTones, type LicenseStatus } from '../admin/LicensesPanel';
 import { Badge, Confirm, EntityForm, LoadState, Notice, checked, str } from '../admin/ui';
-import { ErrorNotice } from '../auth/components';
+import { ErrorNotice, Icon } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
 import type { Account } from '../api/auth';
 import { useSession } from '../auth/session';
@@ -93,6 +93,62 @@ export function ProfilePage({ account }: { account: Account }) {
 }
 
 /** Changement du mot de passe et fermeture des sessions ouvertes sur d’autres appareils. */
+const MIN_PASSWORD = 12;
+
+/** Champ mot de passe avec bouton afficher / masquer et aide sous le champ. */
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  hint,
+  tone,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: 'current-password' | 'new-password';
+  hint?: string;
+  tone?: 'good' | 'warning';
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="admin-field profile-password">
+      <label htmlFor={id}>{label}</label>
+      <div className="profile-password-input">
+        <input
+          id={id}
+          type={visible ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          value={value}
+          aria-describedby={hint ? `${id}-hint` : undefined}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          type="button"
+          className="profile-password-reveal"
+          aria-label={`${visible ? 'Masquer' : 'Afficher'} : ${label.toLowerCase()}`}
+          aria-pressed={visible}
+          onClick={() => setVisible(!visible)}
+        >
+          {visible ? 'Masquer' : 'Afficher'}
+        </button>
+      </div>
+      {hint && (
+        <p
+          id={`${id}-hint`}
+          className={`profile-password-hint${tone ? ` ${tone}` : ''}`}
+          aria-live="polite"
+        >
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AccountSecurity() {
   const { csrfToken, clear } = useSession();
   const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
@@ -103,90 +159,130 @@ function AccountSecurity() {
   const [confirmation, setConfirmation] = useState('');
   const [invalid, setInvalid] = useState('');
   const [done, setDone] = useState('');
+  const [revoking, setRevoking] = useState(false);
+  const length = next.trim().length;
+  const long = length >= MIN_PASSWORD;
+  const matching = !!confirmation && confirmation.trim() === next.trim();
   return (
-    <section className="admin-card" aria-labelledby="account-security">
+    <section className="admin-card profile-security" aria-labelledby="account-security">
       <h2 id="account-security">Sécurité du compte</h2>
-      {done && <Notice>{done}</Notice>}
-      <ErrorNotice message={invalid || change.error || revoke.error} />
-      <form
-        className="admin-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setDone('');
-          const value = next.trim();
-          if (!current.trim()) return setInvalid('Saisissez votre mot de passe actuel.');
-          if (value.length < 12 || value.length > 128)
-            return setInvalid('Le nouveau mot de passe doit faire entre 12 et 128 caractères.');
-          if (value !== confirmation.trim())
-            return setInvalid('Les deux nouveaux mots de passe ne correspondent pas.');
-          setInvalid('');
-          void change.run(async (signal) => {
-            await api.request<void>(
-              '/me/password',
-              'POST',
-              { current_password: current.trim(), new_password: value },
-              signal,
-            );
-            setCurrent('');
-            setNext('');
-            setConfirmation('');
-            setDone('Mot de passe modifié. Vos autres appareils ont été déconnectés.');
-          });
-        }}
-      >
-        <label>
-          Mot de passe actuel
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={(event) => setCurrent(event.target.value)}
-          />
-        </label>
-        <label>
-          Nouveau mot de passe (12 caractères minimum)
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={next}
-            onChange={(event) => setNext(event.target.value)}
-          />
-        </label>
-        <label>
-          Confirmer le nouveau mot de passe
-          <input
-            type="password"
-            autoComplete="new-password"
-            value={confirmation}
-            onChange={(event) => setConfirmation(event.target.value)}
-          />
-        </label>
-        <div className="admin-actions">
-          <button type="submit" className="admin-button" disabled={change.pending}>
-            {change.pending ? 'Modification…' : 'Changer le mot de passe'}
-          </button>
-        </div>
-      </form>
       <p className="admin-hint">
-        Appareil perdu ou session restée ouverte ailleurs : déconnectez tous vos autres appareils.
-        Cette session reste ouverte.
+        Gardez la main sur l’accès à votre compte : mot de passe et appareils connectés.
       </p>
-      <div className="admin-actions">
-        <button
-          type="button"
-          className="admin-button"
-          disabled={revoke.pending}
-          onClick={() => {
+      {done && <Notice>{done}</Notice>}
+      <div className="profile-security-grid">
+        <form
+          className="profile-security-block"
+          aria-labelledby="password-title"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
             setDone('');
-            void revoke.run(async (signal) => {
-              await api.request<void>('/me/sessions/revoke', 'POST', undefined, signal);
-              setDone('Vos autres appareils ont été déconnectés.');
+            const value = next.trim();
+            if (!current.trim()) return setInvalid('Saisissez votre mot de passe actuel.');
+            if (value.length < MIN_PASSWORD || value.length > 128)
+              return setInvalid('Le nouveau mot de passe doit faire entre 12 et 128 caractères.');
+            if (value !== confirmation.trim())
+              return setInvalid('Les deux nouveaux mots de passe ne correspondent pas.');
+            setInvalid('');
+            void change.run(async (signal) => {
+              await api.request<void>(
+                '/me/password',
+                'POST',
+                { current_password: current.trim(), new_password: value },
+                signal,
+              );
+              setCurrent('');
+              setNext('');
+              setConfirmation('');
+              setDone('Mot de passe modifié. Vos autres appareils ont été déconnectés.');
             });
           }}
         >
-          Déconnecter mes autres appareils
-        </button>
+          <h3 id="password-title">
+            <Icon name="lock" /> Mot de passe
+          </h3>
+          <p className="admin-hint">
+            Au moins {MIN_PASSWORD} caractères. Le changer déconnecte vos autres appareils.
+          </p>
+          <ErrorNotice message={invalid || change.error} />
+          <PasswordField
+            id="password-current"
+            label="Mot de passe actuel"
+            autoComplete="current-password"
+            value={current}
+            onChange={setCurrent}
+          />
+          <PasswordField
+            id="password-new"
+            label="Nouveau mot de passe"
+            autoComplete="new-password"
+            value={next}
+            onChange={setNext}
+            hint={long ? 'Longueur suffisante' : `${length} / ${MIN_PASSWORD} caractères minimum`}
+            tone={long ? 'good' : length ? 'warning' : undefined}
+          />
+          <PasswordField
+            id="password-confirmation"
+            label="Confirmer le nouveau mot de passe"
+            autoComplete="new-password"
+            value={confirmation}
+            onChange={setConfirmation}
+            hint={
+              confirmation
+                ? matching
+                  ? 'Les mots de passe correspondent'
+                  : 'Les mots de passe sont différents'
+                : undefined
+            }
+            tone={confirmation ? (matching ? 'good' : 'warning') : undefined}
+          />
+          <div className="admin-actions">
+            <button type="submit" className="admin-button primary" disabled={change.pending}>
+              {change.pending ? 'Modification…' : 'Changer le mot de passe'}
+            </button>
+          </div>
+        </form>
+        <div className="profile-security-block" role="group" aria-labelledby="devices-title">
+          <h3 id="devices-title">
+            <Icon name="exit" /> Appareils connectés
+          </h3>
+          <p className="admin-hint">
+            Appareil perdu, ordinateur partagé ou session restée ouverte ailleurs : déconnectez tous
+            vos autres appareils. Cette session reste ouverte.
+          </p>
+          <ErrorNotice message={revoke.error} />
+          <div className="admin-actions">
+            <button
+              type="button"
+              className="admin-button"
+              disabled={revoke.pending}
+              onClick={() => {
+                setDone('');
+                setRevoking(true);
+              }}
+            >
+              Déconnecter mes autres appareils
+            </button>
+          </div>
+        </div>
       </div>
+      {revoking && (
+        <Confirm
+          title="Déconnecter vos autres appareils ?"
+          label="Déconnecter"
+          onClose={() => setRevoking(false)}
+          onConfirm={async (signal) => {
+            await api.request<void>('/me/sessions/revoke', 'POST', undefined, signal);
+            setDone('Vos autres appareils ont été déconnectés.');
+          }}
+        >
+          <p>
+            Toutes vos autres sessions seront fermées : il faudra vous reconnecter sur ces
+            appareils. Cette session reste ouverte.
+          </p>
+        </Confirm>
+      )}
     </section>
   );
 }

@@ -65,7 +65,13 @@ it('change son mot de passe et déconnecte ses autres appareils', async () => {
   const card = within(await screen.findByRole('region', { name: 'Sécurité du compte' }));
   await userEvent.type(card.getByLabelText('Mot de passe actuel'), 'wrong');
   await userEvent.type(card.getByLabelText(/^Nouveau mot de passe/), 'nouveau-mot-de-passe');
+  // Aides en direct : longueur atteinte, confirmation différente ; mot de passe affichable.
+  expect(card.getByText('Longueur suffisante')).toBeInTheDocument();
   await userEvent.type(card.getByLabelText('Confirmer le nouveau mot de passe'), 'autre-mot-de-passe');
+  expect(card.getByText('Les mots de passe sont différents')).toBeInTheDocument();
+  expect(card.getByLabelText('Mot de passe actuel')).toHaveAttribute('type', 'password');
+  await userEvent.click(card.getByRole('button', { name: 'Afficher : mot de passe actuel' }));
+  expect(card.getByLabelText('Mot de passe actuel')).toHaveAttribute('type', 'text');
   await userEvent.click(card.getByRole('button', { name: 'Changer le mot de passe' }));
   expect(card.getByText('Les deux nouveaux mots de passe ne correspondent pas.')).toBeInTheDocument();
   await userEvent.clear(card.getByLabelText('Confirmer le nouveau mot de passe'));
@@ -79,5 +85,8 @@ it('change son mot de passe et déconnecte ses autres appareils', async () => {
   const call = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/me/password')).pop();
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ current_password: 'secret', new_password: 'nouveau-mot-de-passe' });
   await userEvent.click(card.getByRole('button', { name: 'Déconnecter mes autres appareils' }));
+  // Confirmation avant de fermer les autres sessions.
+  const dialog = await screen.findByRole('dialog', { name: 'Déconnecter vos autres appareils ?' });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Déconnecter' }));
   expect(await card.findByText('Vos autres appareils ont été déconnectés.')).toBeInTheDocument();
 });
