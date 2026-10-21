@@ -42,9 +42,11 @@ it('arrive en invité : accueil sans notifications, menu réduit et API publique
   expect(screen.queryByRole('heading', { name: /Notifications/ })).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Informations du club' })).toBeInTheDocument();
   // Les résultats récents, publics, s’affichent aussi aux invités.
-  const results = await screen.findByRole('region', { name: 'Résultats récents' });
-  expect(await within(results).findByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
-  expect(within(results).getByText('Seniors')).toBeInTheDocument();
+  const results = await screen.findByRole('region', { name: 'Résultats des matchs' });
+  expect(await within(results).findByRole('heading', { name: /Toutes les sections/ })).toBeInTheDocument();
+  await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
+  expect(within(results).getByRole('heading', { name: /Seniors/ })).toBeInTheDocument();
+  expect(within(results).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
   const menu = screen.getByRole('navigation', { name: 'Applications' });
   expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning', 'Notre club']);
   expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();

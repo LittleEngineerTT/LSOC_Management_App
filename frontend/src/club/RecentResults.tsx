@@ -29,22 +29,26 @@ interface SourceResults {
   results: FFVBResult[];
 }
 
-const DAYS = 30;
+// Carte « Toutes les sections » : deux dernières semaines ; cartes par section : la saison.
+const RECENT_DAYS = 14;
+const SEASON_DAYS = 365;
 // Même comparaison que le backend : sans accents, sans casse, espaces réduits.
 const normalize = (value: string) =>
   value.normalize('NFKD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
 
-/** Une information de l’encart : un match, son équipe et sa section. */
-function ResultSlide({ source, match }: { source: SourceResults; match: FFVBResult }) {
+interface Played {
+  source: SourceResults;
+  match: FFVBResult;
+}
+
+/** Un match : date, équipe du club, domicile, score, extérieur, sets et victoire ou défaite. */
+function ResultRow({ source, match }: Played) {
   const home = normalize(match.home_team) === normalize(source.club_team);
   const won = home ? match.home_sets > match.away_sets : match.away_sets > match.home_sets;
   return (
-    <div className="club-result">
-      <h4>
-        {source.team_name} <Badge>{source.section_name}</Badge>{' '}
-        <span className="admin-hint">· poule {source.pool}</span>
-      </h4>
+    <li className="club-result">
       <span className="club-result-date">{dayLabel(parisDay(match.kickoff_at))}</span>
+      <span className="admin-hint">{source.team_name}</span>
       <span className="club-result-teams">
         <span className={home ? 'club-result-club' : undefined}>{match.home_team}</span>{' '}
         <strong aria-label={`${match.home_sets} sets à ${match.away_sets}`}>
@@ -57,44 +61,93 @@ function ResultSlide({ source, match }: { source: SourceResults; match: FFVBResu
         Sets : {match.set_scores.join(' · ')}
         {match.points && ` · points ${match.points.replace('-', ' – ')}`}
       </span>
+    </li>
+  );
+}
+
+/** Carte de l’encart : un titre et ses matchs, du plus récent au plus ancien. */
+function ResultsCard({
+  title,
+  hint,
+  played,
+  empty,
+}: {
+  title: string;
+  hint: string;
+  played: Played[];
+  empty: string;
+}) {
+  return (
+    <div className="club-results-card">
+      <h4>
+        {title} <span className="admin-hint">· {hint}</span>
+      </h4>
+      {played.length ? (
+        <ul className="club-plain-list club-results-list">
+          {played.map(({ source, match }) => (
+            <ResultRow
+              key={`${source.source_id}:${match.match_code}`}
+              source={source}
+              match={match}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="club-day-empty">{empty}</p>
+      )}
     </div>
   );
 }
 
-/** Résultats FFVB des 30 derniers jours, toutes sources réunies, dans un encart défilant. */
+/** Résultats FFVB : toutes les sections sur deux semaines, puis une carte par section. */
 export function RecentResults() {
   const { api, guest } = useClub();
   const loader = useCallback(
     (signal: AbortSignal) =>
-      api.list<SourceResults>(`${guest ? '/public' : ''}/ffvb/results?days=${DAYS}`, false, signal),
+      api.list<SourceResults>(
+        `${guest ? '/public' : ''}/ffvb/results?days=${SEASON_DAYS}&limit=50`,
+        false,
+        signal,
+      ),
     [api, guest],
   );
   const result = useLoad(loader);
   const sources = result.data ?? [];
-  // Du plus récent au plus ancien, quelle que soit l’équipe.
-  const played = sources
-    .flatMap((source) => source.results.map((match) => ({ source, match })))
-    .sort((left, right) => right.match.kickoff_at.localeCompare(left.match.kickoff_at));
   // Sans source FFVB, la section n’a rien à montrer.
   if (result.loaded && !result.error && !sources.length) return null;
-  return (
-    <section className="admin-card club-results" aria-label="Résultats récents">
-      <h3>Résultats récents</h3>
-      <p className="admin-hint">Matchs FFVB des {DAYS} derniers jours.</p>
-      <LoadState result={result} />
-      {result.loaded && !result.error && !played.length && (
-        <p className="club-day-empty">Aucun match joué sur cette période.</p>
-      )}
-      <Carousel
-        label="Résultats des matchs"
-        slides={played.map(({ source, match }) => (
-          <ResultSlide
-            key={`${source.source_id}:${match.match_code}`}
-            source={source}
-            match={match}
-          />
-        ))}
+  const newest = (left: Played, right: Played) =>
+    right.match.kickoff_at.localeCompare(left.match.kickoff_at);
+  const played = sources
+    .flatMap((source) => source.results.map((match) => ({ source, match })))
+    .sort(newest);
+  const since = new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOString();
+  // Une carte par section, dans l’ordre alphabétique.
+  const sections = [...new Map(sources.map((item) => [item.section_id, item.section_name]))].sort(
+    (left, right) => left[1].localeCompare(right[1], 'fr'),
+  );
+  const cards = [
+    <ResultsCard
+      key="all"
+      title="Toutes les sections"
+      hint={`${RECENT_DAYS} derniers jours`}
+      played={played.filter((item) => item.match.kickoff_at >= since)}
+      empty="Aucun match joué ces deux dernières semaines."
+    />,
+    ...sections.map(([id, name]) => (
+      <ResultsCard
+        key={id}
+        title={name}
+        hint="tous les résultats de la saison"
+        played={played.filter((item) => item.source.section_id === id)}
+        empty="Aucun match joué pour le moment."
       />
+    )),
+  ];
+  return (
+    <section className="admin-card club-results" aria-label="Résultats des matchs">
+      <h3>Résultats des matchs</h3>
+      <LoadState result={result} />
+      {result.loaded && !result.error && <Carousel label="Résultats par section" slides={cards} />}
     </section>
   );
 }

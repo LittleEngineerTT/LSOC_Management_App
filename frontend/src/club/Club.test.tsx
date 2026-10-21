@@ -556,25 +556,30 @@ it('la clôture d’un dossier avertit de la suppression et exige d’avoir tél
   await waitFor(() => expect(mutations).toEqual([{ path: '/dossiers/d1/close', method: 'POST', body: {} }]));
 });
 
-it('l’accueil fait défiler les résultats récents de chaque source FFVB avec leur section', async () => {
+it('l’encart des résultats montre toutes les sections sur deux semaines, puis une carte par section', async () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
   const played = (code: string, kickoff: string, home: string, away: string, homeSets: number, awaySets: number) => ({ match_code: code, kickoff_at: kickoff, home_team: home, away_team: away, home_sets: homeSets, away_sets: awaySets, set_scores: ['23:21', '21:8', '18:21', '21:9'], points: '83-59' });
   routes['/ffvb/results'] = [
-    { source_id: 'src1', season: '2026/2027', pool: 'BRC', club_team: 'LSO COLOMBES', team_id: 't1', team_name: 'Loisir 1', section_id: 's1', section_name: 'Loisir', results: [played('BRC005', '2026-10-15T18:50:00Z', 'MEUDON CHAVILLE SEVRES VOLLEY 2', 'LSO COLOMBES', 3, 1)] },
-    { source_id: 'src2', season: '2026/2027', pool: '2MC', club_team: 'LSO COLOMBES 1', team_id: 't2', team_name: 'Régionale', section_id: 's2', section_name: 'Compétition', results: [played('2MCA002', '2026-10-18T14:00:00Z', 'LSO COLOMBES 1', 'PARIS UC', 3, 2)] },
+    { source_id: 'src1', season: '2026/2027', pool: 'BRC', club_team: 'LSO COLOMBES', team_id: 't1', team_name: 'Loisir 1', section_id: 's1', section_name: 'Loisir', results: [played('BRC005', daysAgo(6), 'MEUDON CHAVILLE SEVRES VOLLEY 2', 'LSO COLOMBES', 3, 1), played('BRC001', daysAgo(40), 'LSO COLOMBES', 'RUEIL 2', 3, 0)] },
+    { source_id: 'src2', season: '2026/2027', pool: '2MC', club_team: 'LSO COLOMBES 1', team_id: 't2', team_name: 'Régionale', section_id: 's2', section_name: 'Compétition', results: [played('2MCA002', daysAgo(3), 'LSO COLOMBES 1', 'PARIS UC', 3, 2)] },
   ];
   open('/app');
-  const results = await screen.findByRole('region', { name: 'Résultats récents' });
-  // Le plus récent d’abord, une information à la fois.
-  expect(await within(results).findByText('PARIS UC')).toBeInTheDocument();
-  expect(within(results).getByText('Compétition')).toBeInTheDocument();
-  expect(within(results).getByText('Victoire')).toBeInTheDocument();
-  expect(within(results).queryByText('MEUDON CHAVILLE SEVRES VOLLEY 2')).not.toBeInTheDocument();
+  const results = await screen.findByRole('region', { name: 'Résultats des matchs' });
+  // Première carte : toutes les sections, deux dernières semaines, du plus récent au plus ancien.
+  expect(await within(results).findByRole('heading', { name: /Toutes les sections/ })).toBeInTheDocument();
+  const recent = within(results).getAllByRole('listitem');
+  expect(recent.map((item) => item.textContent)).toEqual([expect.stringContaining('PARIS UC'), expect.stringContaining('MEUDON CHAVILLE SEVRES VOLLEY 2')]);
+  expect(within(results).queryByText('RUEIL 2')).not.toBeInTheDocument();
+  expect(within(recent[1]!).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
+  expect(within(recent[1]!).getByText('Défaite')).toBeInTheDocument();
+  expect(within(recent[1]!).getByText('Sets : 23:21 · 21:8 · 18:21 · 21:9 · points 83 – 59')).toBeInTheDocument();
+  expect(within(recent[0]!).getByText('Victoire')).toBeInTheDocument();
+  // Carte d’une section : tous ses résultats passés.
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
-  expect(within(results).getByText('MEUDON CHAVILLE SEVRES VOLLEY 2')).toBeInTheDocument();
-  expect(within(results).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
-  expect(within(results).getByText('Défaite')).toBeInTheDocument();
-  expect(within(results).getByText('Sets : 23:21 · 21:8 · 18:21 · 21:9 · points 83 – 59')).toBeInTheDocument();
-  expect(within(results).getByText('Loisir')).toBeInTheDocument();
+  expect(within(results).getByRole('heading', { name: /Compétition/ })).toBeInTheDocument();
+  await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
+  expect(within(results).getByRole('heading', { name: /Loisir/ })).toBeInTheDocument();
+  expect(within(results).getAllByRole('listitem').map((item) => item.textContent)).toEqual([expect.stringContaining('MEUDON'), expect.stringContaining('RUEIL 2')]);
 });
 
 it('Notre club présente la section configurée : image, puis blocs titrés et horaires', async () => {

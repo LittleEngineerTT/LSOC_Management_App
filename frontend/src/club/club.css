@@ -620,9 +620,18 @@
 .club-carousel-dot.active {
   background: #617282;
 }
-.club-result h4 {
-  flex-basis: 100%;
-  margin: 0;
+.club-results-card h4 {
+  margin: 0 0 8px;
+}
+/* Une saison entière tient dans la carte : la liste défile à l’intérieur. */
+.club-results-list {
+  max-height: 22em;
+  overflow-y: auto;
+}
+.club-results-list .club-result + .club-result {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e3e8ed;
 }
 /* Accueil : rangée « à la une » au-dessus des rendez-vous. */
 .club-highlights {
