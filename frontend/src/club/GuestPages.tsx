@@ -7,6 +7,7 @@ import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { dayLabel, dayStart, horizonEnd, parisDay, rangeQuery, timeRange, today } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarView } from './CalendarView';
+import { ClubInfos } from './ClubInfos';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
 import {
@@ -92,6 +93,10 @@ export function GuestHome() {
         <h2>Bienvenue au LSO Colombes Volley</h2>
         <p>Vous visitez l’espace club en tant qu’invité.</p>
       </div>
+      <div className="club-highlights">
+        <ClubInfos />
+        <RecentResults />
+      </div>
       <div className="club-home">
         <section className="admin-card">
           <h3>Prochains matchs FFVB</h3>
@@ -114,7 +119,6 @@ export function GuestHome() {
         </section>
         <SignInInvite />
       </div>
-      <RecentResults />
       <GuestDetailHost />
     </>
   );

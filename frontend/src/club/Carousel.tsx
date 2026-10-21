@@ -18,7 +18,10 @@ export function Carousel({
 }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [held, setHeld] = useState(false);
+  // Survol et focus séparés : un texte déplié au clic reste affiché quand la souris sort.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = hovered || focused;
   const count = slides.length;
   const current = count ? index % count : 0;
   useEffect(() => {
@@ -34,11 +37,11 @@ export function Carousel({
       role="group"
       aria-roledescription="carrousel"
       aria-label={label}
-      onMouseEnter={() => setHeld(true)}
-      onMouseLeave={() => setHeld(false)}
-      onFocus={() => setHeld(true)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHeld(false);
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
       }}
     >
       <div

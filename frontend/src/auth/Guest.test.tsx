@@ -40,6 +40,7 @@ it('continue en invité : accueil sans notifications, menu réduit et API publiq
   expect(await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeInTheDocument();
   expect(await screen.findByRole('link', { name: 'LSO Colombes – Paris' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: /Notifications/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Informations du club' })).toBeInTheDocument();
   // Les résultats récents, publics, s’affichent aussi aux invités.
   const results = await screen.findByRole('region', { name: 'Résultats récents' });
   expect(await within(results).findByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');

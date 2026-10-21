@@ -11,6 +11,7 @@ import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
 import { useUnread } from '../app/unread';
+import { ClubInfos } from './ClubInfos';
 import { RecentResults } from './RecentResults';
 
 export function HomePage() {
@@ -29,6 +30,11 @@ export function HomePage() {
         <p>Voici ce qui vous attend au club.</p>
       </div>
       {admin && <AdminSummary />}
+      {/* À la une : informations du club et derniers résultats, côte à côte. */}
+      <div className="club-highlights">
+        <ClubInfos />
+        <RecentResults />
+      </div>
       <div className="club-home">
         <section className="admin-card">
           <h3>Prochains rendez-vous</h3>
@@ -56,7 +62,6 @@ export function HomePage() {
         </section>
         <Notifications />
       </div>
-      <RecentResults />
       <DetailHost onChanged={result.reload} />
     </>
   );
