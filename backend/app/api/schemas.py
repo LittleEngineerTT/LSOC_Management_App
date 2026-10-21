@@ -755,6 +755,7 @@ class FFVBSourceView(View):
     interval_days: float
     next_check_at: datetime
     last_success_at: datetime | None
+    results_checked_at: datetime | None = None
     last_error: str | None
 
 

@@ -1,5 +1,7 @@
-from datetime import datetime, timedelta
+from collections.abc import Iterable
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import HTTPException
@@ -530,3 +532,42 @@ def recent_results(db: Session, days: int, limit: int) -> list[SourceResultsView
             )
         )
     return result
+
+
+PARIS = ZoneInfo("Europe/Paris")
+# Relevé des résultats d’un jour de match, à 23 h 59 heure de Paris, quel que soit l’intervalle
+# de la source ; les autres jours, la synchronisation régulière de la source les met à jour.
+RESULT_CHECKS = ((0, time(23, 59)),)
+
+
+def result_checkpoints(kickoffs: Iterable[datetime]) -> list[datetime]:
+    """Horaires de relevé des résultats pour des coups d’envoi, du plus ancien au plus récent."""
+    days = {kickoff.astimezone(PARIS).date() for kickoff in kickoffs}
+    return sorted(
+        datetime.combine(day + timedelta(days=offset), at, tzinfo=PARIS).astimezone(UTC)
+        for day in days
+        for offset, at in RESULT_CHECKS
+    )
+
+
+def due_checkpoint(
+    kickoffs: Iterable[datetime], checked_at: datetime | None, at: datetime
+) -> datetime | None:
+    """Dernier horaire de relevé passé et pas encore traité ; un seul rattrape les manqués."""
+    passed = [moment for moment in result_checkpoints(kickoffs) if moment <= at]
+    if not passed or (checked_at is not None and checked_at >= passed[-1]):
+        return None
+    return passed[-1]
+
+
+def results_due(db: Session, source: FFVBSource, at: datetime) -> bool:
+    kickoffs = [
+        datetime.fromisoformat(str(state.official["kickoff_at"]))
+        for state in db.scalars(
+            select(FFVBMatchState).where(
+                FFVBMatchState.source_id == source.id, FFVBMatchState.disabled.is_(False)
+            )
+        )
+        if state.official.get("kickoff_at")
+    ]
+    return due_checkpoint(kickoffs, source.results_checked_at, at) is not None

@@ -540,6 +540,8 @@ class FFVBSource(Identity, Base):
         DateTime(timezone=True), default=now, index=True
     )
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Dernier relevé des résultats d’un jour de match, à 23 h 59.
+    results_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(200))
     # Réglages des matchs de la source ; nul = configuration par défaut du club.
     before_minutes: Mapped[int | None] = mapped_column(Integer)

@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.security import cipher, now
 from app.persistence.database import SessionFactory
 from app.persistence.models import AuthToken, EmailJob, FFVBSource, LoginSession, RateBucket, User
-from app.services.ffvb import sync_source
+from app.services.ffvb import results_due, sync_source
 
 logger = logging.getLogger(__name__)
 # Tentatives d’envoi avant abandon (voir aussi GET /admin/email-jobs?status=failed).
@@ -97,14 +97,16 @@ def process_emails(limit: int = 100) -> int:
 def process_ffvb() -> int:
     checked = 0
     with SessionFactory() as db:
-        identifiers = list(
-            db.scalars(
-                select(FFVBSource.id)
-                .where(FFVBSource.enabled.is_(True), FFVBSource.next_check_at <= now())
+        # Échéance de la source, ou relevé des résultats d’un jour de match à 23 h 59.
+        identifiers = [
+            source.id
+            for source in db.scalars(
+                select(FFVBSource)
+                .where(FFVBSource.enabled.is_(True))
                 .order_by(FFVBSource.next_check_at)
-                .limit(20)
             )
-        )
+            if source.next_check_at <= now() or results_due(db, source, now())
+        ][:20]
     with httpx.Client() as client:
         for identifier in identifiers:
             try:
@@ -112,7 +114,13 @@ def process_ffvb() -> int:
                     if not db.scalar(text("SELECT pg_try_advisory_xact_lock(781012)")):
                         continue
                     source = db.get(FFVBSource, identifier)
-                    if source is not None and source.enabled and source.next_check_at <= now():
+                    if source is None or not source.enabled:
+                        continue
+                    results = results_due(db, source, now())
+                    if source.next_check_at <= now() or results:
+                        if results:
+                            # Noté avant la synchronisation : un échec ne la relance pas en boucle.
+                            source.results_checked_at = now()
                         if sync_source(db, source, client):
                             checked += 1
             except Exception:
@@ -124,6 +132,8 @@ def process_ffvb() -> int:
                             "Synchronisation interrompue ; prochaine tentative différée"
                         )
                         source.next_check_at = now() + timedelta(minutes=source.interval_minutes)
+                        # Le relevé du jour de match est passé : pas de nouvel essai à chaque tour.
+                        source.results_checked_at = now()
     return checked
 
 
