@@ -26,6 +26,7 @@ function open(path = '/login') {
     if (url.pathname.endsWith('/public/gymnasiums')) return json([{ id: 'g1', name: 'Ambroise Paré' }]);
     if (url.pathname.endsWith('/public/events/ffvb')) return json(match);
     if (url.pathname.endsWith('/public/events')) return json([match]);
+    if (url.pathname.endsWith('/public/ffvb/results')) return json([{ source_id: 'src1', season: '2026/2027', pool: 'BRC', club_team: 'LSO COLOMBES', team_id: 't1', team_name: 'Seniors M1', section_id: 's1', section_name: 'Seniors', results: [{ match_code: 'BRC005', kickoff_at: '2026-10-15T18:50:00Z', home_team: 'MEUDON 2', away_team: 'LSO COLOMBES', home_sets: 3, away_sets: 1, set_scores: ['23:21', '21:8', '18:21', '21:9'], points: '83-59' }] }]);
     return json({ detail: 'Connexion requise' }, 401);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -39,6 +40,10 @@ it('continue en invité : accueil sans notifications, menu réduit et API publiq
   expect(await screen.findByRole('heading', { name: 'Bienvenue au LSO Colombes Volley' })).toBeInTheDocument();
   expect(await screen.findByRole('link', { name: 'LSO Colombes – Paris' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: /Notifications/ })).not.toBeInTheDocument();
+  // Les résultats récents, publics, s’affichent aussi aux invités.
+  const results = await screen.findByRole('region', { name: 'Résultats récents' });
+  expect(await within(results).findByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
+  expect(within(results).getByText('Seniors')).toBeInTheDocument();
   const menu = screen.getByRole('navigation', { name: 'Applications' });
   expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning']);
   expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();

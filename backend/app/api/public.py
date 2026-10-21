@@ -1,12 +1,13 @@
-"""Lecture sans compte (mode invité) : uniquement les matchs FFVB, déjà publics à la fédération."""
+"""Lecture sans compte (mode invité) : uniquement les matchs FFVB et leurs résultats, déjà publics."""
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AwareDatetime
 from sqlalchemy import select
 
 from app.api.common import DB
-from app.api.schemas import PublicEventView, PublicTeamView, SectionView
+from app.api.schemas import PublicEventView, PublicTeamView, SectionView, SourceResultsView
 from app.persistence.models import Event, Gymnasium, Section, Team
+from app.services.ffvb import recent_results
 
 router = APIRouter(prefix="/public", tags=["Invités"])
 
@@ -55,3 +56,13 @@ def teams(db: DB) -> list[Team]:
 def gyms(db: DB) -> list[Gymnasium]:
     """Noms des gymnasiums seulement, pour situer les matchs ; la capacité reste interne."""
     return list(db.scalars(select(Gymnasium).order_by(Gymnasium.name)))
+
+
+@router.get("/ffvb/results", response_model=list[SourceResultsView])
+def results(
+    db: DB,
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+) -> list[SourceResultsView]:
+    """Résultats récents des sources FFVB, publiés par la fédération."""
+    return recent_results(db, days, limit)

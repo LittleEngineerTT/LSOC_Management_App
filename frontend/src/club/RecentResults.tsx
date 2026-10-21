@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useLoad } from '../admin/data';
 import { Badge, LoadState } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
+import { Carousel } from './Carousel';
 import { useClub } from './context';
 
 interface FFVBResult {
@@ -33,65 +34,67 @@ const DAYS = 30;
 const normalize = (value: string) =>
   value.normalize('NFKD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
 
-/** Résultats des matchs FFVB des 30 derniers jours, pour chaque source configurée. */
+/** Une information de l’encart : un match, son équipe et sa section. */
+function ResultSlide({ source, match }: { source: SourceResults; match: FFVBResult }) {
+  const home = normalize(match.home_team) === normalize(source.club_team);
+  const won = home ? match.home_sets > match.away_sets : match.away_sets > match.home_sets;
+  return (
+    <div className="club-result">
+      <h4>
+        {source.team_name} <Badge>{source.section_name}</Badge>{' '}
+        <span className="admin-hint">· poule {source.pool}</span>
+      </h4>
+      <span className="club-result-date">{dayLabel(parisDay(match.kickoff_at))}</span>
+      <span className="club-result-teams">
+        <span className={home ? 'club-result-club' : undefined}>{match.home_team}</span>{' '}
+        <strong aria-label={`${match.home_sets} sets à ${match.away_sets}`}>
+          {match.home_sets} – {match.away_sets}
+        </strong>{' '}
+        <span className={home ? undefined : 'club-result-club'}>{match.away_team}</span>
+      </span>
+      <Badge tone={won ? 'good' : 'danger'}>{won ? 'Victoire' : 'Défaite'}</Badge>
+      <span className="club-result-sets">
+        Sets : {match.set_scores.join(' · ')}
+        {match.points && ` · points ${match.points.replace('-', ' – ')}`}
+      </span>
+    </div>
+  );
+}
+
+/** Résultats FFVB des 30 derniers jours, toutes sources réunies, dans un encart défilant. */
 export function RecentResults() {
-  const { api } = useClub();
+  const { api, guest } = useClub();
   const loader = useCallback(
-    (signal: AbortSignal) => api.list<SourceResults>(`/ffvb/results?days=${DAYS}`, false, signal),
-    [api],
+    (signal: AbortSignal) =>
+      api.list<SourceResults>(`${guest ? '/public' : ''}/ffvb/results?days=${DAYS}`, false, signal),
+    [api, guest],
   );
   const result = useLoad(loader);
   const sources = result.data ?? [];
+  // Du plus récent au plus ancien, quelle que soit l’équipe.
+  const played = sources
+    .flatMap((source) => source.results.map((match) => ({ source, match })))
+    .sort((left, right) => right.match.kickoff_at.localeCompare(left.match.kickoff_at));
   // Sans source FFVB, la section n’a rien à montrer.
   if (result.loaded && !result.error && !sources.length) return null;
   return (
     <section className="admin-card club-results" aria-label="Résultats récents">
       <h3>Résultats récents</h3>
-      <p className="admin-hint">Matchs FFVB des {DAYS} derniers jours, par équipe.</p>
+      <p className="admin-hint">Matchs FFVB des {DAYS} derniers jours.</p>
       <LoadState result={result} />
-      {sources.map((source) => (
-        <div className="club-results-source" key={source.source_id}>
-          <h4>
-            {source.team_name} <Badge>{source.section_name}</Badge>{' '}
-            <span className="admin-hint">
-              · poule {source.pool}, saison {source.season}
-            </span>
-          </h4>
-          {source.results.length ? (
-            <ul className="club-plain-list">
-              {source.results.map((match) => {
-                const home = normalize(match.home_team) === normalize(source.club_team);
-                const won = home
-                  ? match.home_sets > match.away_sets
-                  : match.away_sets > match.home_sets;
-                return (
-                  <li key={match.match_code} className="club-result">
-                    <span className="club-result-date">{dayLabel(parisDay(match.kickoff_at))}</span>
-                    <span className="club-result-teams">
-                      <span className={home ? 'club-result-club' : undefined}>
-                        {match.home_team}
-                      </span>{' '}
-                      <strong aria-label={`${match.home_sets} sets à ${match.away_sets}`}>
-                        {match.home_sets} – {match.away_sets}
-                      </strong>{' '}
-                      <span className={home ? undefined : 'club-result-club'}>
-                        {match.away_team}
-                      </span>
-                    </span>
-                    <Badge tone={won ? 'good' : 'danger'}>{won ? 'Victoire' : 'Défaite'}</Badge>
-                    <span className="club-result-sets">
-                      Sets : {match.set_scores.join(' · ')}
-                      {match.points && ` · points ${match.points.replace('-', ' – ')}`}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="club-day-empty">Aucun match joué sur cette période.</p>
-          )}
-        </div>
-      ))}
+      {result.loaded && !result.error && !played.length && (
+        <p className="club-day-empty">Aucun match joué sur cette période.</p>
+      )}
+      <Carousel
+        label="Résultats des matchs"
+        slides={played.map(({ source, match }) => (
+          <ResultSlide
+            key={`${source.source_id}:${match.match_code}`}
+            source={source}
+            match={match}
+          />
+        ))}
+      />
     </section>
   );
 }

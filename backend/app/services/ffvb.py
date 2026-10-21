@@ -7,6 +7,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get
+from app.api.schemas import FFVBResultView, SourceResultsView
 from app.core.config import settings
 from app.core.security import now
 from app.integrations.ffvb import Match, Result, fetch, normalize, parse_calendar
@@ -19,6 +20,7 @@ from app.persistence.models import (
     FFVBSource,
     GymMapping,
     Gymnasium,
+    Section,
     Team,
     User,
 )
@@ -493,3 +495,38 @@ def resolve(db: Session, conflict: FFVBConflict, action: str, actor: User) -> FF
         )
         event_changed(db, event, actor.id)
     return state
+
+
+def recent_results(db: Session, days: int, limit: int) -> list[SourceResultsView]:
+    """Résultats des `days` derniers jours de chaque source, avec l’équipe et sa section.
+
+    Données publiées par la FFVB : lisibles par les adhérents comme par les invités.
+    """
+    since = now() - timedelta(days=days)
+    result: list[SourceResultsView] = []
+    for source, team, section in db.execute(
+        select(FFVBSource, Team, Section)
+        .join(Team, Team.id == FFVBSource.team_id)
+        .join(Section, Section.id == Team.section_id)
+        .order_by(Section.name, Team.name, FFVBSource.season.desc())
+    ).tuples():
+        played = db.scalars(
+            select(FFVBResult)
+            .where(FFVBResult.source_id == source.id, FFVBResult.kickoff_at >= since)
+            .order_by(FFVBResult.kickoff_at.desc(), FFVBResult.match_code)
+            .limit(limit)
+        )
+        result.append(
+            SourceResultsView(
+                source_id=source.id,
+                season=source.season,
+                pool=source.pool,
+                club_team=source.team_name,
+                team_id=team.id,
+                team_name=team.name,
+                section_id=section.id,
+                section_name=section.name,
+                results=[FFVBResultView.model_validate(item) for item in played],
+            )
+        )
+    return result

@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select, text
@@ -9,7 +7,6 @@ from app.api.schemas import (
     ConflictView,
     FFVBClubInput,
     FFVBClubView,
-    FFVBResultView,
     FFVBSourceInput,
     FFVBSourceView,
     MappingInput,
@@ -30,11 +27,9 @@ from app.persistence.models import (
     Event,
     FFVBConflict,
     FFVBMatchState,
-    FFVBResult,
     FFVBSource,
     GymMapping,
     Gymnasium,
-    Section,
     Team,
 )
 from app.services.events import lock_planning
@@ -43,6 +38,7 @@ from app.services.ffvb import (
     defaults,
     delete_source,
     match_settings,
+    recent_results,
     remap_venues,
     resolve,
     sync_source,
@@ -109,34 +105,7 @@ def results(
     limit: int = Query(10, ge=1, le=50),
 ) -> list[SourceResultsView]:
     """Résultats récents de chaque source FFVB, du plus récent au plus ancien."""
-    since = now() - timedelta(days=days)
-    result: list[SourceResultsView] = []
-    for source, team, section in db.execute(
-        select(FFVBSource, Team, Section)
-        .join(Team, Team.id == FFVBSource.team_id)
-        .join(Section, Section.id == Team.section_id)
-        .order_by(Section.name, Team.name, FFVBSource.season.desc())
-    ).tuples():
-        played = db.scalars(
-            select(FFVBResult)
-            .where(FFVBResult.source_id == source.id, FFVBResult.kickoff_at >= since)
-            .order_by(FFVBResult.kickoff_at.desc(), FFVBResult.match_code)
-            .limit(limit)
-        )
-        result.append(
-            SourceResultsView(
-                source_id=source.id,
-                season=source.season,
-                pool=source.pool,
-                club_team=source.team_name,
-                team_id=team.id,
-                team_name=team.name,
-                section_id=section.id,
-                section_name=section.name,
-                results=[FFVBResultView.model_validate(item) for item in played],
-            )
-        )
-    return result
+    return recent_results(db, days, limit)
 
 
 @router.get("/sources", response_model=list[FFVBSourceView])

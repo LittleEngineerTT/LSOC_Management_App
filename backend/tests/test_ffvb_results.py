@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from test_ffvb import configure, sync
 
-from app.api import ffvb as ffvb_api
+from app.services import ffvb as ffvb_service
 from app.integrations.ffvb import Result, parse_calendar
 from app.persistence.database import SessionFactory
 from app.persistence.models import FFVBResult
@@ -27,7 +27,7 @@ def test_parser_reads_sets_set_scores_and_points() -> None:
 
 
 def test_recent_results_of_each_source_with_its_section(admin: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ffvb_api, 'now', lambda: datetime(2026, 10, 21, 12, tzinfo=UTC))
+    monkeypatch.setattr(ffvb_service, 'now', lambda: datetime(2026, 10, 21, 12, tzinfo=UTC))
     source, section, _ = configure(admin)
     # Un match joué avant le premier import a quand même son résultat.
     sync(source, PLAYED)
@@ -44,3 +44,7 @@ def test_recent_results_of_each_source_with_its_section(admin: TestClient, monke
     # Hors de la fenêtre demandée : la source reste listée, sans résultat.
     assert admin.get('/api/v1/ffvb/results?days=3').json()[0]['results'] == []
     assert TestClient(admin.app).get('/api/v1/ffvb/results').status_code == 401
+    # Les invités lisent les mêmes résultats, publiés par la FFVB.
+    guest = TestClient(admin.app).get('/api/v1/public/ffvb/results')
+    assert guest.status_code == 200
+    assert guest.json()[0]['results'][0]['match_code'] == 'BRC005'

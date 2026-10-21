@@ -7,6 +7,7 @@ import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { dayLabel, dayStart, horizonEnd, parisDay, rangeQuery, timeRange, today } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarView } from './CalendarView';
+import { RecentResults } from './RecentResults';
 import { useClub } from './context';
 import {
   EventOrigin,
@@ -113,6 +114,7 @@ export function GuestHome() {
         </section>
         <SignInInvite />
       </div>
+      <RecentResults />
       <GuestDetailHost />
     </>
   );

@@ -592,3 +592,38 @@
   color: #617282;
   font-variant-numeric: tabular-nums;
 }
+/* Encart défilant générique. */
+.club-carousel {
+  display: grid;
+  gap: 8px;
+}
+.club-carousel-slide {
+  min-height: 7em;
+}
+.club-carousel-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.club-carousel-dots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.club-carousel-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid #617282;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.club-carousel-dot.active {
+  background: #617282;
+}
+.club-result h4 {
+  flex-basis: 100%;
+  margin: 0;
+}
