@@ -9,7 +9,7 @@ from test_events import payload, setup_planning
 
 def test_question_privacy_and_messaging_revocation(admin: TestClient) -> None:
     add_user()
-    add_user('other')
+    add_user('other', ['member', 'coach'])
     member, other = login(), login('other')
     section, gym = setup_planning(admin)
     event = admin.post('/api/v1/events', json=payload(section, gym, referent='other')).json()['id']
@@ -27,7 +27,7 @@ def test_question_privacy_and_messaging_revocation(admin: TestClient) -> None:
 
 
 def test_follow_preferences_referent_and_author_email(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     add_user('other')
     member, other = login(), login('other')
     section, gym = setup_planning(admin)

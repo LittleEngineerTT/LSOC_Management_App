@@ -10,7 +10,7 @@ def unread(client: TestClient, kind: str) -> list[dict[str, object]]:
 
 
 def test_change_request_links_to_its_validation_and_messages_the_referent(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     add_user('second', ['admin'])
     member, second = login(), login('second')
     section, gym = setup_planning(admin)
@@ -42,7 +42,7 @@ def test_event_request_links_to_its_validation_and_messages_the_coach(admin: Tes
 
 
 def test_decisions_are_written_in_the_referent_messaging(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     member = login()
     section, gym = setup_planning(admin)
     event = admin.post('/api/v1/events', json=payload(section, gym, referent='member')).json()['id']

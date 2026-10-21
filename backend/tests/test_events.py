@@ -31,7 +31,7 @@ def test_partial_overlap_adjacent_and_capacity_force(admin: TestClient) -> None:
 
 
 def test_referent_permissions_requests_stale_and_cancel(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     add_user('coach', ['coach'])
     member, coach = login(), login('coach')
     section, gym = setup_planning(admin)

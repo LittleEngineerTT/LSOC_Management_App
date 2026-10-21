@@ -602,10 +602,14 @@ it('Notre club passe d’une section à l’autre par les onglets et ouvre les �
   const crumbs = within(team).getByRole('navigation', { name: 'Fil d’Ariane' });
   expect(crumbs).toHaveTextContent('Loisir › Loisirs compétition');
   const schedule = within(team).getByRole('heading', { name: 'Entraînements' }).parentElement!;
-  expect(schedule).toHaveTextContent('Lundi : 20 h 30 – 22 h 30Jeudi : 21 h 00 – 22 h 30');
+  expect(schedule).toHaveTextContent('Lundi : 20 h 30 – 22 h 30Jeudi : 21 h 00 – 22 h 30Samedi : 12 h 00 – 14 h 00');
   expect(schedule).toHaveTextContent('Au gymnase Ambroise Paré, Colombes.');
   await userEvent.click(within(tabs).getByRole('link', { name: 'Séniors masculins' }));
   const seniors = await screen.findByRole('article', { name: /Séniors masculins/ });
   expect(within(seniors).getByText(/compétition fédérale/)).toBeInTheDocument();
-  expect(within(seniors).queryByRole('region', { name: 'Nos équipes' })).not.toBeInTheDocument();
+  await userEvent.click(within(within(seniors).getByRole('region', { name: 'Nos équipes' })).getByRole('link', { name: /SM1/ }));
+  const sm1 = await screen.findByRole('article', { name: /SM1/ });
+  const sm1Schedule = within(sm1).getByRole('heading', { name: 'Entraînements' }).parentElement!;
+  expect(sm1Schedule).toHaveTextContent('Mercredi : 19 h 30 – 22 h 30Vendredi : 20 h 30 – 22 h 30');
+  expect(sm1Schedule).toHaveTextContent('Au gymnase Henri Dunant, Colombes.');
 });

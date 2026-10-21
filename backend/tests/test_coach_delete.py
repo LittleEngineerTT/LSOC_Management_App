@@ -1,4 +1,6 @@
-from conftest import add_user, login
+from conftest import add_user, login, set_referents
+
+from app.persistence.models import Event
 from fastapi.testclient import TestClient
 from test_events import payload, setup_planning
 
@@ -9,7 +11,12 @@ def test_referent_coach_deletes_own_event_and_admins_are_told(admin: TestClient)
     add_user('other', ['coach'])
     add_user('referent', ['member'])
     own = admin.post('/api/v1/events', json=payload(section, gym, referent='coach')).json()['id']
-    foreign = admin.post('/api/v1/events', json=payload(section, gym, start='2026-10-16T18:00:00+02:00', end='2026-10-16T20:00:00+02:00', referent='referent')).json()['id']
+    # Un compte sans rôle coach ne peut plus être désigné référent…
+    body = payload(section, gym, start='2026-10-16T18:00:00+02:00', end='2026-10-16T20:00:00+02:00', referent='referent')
+    assert admin.post('/api/v1/events', json=body).status_code == 422
+    # … mais un référent déjà en place le reste.
+    foreign = admin.post('/api/v1/events', json=body | {'referent_ids': ['admin']}).json()['id']
+    set_referents(Event, foreign, ['referent'])
     assert login('other').delete(f'/api/v1/events/{own}').status_code == 403
     # Référent sans rôle coach : la suppression reste réservée.
     assert login('referent').delete(f'/api/v1/events/{foreign}').status_code == 403

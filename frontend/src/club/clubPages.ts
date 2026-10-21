@@ -70,7 +70,25 @@ export const clubPages: ClubPage[] = [
       {
         title: 'Entraînements',
         content:
-          'Lundi : 20 h 30 – 22 h 30\nJeudi : 21 h 00 – 22 h 30\n\nAu gymnase Ambroise Paré, Colombes.',
+          'Lundi : 20 h 30 – 22 h 30\nJeudi : 21 h 00 – 22 h 30\nSamedi : 12 h 00 – 14 h 00\n\nAu gymnase Ambroise Paré, Colombes.',
+      },
+    ],
+  },
+  {
+    type: 'team',
+    target: 'SM1',
+    section: 'Séniors masculins',
+    image: '/notre-club/placeholder.svg',
+    sections: [
+      {
+        title: 'Notre équipe',
+        content:
+          'SM1 est l’équipe fanion de la section Séniors masculins. Elle dispute le championnat régional avec l’ambition de jouer les premières places, portée par un groupe soudé où joueurs expérimentés et jeunes du club progressent ensemble.\n\nLes matchs se jouent le week-end, à domicile comme à l’extérieur : venez nombreux encourager l’équipe !',
+      },
+      {
+        title: 'Entraînements',
+        content:
+          'Mercredi : 19 h 30 – 22 h 30\nVendredi : 20 h 30 – 22 h 30\n\nAu gymnase Henri Dunant, Colombes.',
       },
     ],
   },

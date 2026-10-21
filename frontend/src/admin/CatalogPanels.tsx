@@ -5,6 +5,7 @@ import { displayName } from './UsersPanel';
 import { TeamSourceWarningPreference } from './SourceWarnings';
 import {
   choices,
+  referentOptions,
   Confirm,
   Empty,
   EntityForm,
@@ -236,10 +237,11 @@ export function SectionsTeamsPanel() {
       name: 'referent_ids',
       label: 'Référents',
       type: 'choices',
-      options: catalog.users
-        .filter((user) => user.active)
-        .map((user) => ({ value: user.id, label: user.first_name })),
-      hint: 'Chaque référent a les mêmes droits sur l’équipe. Un référent actif est requis avant d’activer une source FFVB.',
+      options: referentOptions(
+        catalog.users,
+        editing?.kind === 'team' ? (editing.item?.referent_ids ?? []) : [],
+      ),
+      hint: 'Coachs et administrateurs seulement, à égalité de droits sur l’équipe. Un coach rattaché à l’équipe en devient référent. Un référent actif est requis avant d’activer une source FFVB.',
     },
   ];
   // Les sections sans équipe passent en bas, dans l’ordre reçu.

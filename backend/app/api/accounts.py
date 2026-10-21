@@ -277,6 +277,17 @@ def assign(user_id: str, body: AssignmentInput, db: DB, actor: Admin) -> Assignm
     db.add(value)
     db.flush()
     identifier = value.id
+    if body.kind == "coach":
+        # Le coach rattaché devient référent de l’équipe, avec ses événements.
+        from app.services.events import lock_planning, reassign_team_events
+
+        lock_planning(db)
+        team = get(db, Team, body.team_id)
+        if user.id not in team.referent_ids:
+            previous = list(team.referent_ids)
+            team.referent_ids = [*previous, user.id]
+            reassign_team_events(db, team, previous, actor)
+            db.flush()
     # La section d’un compte sans licence entre dans son identifiant temporaire.
     user = rekey(db, user)
     alert_duplicates(db, user)

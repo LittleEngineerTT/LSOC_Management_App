@@ -21,7 +21,7 @@ def test_unavailability_cancels_silently_and_notifies_team_registered_and_refere
     section, gym = setup_planning(admin, capacity=3)
     team = admin.post('/api/v1/teams', json={'name': 'Loisir 1', 'section_id': section}).json()['id']
     for name in ('player', 'registered', 'referent', 'outsider'):
-        add_user(name)
+        add_user(name, ['member', 'coach'] if name == 'referent' else None)
     assert admin.post('/api/v1/users/player/assignments', json={'team_id': team, 'kind': 'player'}).status_code == 201
     # Inscrit par sa section, sans appartenir à l’équipe organisatrice.
     other = admin.post('/api/v1/teams', json={'name': 'Loisir 2', 'section_id': section}).json()['id']

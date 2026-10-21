@@ -530,3 +530,18 @@ export function Notice({ children }: { children: ReactNode }) {
     </p>
   );
 }
+
+/** Comptes proposés comme référents : coachs et administrateurs actifs, plus les référents
+ * déjà en place (un ancien référent sans ce rôle reste affiché pour pouvoir être retiré). */
+export function referentOptions(
+  users: { id: string; first_name: string; active: boolean; roles: string[] }[],
+  current: string[] = [],
+) {
+  return users
+    .filter(
+      (user) =>
+        current.includes(user.id) ||
+        (user.active && user.roles.some((role) => role === 'coach' || role === 'admin')),
+    )
+    .map((user) => ({ value: user.id, label: user.first_name }));
+}

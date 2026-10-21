@@ -153,7 +153,7 @@ def test_referent_decides_and_only_admins_open_events_and_remove_registrations(a
     section, gym = setup_planning(admin)
     setter = position(admin)
     add_user()
-    add_user('referent')
+    add_user('referent', ['member', 'coach'])
     member_of(admin, 'member', section)
     event = admin.post('/api/v1/events', json=payload(section, gym, start=START, end=END, referent='referent')).json()['id']
     assert admin.patch(f'/api/v1/events/{event}', json={'base_version': 1, 'changes': {'direct_edit': True}}).status_code == 200

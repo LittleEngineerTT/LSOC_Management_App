@@ -21,7 +21,7 @@ beforeEach(() => {
     if (init?.method === 'DELETE') return reply(null, 204);
     if (init?.method === 'POST' || init?.method === 'PUT') return reply({ id: 'new', ...JSON.parse(String(init.body)) });
     if (path === '/auth/me') return reply(admin);
-    if (path === '/users') return reply([admin, { ...admin, id: 'c', first_name: 'Carla', roles: ['coach'] }]);
+    if (path === '/users') return reply([admin, { ...admin, id: 'c', first_name: 'Carla', roles: ['coach'] }, { ...admin, id: 'b', first_name: 'Bruno', roles: ['member'] }]);
     if (path === '/sections') return reply([{ id: 's3', name: 'Jeunes' }, { id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }]);
     if (path === '/teams') return reply([{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['c'] }, { id: 't2', name: 'Loisir 2', section_id: 's1', referent_ids: [] }, { id: 't3', name: 'Régionale', section_id: 's2', referent_ids: ['a'] }]);
     if (path === '/ffvb/sources') return reply([{ id: 'x', team_id: 't1' }, { id: 'y', team_id: 't2' }, { id: 'z', team_id: 't3' }]);
@@ -59,7 +59,10 @@ it('garde la création, la modification et la suppression des sections et des é
   await userEvent.click(within(section('Compétition')).getByRole('button', { name: 'Ajouter une équipe dans Compétition' }));
   expect(screen.getByLabelText('Section')).toHaveValue('s2');
   await userEvent.type(screen.getByLabelText('Nom'), 'Nationale');
-  await userEvent.click(within(screen.getByRole('group', { name: 'Référents' })).getByLabelText('Carla'));
+  // Seuls les coachs et les administrateurs sont proposés comme référents.
+  const referents = within(screen.getByRole('group', { name: 'Référents' }));
+  expect(referents.getAllByRole('checkbox').map((box) => box.closest('label')!.textContent)).toEqual(['Admin', 'Carla']);
+  await userEvent.click(referents.getByLabelText('Carla'));
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Création enregistrée.')).toBeInTheDocument();
   // Modification d’une équipe, dont le changement de section.

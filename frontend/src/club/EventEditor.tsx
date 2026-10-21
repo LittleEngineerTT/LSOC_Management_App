@@ -8,6 +8,7 @@ import {
   checked,
   choices,
   num,
+  referentOptions,
   str,
   type FormField,
   type FormValues,
@@ -166,10 +167,8 @@ export function EventEditor({
             name: 'referent_ids',
             label: 'Référents',
             type: 'choices' as const,
-            hint: 'Au moins un ; chaque référent a les mêmes droits sur l’événement.',
-            options: users
-              .filter((user) => user.active)
-              .map((user) => ({ value: user.id, label: user.first_name })),
+            hint: 'Au moins un, parmi les coachs et administrateurs ; chacun a les mêmes droits sur l’événement.',
+            options: referentOptions(users, event?.referent_ids ?? []),
           },
           {
             name: 'direct_edit',

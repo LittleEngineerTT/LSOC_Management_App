@@ -167,7 +167,27 @@ def alert_capacity(db: Session, gym_id: str) -> None:
             )
 
 
-def validate_event(db: Session, event: Event) -> None:
+REFERENT_ROLES = {"coach", "admin"}
+
+
+def check_referents(db: Session, identifiers: list[str], previous: list[str] | None = None) -> None:
+    """Référents distincts et actifs ; seuls les coachs et les administrateurs peuvent le devenir.
+
+    Un référent déjà en place (`previous`) le reste, même sans ce rôle, jusqu’à son retrait.
+    """
+    if len(set(identifiers)) != len(identifiers):
+        raise HTTPException(422, "Référent en double")
+    for identifier in identifiers:
+        user = get(db, User, identifier)
+        if not user.active:
+            raise HTTPException(422, "Chaque référent doit avoir un compte actif")
+        if identifier not in (previous or []) and not REFERENT_ROLES & set(user.roles):
+            raise HTTPException(
+                422, "Seuls les coachs et les administrateurs peuvent être référents"
+            )
+
+
+def validate_event(db: Session, event: Event, previous_referents: list[str] | None = None) -> None:
     if event.ends_at <= event.starts_at:
         raise HTTPException(422, "La fin doit suivre le début")
     if len(set(event.team_ids)) != len(event.team_ids):
@@ -190,11 +210,7 @@ def validate_event(db: Session, event: Event) -> None:
         )
     for identifier in event.section_ids:
         get(db, Section, identifier)
-    if len(set(event.referent_ids)) != len(event.referent_ids):
-        raise HTTPException(422, "Référent en double")
-    for identifier in event.referent_ids:
-        if not get(db, User, identifier).active:
-            raise HTTPException(422, "Chaque référent doit être actif")
+    check_referents(db, event.referent_ids, previous_referents)
     if event.gymnasium_id is None and event.courts != 0:
         raise HTTPException(422, "Un événement sans gymnase local doit occuper zéro terrain")
     if event.gymnasium_id is not None:
@@ -486,7 +502,7 @@ def change_event(
     event.version += 1
     if event.series_id and exception:
         event.exception = True
-    validate_event(db, event)
+    validate_event(db, event, list(before.get("referent_ids") or []))
     db.flush()
     forced = False if defer_capacity else check_capacity(db, event, actor, force)
     revision(db, event, actor, before, "update", forced)

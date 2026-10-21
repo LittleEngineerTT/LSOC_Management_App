@@ -12,7 +12,7 @@ os.environ.setdefault('LSOC_DATABASE_URL', 'postgresql+psycopg://lewis@127.0.0.1
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.persistence.database import SessionFactory, engine  # noqa: E402
-from app.persistence.models import Base, License, User  # noqa: E402
+from app.persistence.models import Base, Event, License, Team, User  # noqa: E402
 
 PASSWORD = 'valid-password-12345'
 
@@ -68,3 +68,11 @@ def grant_license(admin: TestClient, user_id: str) -> None:
     """Licence dont le numéro est l’identifiant actuel : le compte garde son identifiant."""
     response = admin.put(f'/api/v1/licenses/{user_id}', json={'status': 'in_progress', 'number': user_id})
     assert response.status_code == 200, response.text
+
+
+def set_referents(model: type[Team] | type[Event], identifier: str, referents: list[str]) -> None:
+    """Référents déjà en place, posés en base : la règle « coach ou admin » ne vaut qu’à l’ajout."""
+    with SessionFactory.begin() as db:
+        value = db.get(model, identifier)
+        assert value is not None
+        value.referent_ids = referents

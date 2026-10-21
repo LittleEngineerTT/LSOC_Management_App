@@ -43,7 +43,7 @@ def test_license_number_becomes_the_id_everywhere(admin: TestClient) -> None:
     section, gym = setup_planning(admin)
     # Compte actif sans licence : un référent d’événement doit être actif.
     identifier = 'd-camille-sans-section'
-    add_user(identifier, licensed=False)
+    add_user(identifier, ['member', 'coach'], licensed=False)
     event = admin.post('/api/v1/events', json=payload(section, gym, referent=identifier)).json()['id']
     assert admin.patch(f'/api/v1/events/{event}', json={'base_version': 1, 'changes': {'title': 'Séance'}}).status_code == 200
     licensed = admin.put(f'/api/v1/licenses/{identifier}', json={'status': 'in_progress', 'number': 'LIC-2026-42'})

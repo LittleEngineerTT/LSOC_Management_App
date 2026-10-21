@@ -30,7 +30,7 @@ def test_series_change_is_atomic_when_later_occurrence_conflicts(admin: TestClie
 
 
 def test_user_delete_scrubs_history_and_private_questions(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     member=login()
     section,gym=setup_planning(admin)
     event=admin.post('/api/v1/events',json=payload(section,gym,referent='member')).json()['id']

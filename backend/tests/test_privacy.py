@@ -35,7 +35,7 @@ def test_member_erases_own_account_after_password_check(admin: TestClient) -> No
 
 def test_retention_purges_old_data_and_inactive_accounts(admin: TestClient) -> None:
     add_user('active')
-    add_user('dormant')
+    add_user('dormant', ['member', 'coach'])
     section, gym = setup_planning(admin)
     admin.post('/api/v1/events', json=payload(section, gym, referent='dormant'))
     old = datetime.now(UTC) - timedelta(days=800)

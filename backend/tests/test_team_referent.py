@@ -2,8 +2,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from app.persistence.database import SessionFactory
-from app.persistence.models import Event, FFVBMatchState, FFVBSource
-from conftest import add_user, login
+from app.persistence.models import Event, FFVBMatchState, FFVBSource, Team
+from conftest import add_user, login, set_referents
 from test_ffvb import configure, sync
 from test_migrations import run
 
@@ -26,17 +26,42 @@ def ffvb_referents() -> set[str | None]:
         return {ids[0] if ids else None for ids in lists}
 
 
-def test_team_referent_without_coach_role_can_request_an_event(admin: TestClient) -> None:
+def test_only_coaches_and_admins_become_referents(admin: TestClient) -> None:
     source, section, gym = configure(admin)
     team = team_of(source)
     add_user('referent', ['member'])
+    add_user('trainer', ['member', 'coach'])
     body = {'team_id': team, 'title': 'Stage', 'kind': 'training', 'starts_at': '2099-10-15T18:00:00+02:00', 'ends_at': '2099-10-15T20:00:00+02:00', 'gymnasium_id': None, 'courts': 0}
     referent = login('referent')
     assert referent.post('/api/v1/event-requests', json=body).status_code == 403
-    assert admin.put(f'/api/v1/teams/{team}', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_ids': ['referent']}).status_code == 200
-    response = referent.post('/api/v1/event-requests', json=body)
+    refused = admin.put(f'/api/v1/teams/{team}', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_ids': ['referent']})
+    assert refused.status_code == 422 and 'coachs et les administrateurs' in refused.text
+    # Un référent déjà en place sans rôle coach le reste, mais ne devient pas référent d’un événement.
+    set_referents(Team, team, ['admin', 'referent'])
+    assert admin.put(f'/api/v1/teams/{team}', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_ids': ['admin', 'referent']}).status_code == 200
+    assert referent.post('/api/v1/event-requests', json=body).status_code == 422
+    # Un coach peut être désigné, et propose ses créneaux.
+    assert admin.put(f'/api/v1/teams/{team}', json={'name': 'LSO COLOMBES', 'section_id': section, 'referent_ids': ['admin', 'trainer']}).status_code == 200
+    response = login('trainer').post('/api/v1/event-requests', json=body)
     assert response.status_code == 201, response.text
-    assert response.json()['proposal']['referent_ids'] == ['referent']
+    assert response.json()['proposal']['referent_ids'] == ['trainer']
+
+
+def test_a_coach_attached_to_a_team_becomes_its_referent(admin: TestClient) -> None:
+    source, _, _ = configure(admin)
+    team = team_of(source)
+    sync(source)
+    add_user('trainer', ['member', 'coach'])
+    assert admin.post('/api/v1/users/trainer/assignments', json={'team_id': team, 'kind': 'coach'}).status_code == 201
+    assert next(t for t in admin.get('/api/v1/teams').json() if t['id'] == team)['referent_ids'] == ['admin', 'trainer']
+    # Les matchs de l’équipe suivent leurs référents.
+    with SessionFactory() as db:
+        lists = set(tuple(ids) for ids in db.scalars(select(Event.referent_ids).where(Event.ffvb_match_id.is_not(None))))
+    assert lists == {('admin', 'trainer')}
+    # Déjà référent : pas de doublon au second rattachement.
+    assert admin.post('/api/v1/users/trainer/assignments', json={'team_id': team, 'kind': 'coach'}).status_code in (201, 409)
+    assert next(t for t in admin.get('/api/v1/teams').json() if t['id'] == team)['referent_ids'] == ['admin', 'trainer']
+
 
 
 def test_changing_team_referent_updates_its_events_past_included(admin: TestClient) -> None:
@@ -45,8 +70,8 @@ def test_changing_team_referent_updates_its_events_past_included(admin: TestClie
     sync(source)
     assert ffvb_referents() == {'admin'}
     add_user('coach', ['coach'])
-    add_user('next', ['member'])
-    add_user('special', ['member'])
+    add_user('next', ['member', 'coach'])
+    add_user('special', ['member', 'coach'])
     assert admin.post('/api/v1/users/coach/assignments', json={'team_id': team, 'kind': 'coach'}).status_code == 201
     coach = login('coach')
     request = coach.post('/api/v1/event-requests', json={'team_id': team, 'title': 'Séance passée', 'kind': 'training', 'starts_at': PAST[0], 'ends_at': PAST[1], 'gymnasium_id': None, 'courts': 0}).json()
@@ -68,7 +93,7 @@ def test_changing_team_referent_updates_its_events_past_included(admin: TestClie
     history = admin.get(f"/api/v1/events/{special.id}/history").json()
     assert history[-1]['after']['referent_ids'] == ['special']
     moved = next(e for e in admin.get('/api/v1/events?include_cancelled=true&limit=500').json() if e['ffvb_match_id'] and e['referent_ids'] == ['next'])
-    assert admin.get(f"/api/v1/events/{moved['id']}/history").json()[-1]['before']['referent_ids'] == ['admin']
+    assert admin.get(f"/api/v1/events/{moved['id']}/history").json()[-1]['before']['referent_ids'] == ['admin', 'coach']
     assert any(n['event_id'] == moved['id'] for n in login('next').get('/api/v1/notifications').json())
 
 
@@ -76,8 +101,8 @@ def test_migration_realigns_ffvb_matches_left_with_the_former_referent(admin: Te
     source, section, gym = configure(admin)
     team = team_of(source)
     sync(source)
-    add_user('next', ['member'])
-    add_user('special', ['member'])
+    add_user('next', ['member', 'coach'])
+    add_user('special', ['member', 'coach'])
     with SessionFactory() as db:
         first, *others = db.scalars(select(Event).where(Event.ffvb_match_id.is_not(None)).order_by(Event.starts_at))
     detail = admin.get(f'/api/v1/events/{first.id}').json()
@@ -101,7 +126,7 @@ def test_several_referents_share_the_rights_of_a_team_and_an_event(admin: TestCl
 
     section, gym = setup_planning(admin)
     for user in ('alix', 'bao', 'chris'):
-        add_user(user)
+        add_user(user, ['member', 'coach'] if user != 'chris' else None)
     team = admin.post('/api/v1/teams', json={'name': 'Loisir 1', 'section_id': section, 'referent_ids': ['alix', 'bao']})
     assert team.status_code == 201, team.text
     assert team.json()['referent_ids'] == ['alix', 'bao']

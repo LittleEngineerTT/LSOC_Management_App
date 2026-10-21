@@ -11,17 +11,9 @@ from app.api.schemas import (
     TeamView,
     TeamWarningInput,
 )
-from app.persistence.models import Gymnasium, Position, Section, Team, User
+from app.persistence.models import Gymnasium, Position, Section, Team
 
 router = APIRouter(tags=["Catalogue"])
-
-
-def check_referents(db: DB, identifiers: list[str]) -> None:
-    if len(set(identifiers)) != len(identifiers):
-        raise HTTPException(422, "Référent en double")
-    for identifier in identifiers:
-        if not get(db, User, identifier).active:
-            raise HTTPException(422, "Chaque référent doit avoir un compte actif")
 
 
 @router.get("/sections", response_model=list[SectionView])
@@ -65,6 +57,8 @@ def teams(db: DB, actor: Actor) -> list[Team]:
 
 @router.post("/teams", response_model=TeamView, status_code=201)
 def create_team(body: TeamInput, db: DB, actor: Admin) -> Team:
+    from app.services.events import check_referents
+
     get(db, Section, body.section_id)
     check_referents(db, body.referent_ids)
     value = Team(**body.model_dump())
@@ -75,13 +69,13 @@ def create_team(body: TeamInput, db: DB, actor: Admin) -> Team:
 
 @router.put("/teams/{identifier}", response_model=TeamView)
 def update_team(identifier: str, body: TeamInput, db: DB, actor: Admin) -> Team:
-    from app.services.events import lock_planning, reassign_team_events
+    from app.services.events import check_referents, lock_planning, reassign_team_events
 
     get(db, Section, body.section_id)
-    check_referents(db, body.referent_ids)
     lock_planning(db)
     value = get(db, Team, identifier)
     previous = list(value.referent_ids)
+    check_referents(db, body.referent_ids, previous)
     for key, item in body.model_dump().items():
         setattr(value, key, item)
     if body.referent_ids and body.referent_ids != previous:

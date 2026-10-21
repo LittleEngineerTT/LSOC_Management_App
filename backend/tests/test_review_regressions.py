@@ -38,7 +38,7 @@ def test_ffvb_custom_courts_survive_unmapped_venue_and_new_defaults(admin: TestC
 
 
 def test_change_decision_has_actor_and_history(admin: TestClient) -> None:
-    add_user()
+    add_user('member', ['member', 'coach'])
     member=login()
     section,gym=setup_planning(admin)
     event=admin.post('/api/v1/events',json=payload(section,gym,referent='member')).json()['id']
