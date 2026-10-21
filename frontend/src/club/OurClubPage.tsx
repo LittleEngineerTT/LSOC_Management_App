@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Section, Team } from '../admin/types';
 import { Badge, Empty, PanelHeading } from '../admin/ui';
+import { Icon } from '../auth/components';
 import { clubPages, type ClubPage } from './clubPages';
 import { useClub } from './context';
 
@@ -88,55 +88,72 @@ function Paragraphs({ content }: { content: string }) {
   );
 }
 
-/** Application « Notre club » : présentation des sections et équipes, configurée dans clubPages.ts. */
+/** Application « Notre club » : présentation des sections et équipes, configurée dans clubPages.ts.
+ *
+ * Les sections sont des onglets en haut ; leurs équipes s’affichent en cartes sous la
+ * présentation, et une page d’équipe garde sa section active avec un fil d’Ariane.
+ */
 export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
   const [search] = useSearchParams();
-  const [showTeams, setShowTeams] = useState(false);
   const { entries, sectionPage, teamsOf } = useClubPages(pages);
   const selected =
     entries.find((entry) => pageSlug(entry.page) === search.get('page')) ?? entries[0];
-  // Le menu présente les sections ; une équipe y figure seulement si sa section n’a pas de page.
-  const menu = entries.filter(
+  // Onglets : les sections, et une équipe seulement si sa section n’a pas de page.
+  const tabs = entries.filter(
     (entry) => entry.page.type === 'section' || !sectionPage(entry.section),
   );
   const parent = selected?.page.type === 'team' ? sectionPage(selected.section) : undefined;
-  const teams =
-    selected?.page.type === 'section' && selected.section ? teamsOf(selected.section) : [];
+  const home = parent ?? selected;
+  const teams = home?.page.type === 'section' && home.section ? teamsOf(home.section) : [];
   return (
     <>
       <PanelHeading
         title="Notre club"
         description="Nos sections et nos équipes, présentées par le club."
       />
-      {!selected ? (
+      {!selected || !home ? (
         <Empty>Aucune présentation pour le moment.</Empty>
       ) : (
-        <div className="club-pages">
-          {menu.length > 1 && (
-            <nav className="club-threads" aria-label="Sections et équipes">
-              {menu.map((entry) => (
+        <>
+          {tabs.length > 1 && (
+            <nav className="club-page-tabs" aria-label="Sections du club">
+              {tabs.map((entry) => (
                 <Link
                   key={pageSlug(entry.page)}
                   to={`?page=${pageSlug(entry.page)}`}
-                  className={entry === selected || entry === parent ? 'active' : ''}
-                  aria-current={entry === selected ? 'page' : undefined}
-                  onClick={() => setShowTeams(false)}
+                  className={entry === home ? 'active' : undefined}
+                  aria-current={entry === home ? 'page' : undefined}
                 >
-                  <strong>{entry.name}</strong>
-                  <span>{entry.page.type === 'team' ? 'Équipe' : 'Section'}</span>
+                  {entry.name}
                 </Link>
               ))}
             </nav>
           )}
           <article className="admin-card club-page" aria-labelledby="club-page-title">
             {parent && (
-              <Link
-                className="club-page-back"
-                to={`?page=${pageSlug(parent.page)}`}
-                onClick={() => setShowTeams(true)}
-              >
-                ← Section {parent.name}
-              </Link>
+              <>
+                <nav className="club-page-breadcrumb" aria-label="Fil d’Ariane">
+                  <Link to={`?page=${pageSlug(parent.page)}`}>{parent.name}</Link>
+                  <span aria-hidden="true"> › </span>
+                  <span aria-current="page">{selected.name}</span>
+                </nav>
+                {teams.length > 1 && (
+                  <nav className="club-page-team-switch" aria-label={`Équipes ${parent.name}`}>
+                    {teams.map((team) =>
+                      team.page ? (
+                        <Link
+                          key={team.name}
+                          to={`?page=${pageSlug(team.page)}`}
+                          className={team.page === selected.page ? 'active' : undefined}
+                          aria-current={team.page === selected.page ? 'page' : undefined}
+                        >
+                          {team.name}
+                        </Link>
+                      ) : null,
+                    )}
+                  </nav>
+                )}
+              </>
             )}
             {selected.page.image && (
               <img
@@ -158,39 +175,32 @@ export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
               </section>
             ))}
             {selected.page.type === 'section' && teams.length > 0 && (
-              <div className="club-page-teams">
-                <button
-                  type="button"
-                  className="admin-button primary"
-                  aria-expanded={showTeams}
-                  aria-controls="club-page-team-list"
-                  onClick={() => setShowTeams(!showTeams)}
-                >
-                  {showTeams ? 'Masquer les équipes' : 'Voir les équipes'}
-                </button>
-                {showTeams && (
-                  <ul
-                    id="club-page-team-list"
-                    className="club-plain-list"
-                    aria-label="Équipes de la section"
-                  >
-                    {teams.map((team) => (
-                      <li key={team.name}>
-                        {team.page ? (
-                          <Link to={`?page=${pageSlug(team.page)}`}>{team.name}</Link>
-                        ) : (
-                          <>
-                            {team.name} <span className="admin-hint">· présentation à venir</span>
-                          </>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <section className="club-page-teams" aria-labelledby="club-page-teams-title">
+                <h4 id="club-page-teams-title">Nos équipes</h4>
+                <ul className="club-team-cards">
+                  {teams.map((team) => (
+                    <li key={team.name}>
+                      {team.page ? (
+                        <Link className="club-team-card" to={`?page=${pageSlug(team.page)}`}>
+                          <strong>{team.name}</strong>
+                          <span className="club-team-card-action">
+                            <span>Voir la présentation</span>
+                            <Icon name="arrow" />
+                          </span>
+                        </Link>
+                      ) : (
+                        <div className="club-team-card disabled">
+                          <strong>{team.name}</strong>
+                          <span className="club-team-card-action">Présentation à venir</span>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </article>
-        </div>
+        </>
       )}
     </>
   );

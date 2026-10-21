@@ -673,16 +673,7 @@
     grid-template-columns: 1fr;
   }
 }
-/* Notre club : liste des présentations et page choisie (image, puis blocs titrés). */
-.club-pages {
-  display: grid;
-  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-.club-pages > .club-page:only-child {
-  grid-column: 1 / -1;
-}
+/* Notre club : page choisie (image, puis blocs titrés). */
 .club-page-image {
   display: block;
   width: 100%;
@@ -697,7 +688,8 @@
 .club-page-section + .club-page-section {
   margin-top: 16px;
 }
-.club-page-section h4 {
+.club-page-section h4,
+.club-page-teams h4 {
   margin: 0 0 6px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -706,18 +698,103 @@
   margin: 0 0 10px;
   line-height: 1.55;
 }
-@media (max-width: 760px) {
-  .club-pages {
-    grid-template-columns: 1fr;
-  }
+/* Notre club : onglets des sections, fil d’Ariane et cartes d’équipes cliquables. */
+.club-page-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid #dce5eb;
+  scrollbar-width: thin;
 }
-.club-page-back {
-  display: inline-block;
+.club-page-tabs a {
+  flex: none;
+  padding: 10px 16px;
+  border-bottom: 3px solid transparent;
+  color: #354d60;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.club-page-tabs a:hover {
+  color: #1f4e79;
+  border-bottom-color: #c7d2d8;
+}
+.club-page-tabs a.active {
+  color: #1f4e79;
+  border-bottom-color: #1f4e79;
+}
+.club-page-breadcrumb {
   margin-bottom: 10px;
+  font-size: 14px;
+  color: #617282;
+}
+.club-page-team-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.club-page-team-switch a {
+  padding: 4px 12px;
+  border: 1px solid #c7d2d8;
+  border-radius: 999px;
+  color: #354d60;
+  text-decoration: none;
+  font-size: 14px;
+}
+.club-page-team-switch a.active {
+  border-color: #1f4e79;
+  background: #1f4e79;
+  color: #fff;
 }
 .club-page-teams {
-  margin-top: 16px;
+  margin-top: 22px;
 }
-.club-page-teams ul {
-  margin-top: 10px;
+.club-team-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.club-team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid #dce5eb;
+  border-radius: 8px;
+  background: #f8fafb;
+  color: #182d3e;
+  text-decoration: none;
+}
+a.club-team-card:hover,
+a.club-team-card:focus-visible {
+  border-color: #1f4e79;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(31 78 121 / 12%);
+}
+.club-team-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  color: #1f4e79;
+  font-size: 14px;
+  font-weight: 600;
+}
+.club-team-card-action svg {
+  width: 16px;
+  height: 16px;
+}
+.club-team-card.disabled {
+  background: #f1f4f6;
+  color: #617282;
+}
+.club-team-card.disabled .club-team-card-action {
+  color: #617282;
+  font-weight: 400;
 }

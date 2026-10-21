@@ -40,6 +40,23 @@ export const clubPages: ClubPage[] = [
     ],
   },
   {
+    type: 'section',
+    target: 'Séniors masculins',
+    image: '/notre-club/placeholder.svg',
+    sections: [
+      {
+        title: 'La section',
+        content:
+          'La section Séniors masculins rassemble les joueurs adultes qui évoluent en compétition fédérale. Encadrés par des entraîneurs diplômés, ils s’entraînent deux fois par semaine pour défendre les couleurs du club en championnat régional et départemental.\n\nL’exigence sportive va de pair avec l’esprit d’équipe : chaque joueur, des plus expérimentés aux jeunes issus de la formation du club, trouve sa place et son rôle dans le collectif.',
+      },
+      {
+        title: 'Nous rejoindre',
+        content:
+          'Vous jouez déjà en club ou vous avez un bon niveau de pratique ? Contactez-nous pour une séance d’essai avec l’une de nos équipes séniors.',
+      },
+    ],
+  },
+  {
     type: 'team',
     target: 'Loisirs compétition',
     section: 'Loisirs',
