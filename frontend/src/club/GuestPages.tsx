@@ -95,9 +95,6 @@ export function GuestHome() {
       </div>
       <div className="club-highlights">
         <ClubInfos />
-        <RecentResults />
-      </div>
-      <div className="club-home">
         <section className="admin-card">
           <h3>Prochains matchs FFVB</h3>
           <LoadState result={result} />
@@ -117,6 +114,9 @@ export function GuestHome() {
             Voir le planning des matchs
           </Link>
         </section>
+      </div>
+      <div className="club-home">
+        <RecentResults />
         <SignInInvite />
       </div>
       <GuestDetailHost />

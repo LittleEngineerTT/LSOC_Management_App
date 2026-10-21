@@ -43,6 +43,7 @@ export function ClubInfos({ infos = clubInfos }: { infos?: ClubInfo[] }) {
       <h3>Informations du club</h3>
       <Carousel
         label="Informations"
+        pausable={false}
         slides={infos.map((info) => (
           <InfoSlide key={info.id} info={info} />
         ))}

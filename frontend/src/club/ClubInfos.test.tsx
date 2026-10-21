@@ -28,6 +28,7 @@ it('n’affiche « Voir plus » que si le contenu le nécessite et s’arrête p
     />,
   );
   expect(screen.queryByRole('button', { name: 'Voir plus' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Mettre en pause' })).not.toBeInTheDocument();
   act(() => vi.advanceTimersByTime(5000));
   const more = screen.getByRole('button', { name: 'Voir plus' });
   // Le focus reste dans l’encart après le clic : le texte déplié ne défile plus.
