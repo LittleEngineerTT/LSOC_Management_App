@@ -13,22 +13,26 @@ vi.mock('./context', () => ({
 }));
 
 const pages: ClubPage[] = [
-  { type: 'team', target: 'senior feminin 1', image: '/notre-club/sf1.jpg', sections: [{ title: 'Notre équipe', content: 'Premier paragraphe.\n\nSecond paragraphe.' }] },
-  { type: 'section', target: 'Inconnue', sections: [{ title: 'Présentation', content: 'Sans image.' }] },
+  { type: 'section', target: 'seniors', sections: [{ title: 'Présentation', content: 'Premier paragraphe.\n\nSecond paragraphe.' }] },
+  { type: 'team', target: 'senior feminin 1', image: '/notre-club/sf1.jpg', sections: [{ title: 'Notre équipe', content: 'Sans section configurée.' }] },
+  { type: 'team', target: 'Jeunes 1', section: 'Jeunes', sections: [{ title: 'Notre équipe', content: 'Section absente.' }] },
 ];
 
-it('liste les pages, retrouve l’équipe du catalogue et accepte une page sans image', async () => {
+it('mène d’une section à ses équipes, puis d’une équipe à sa section', async () => {
   render(<MemoryRouter><OurClubPage pages={pages} /></MemoryRouter>);
+  // Menu : les sections, et une équipe seulement si sa section n’a pas de page.
   const nav = screen.getByRole('navigation', { name: 'Sections et équipes' });
-  expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Senior Féminin 1Équipe · Séniors', 'InconnueSection']);
-  const first = screen.getByRole('article', { name: /Senior Féminin 1/ });
-  expect(within(first).getByRole('img')).toHaveAttribute('src', '/notre-club/sf1.jpg');
-  expect(within(first).getByText('Premier paragraphe.').tagName).toBe('SPAN');
-  expect(within(first).getAllByText(/paragraphe\./).map((node) => node.closest('p'))).toHaveLength(2);
-  await userEvent.click(within(nav).getByRole('link', { name: /Inconnue/ }));
-  const second = screen.getByRole('article', { name: /Inconnue/ });
-  expect(within(second).queryByRole('img')).not.toBeInTheDocument();
-  expect(within(second).getByText('Sans image.')).toBeInTheDocument();
+  expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['SéniorsSection', 'Jeunes 1Équipe']);
+  const section = screen.getByRole('article', { name: /Séniors/ });
+  expect(within(section).queryByRole('img')).not.toBeInTheDocument();
+  expect(within(section).getAllByText(/paragraphe\./).map((node) => node.closest('p'))).toHaveLength(2);
+  await userEvent.click(within(section).getByRole('button', { name: 'Voir les équipes' }));
+  await userEvent.click(within(section).getByRole('link', { name: 'Senior Féminin 1' }));
+  const team = screen.getByRole('article', { name: /Senior Féminin 1/ });
+  expect(within(team).getByRole('img')).toHaveAttribute('src', '/notre-club/sf1.jpg');
+  expect(within(team).getByText('Séniors')).toBeInTheDocument();
+  await userEvent.click(within(team).getByRole('link', { name: '← Section Séniors' }));
+  expect(screen.getByRole('list', { name: 'Équipes de la section' })).toBeInTheDocument();
 });
 
 it('indique l’absence de présentation', () => {

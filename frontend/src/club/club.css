@@ -711,3 +711,13 @@
     grid-template-columns: 1fr;
   }
 }
+.club-page-back {
+  display: inline-block;
+  margin-bottom: 10px;
+}
+.club-page-teams {
+  margin-top: 16px;
+}
+.club-page-teams ul {
+  margin-top: 10px;
+}

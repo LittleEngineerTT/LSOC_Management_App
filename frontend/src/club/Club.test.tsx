@@ -582,15 +582,23 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   expect(within(results).getAllByRole('listitem').map((item) => item.textContent)).toEqual([expect.stringContaining('MEUDON'), expect.stringContaining('RUEIL 2')]);
 });
 
-it('Notre club présente la section configurée : image, puis blocs titrés et horaires', async () => {
-  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's3', name: 'Loisirs compétition' }];
+it('Notre club présente la section Loisirs et mène à ses équipes, dont Loisirs compétition', async () => {
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }];
   open('/app/notre-club');
-  expect(await screen.findByRole('heading', { name: 'Notre club' })).toBeInTheDocument();
-  const page = await screen.findByRole('article', { name: /Loisirs compétition/ });
-  expect(within(page).getByRole('img', { name: 'Photo : Loisirs compétition' })).toHaveAttribute('src', '/notre-club/placeholder.svg');
-  expect(within(page).getByRole('heading', { name: 'Notre section' })).toBeInTheDocument();
-  expect(within(page).getAllByText(/Loisirs compétition accueille|Débutants motivés|Les rencontres du championnat/)).toHaveLength(3);
-  const schedule = within(page).getByRole('heading', { name: 'Entraînements' }).parentElement!;
+  const section = await screen.findByRole('article', { name: /Loisir/ });
+  expect(within(section).getByRole('img', { name: 'Photo : Loisir' })).toHaveAttribute('src', '/notre-club/placeholder.svg');
+  expect(within(section).getByRole('heading', { name: 'La section' })).toBeInTheDocument();
+  await userEvent.click(within(section).getByRole('button', { name: 'Voir les équipes' }));
+  const teams = within(section).getByRole('list', { name: 'Équipes de la section' });
+  // Les équipes du catalogue et celles de la configuration, rattachées à la section Loisirs.
+  expect(within(teams).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Loisir 1 · présentation à venir', 'Loisirs compétition']);
+  await userEvent.click(within(teams).getByRole('link', { name: 'Loisirs compétition' }));
+  const team = await screen.findByRole('article', { name: /Loisirs compétition/ });
+  expect(within(team).getByRole('heading', { name: 'Notre équipe' })).toBeInTheDocument();
+  const schedule = within(team).getByRole('heading', { name: 'Entraînements' }).parentElement!;
   expect(schedule).toHaveTextContent('Lundi : 20 h 30 – 22 h 30Jeudi : 21 h 00 – 22 h 30');
   expect(schedule).toHaveTextContent('Au gymnase Ambroise Paré, Colombes.');
+  await userEvent.click(within(team).getByRole('link', { name: '← Section Loisir' }));
+  expect(await screen.findByRole('list', { name: 'Équipes de la section' })).toBeInTheDocument();
 });
