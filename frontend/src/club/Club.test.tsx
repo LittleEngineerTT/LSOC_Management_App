@@ -167,7 +167,8 @@ it('la messagerie marque toutes les questions comme lues', async () => {
 it('les gymnases signalent un dépassement et mes sections présentent mon rôle', async () => {
   routes['/gymnasiums/g1/availability'] = { gymnasium_id: 'g1', capacity: 3, segments: [{ starts_at: at('18:00'), ends_at: at('19:00'), occupied: 4, available: 0, excess: 1 }] };
   open('/app/gymnases');
-  expect(await screen.findByText('Complet · 1 terrain en excès')).toBeInTheDocument();
+  // Le jour du créneau est parfois aujourd’hui : il paraît alors aussi dans la journée sélectionnée.
+  expect((await screen.findAllByText('Complet · 1 terrain en excès')).length).toBeGreaterThan(0);
   await userEvent.click(screen.getByRole('link', { name: 'Mes sections' }));
   const card = (await screen.findByRole('heading', { name: 'Loisir' })).closest('section')!;
   expect(within(card).getByText('Joueur')).toBeInTheDocument();
@@ -553,4 +554,20 @@ it('la clôture d’un dossier avertit de la suppression et exige d’avoir tél
   expect(close).toBeEnabled();
   await userEvent.click(close);
   await waitFor(() => expect(mutations).toEqual([{ path: '/dossiers/d1/close', method: 'POST', body: {} }]));
+});
+
+it('l’accueil présente les résultats récents de chaque source FFVB avec leur section', async () => {
+  routes['/ffvb/results'] = [
+    { source_id: 'src1', season: '2026/2027', pool: 'BRC', club_team: 'LSO COLOMBES', team_id: 't1', team_name: 'Loisir 1', section_id: 's1', section_name: 'Loisir', results: [{ match_code: 'BRC005', kickoff_at: '2026-10-15T18:50:00Z', home_team: 'MEUDON CHAVILLE SEVRES VOLLEY 2', away_team: 'LSO COLOMBES', home_sets: 3, away_sets: 1, set_scores: ['23:21', '21:8', '18:21', '21:9'], points: '83-59' }] },
+    { source_id: 'src2', season: '2026/2027', pool: '2MC', club_team: 'LSO COLOMBES 1', team_id: 't2', team_name: 'Régionale', section_id: 's2', section_name: 'Compétition', results: [] },
+  ];
+  open('/app');
+  const results = await screen.findByRole('region', { name: 'Résultats récents' });
+  expect(await within(results).findByText('MEUDON CHAVILLE SEVRES VOLLEY 2')).toBeInTheDocument();
+  expect(within(results).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
+  expect(within(results).getByText('Défaite')).toBeInTheDocument();
+  expect(within(results).getByText('Sets : 23:21 · 21:8 · 18:21 · 21:9 · points 83 – 59')).toBeInTheDocument();
+  expect(within(results).getByText('Loisir')).toBeInTheDocument();
+  expect(within(results).getByText('Compétition')).toBeInTheDocument();
+  expect(within(results).getByText('Aucun match joué sur cette période.')).toBeInTheDocument();
 });

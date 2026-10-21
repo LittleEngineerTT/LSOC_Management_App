@@ -684,6 +684,32 @@ class NotificationView(View):
     created_at: datetime
 
 
+class FFVBResultView(View):
+    match_code: str
+    kickoff_at: datetime
+    home_team: str
+    away_team: str
+    home_sets: int
+    away_sets: int
+    set_scores: list[str]
+    points: str
+
+
+class SourceResultsView(View):
+    """Résultats récents d’une source FFVB, avec l’équipe et la section concernées."""
+
+    source_id: str
+    season: str
+    pool: str
+    # Nom de l’équipe du club sur la FFVB, pour savoir de quel côté elle joue.
+    club_team: str
+    team_id: str
+    team_name: str
+    section_id: str
+    section_name: str
+    results: list[FFVBResultView]
+
+
 class FFVBSourceInput(Input):
     team_id: str
     season: str = Field(pattern=r"^\d{4}/\d{4}$")

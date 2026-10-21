@@ -18,6 +18,16 @@ def normalize(value: str) -> str:
 
 
 @dataclass(frozen=True)
+class Result:
+    """Score d’un match joué : sets gagnés, détail des sets (« 25:21 ») et total des points."""
+
+    home_sets: int
+    away_sets: int
+    sets: tuple[str, ...]
+    points: str
+
+
+@dataclass(frozen=True)
 class Match:
     code: str
     kickoff_at: datetime
@@ -25,6 +35,7 @@ class Match:
     away_team: str
     # Absent d’un match déjà joué : la FFVB affiche alors le score à la place du lieu.
     location: str | None
+    result: Result | None = None
 
 
 def fetch(client: httpx.Client, season: str, entity: str, pool: str) -> bytes:
@@ -81,7 +92,18 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
             and re.search(r"\d+:\d+", values[8]) is not None
         )
         location = None if played else values[7]
-        matches.append(Match(code, kickoff.astimezone(UTC), home, away, location))
+        result = (
+            Result(
+                int(values[6]),
+                int(values[7]),
+                tuple(re.findall(r"\d+:\d+", values[8])),
+                # « 083-059 » : total des points, sans les zéros de remplissage.
+                re.sub(r"\b0+(\d)", r"\1", values[9]) if len(values) > 9 else "",
+            )
+            if played
+            else None
+        )
+        matches.append(Match(code, kickoff.astimezone(UTC), home, away, location, result))
     if not found_calendar:
         raise ValueError("Calendrier FFVB introuvable")
     return matches

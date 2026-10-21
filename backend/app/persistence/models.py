@@ -574,6 +574,30 @@ class FFVBMatchState(Identity, Base):
     missing: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class FFVBResult(Identity, Base):
+    """Résultat d’un match FFVB joué, relevé à chaque synchronisation de sa source.
+
+    Indépendant des événements : un match joué avant l’import de la source a aussi son
+    résultat.
+    """
+
+    __tablename__ = "ffvb_results"
+    __table_args__ = (UniqueConstraint("source_id", "match_code"),)
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("ffvb_sources.id", ondelete="CASCADE"), index=True
+    )
+    match_code: Mapped[str] = mapped_column(String(30))
+    kickoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    home_team: Mapped[str] = mapped_column(String(200))
+    away_team: Mapped[str] = mapped_column(String(200))
+    home_sets: Mapped[int] = mapped_column(Integer)
+    away_sets: Mapped[int] = mapped_column(Integer)
+    # Détail des sets, points de l’équipe à domicile en premier : « 25:21 ».
+    set_scores: Mapped[list[str]] = mapped_column(JSON, default=list)
+    points: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class FFVBConflict(Identity, Base):
     __tablename__ = "ffvb_conflicts"
     match_id: Mapped[str] = mapped_column(ForeignKey("ffvb_matches.id"), index=True)

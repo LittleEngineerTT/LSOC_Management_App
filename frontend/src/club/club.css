@@ -567,3 +567,28 @@
   background: #fdecea;
   color: #6b1d14;
 }
+/* Résultats récents FFVB de l’accueil. */
+.club-results {
+  margin-top: 16px;
+}
+.club-results-source + .club-results-source {
+  margin-top: 12px;
+}
+.club-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.club-result-date {
+  min-width: 9em;
+  color: #617282;
+}
+.club-result-club {
+  font-weight: 600;
+}
+.club-result-sets {
+  flex-basis: 100%;
+  color: #617282;
+  font-variant-numeric: tabular-nums;
+}

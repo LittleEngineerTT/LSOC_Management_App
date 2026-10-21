@@ -9,12 +9,13 @@ from sqlalchemy.orm import Session
 from app.api.common import get
 from app.core.config import settings
 from app.core.security import now
-from app.integrations.ffvb import fetch, normalize, parse_calendar
+from app.integrations.ffvb import Match, Result, fetch, normalize, parse_calendar
 from app.persistence.models import (
     ClubSettings,
     Event,
     FFVBConflict,
     FFVBMatchState,
+    FFVBResult,
     FFVBSource,
     GymMapping,
     Gymnasium,
@@ -276,6 +277,24 @@ def apply_official(
     return changed
 
 
+def record_result(db: Session, source: FFVBSource, match: Match, result: Result) -> None:
+    """Enregistre ou met à jour le résultat d’un match joué, même jamais importé."""
+    value = db.scalar(
+        select(FFVBResult).where(
+            FFVBResult.source_id == source.id, FFVBResult.match_code == match.code
+        )
+    )
+    if value is None:
+        value = FFVBResult(source_id=source.id, match_code=match.code)
+        db.add(value)
+    value.kickoff_at = match.kickoff_at
+    value.home_team, value.away_team = match.home_team, match.away_team
+    value.home_sets, value.away_sets = result.home_sets, result.away_sets
+    value.set_scores = list(result.sets)
+    value.points = result.points
+    value.recorded_at = now()
+
+
 def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     fetch_started = now()
     identity = (source.team_id, source.season, source.entity, source.pool, source.team_name)
@@ -319,6 +338,8 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     before, after, courts = match_settings(db, source)
     for match in matches:
         seen.add(match.code)
+        if match.result is not None:
+            record_result(db, source, match, match.result)
         state = db.scalar(
             select(FFVBMatchState).where(
                 FFVBMatchState.season == source.season,

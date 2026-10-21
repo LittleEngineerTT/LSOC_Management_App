@@ -11,6 +11,7 @@ import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
 import { useUnread } from '../app/unread';
+import { RecentResults } from './RecentResults';
 
 export function HomePage() {
   const { account, admin } = useClub();
@@ -55,6 +56,7 @@ export function HomePage() {
         </section>
         <Notifications />
       </div>
+      <RecentResults />
       <DetailHost onChanged={result.reload} />
     </>
   );
