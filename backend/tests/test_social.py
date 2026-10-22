@@ -108,3 +108,30 @@ def test_reply_and_mark_all_read_clear_question_counters(admin: TestClient) -> N
     assert admin.get('/api/v1/unread').json()['messages'] == 1
     assert admin.post('/api/v1/questions/read').status_code == 204
     assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}}
+
+
+def test_deleting_a_conversation_hides_it_for_that_account_only(admin: TestClient) -> None:
+    add_user()
+    add_user('other')
+    member, other = login(), login('other')
+    section, gym = setup_planning(admin)
+    event = admin.post('/api/v1/events', json=payload(section, gym)).json()['id']
+    thread = member.post(f'/api/v1/events/{event}/questions', json={'body': 'Faut-il un ballon ?'}).json()['id']
+    assert admin.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Oui.'}).status_code == 201
+    assert other.delete(f'/api/v1/questions/{thread}').status_code == 403
+    assert member.get('/api/v1/unread').json()['messages'] == 1
+    assert member.delete(f'/api/v1/questions/{thread}').status_code == 204
+    # Disparue de la messagerie, des compteurs et de l’événement pour l’adhérent seulement.
+    assert member.get('/api/v1/questions').json() == []
+    assert member.get(f'/api/v1/questions?event_id={event}').json() == []
+    assert member.get('/api/v1/unread').json()['messages'] == 0
+    assert [t['id'] for t in admin.get('/api/v1/questions').json()] == [thread]
+    assert member.delete(f'/api/v1/questions/{thread}').status_code == 204
+    # Un nouveau message la fait réapparaître.
+    assert admin.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Et des chaussures.'}).status_code == 201
+    assert [t['id'] for t in member.get('/api/v1/questions').json()] == [thread]
+    assert len(member.get(f'/api/v1/questions/{thread}/messages').json()) == 3
+    # Un admin la supprime aussi pour lui seul.
+    assert admin.delete(f'/api/v1/questions/{thread}').status_code == 204
+    assert admin.get('/api/v1/questions').json() == []
+    assert [t['id'] for t in member.get('/api/v1/questions').json()] == [thread]

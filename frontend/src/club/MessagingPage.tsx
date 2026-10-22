@@ -5,7 +5,7 @@ import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
 import { dateLabel } from '../admin/time';
 import type { Event } from '../admin/types';
-import { Empty, LoadState, PanelHeading } from '../admin/ui';
+import { Confirm, Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
 import { useUnread } from '../app/unread';
@@ -63,7 +63,7 @@ function Conversations() {
   const { api, admin } = useClub();
   const { thread_counts: counts = {}, messages: unreadTotal, refresh } = useUnread();
   const request = useRequest();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const loader = useCallback(
     async (signal: AbortSignal): Promise<Conversation[]> => {
       const threads = await api.list<Thread>('/questions', true, signal);
@@ -165,7 +165,15 @@ function Conversations() {
             ))}
           </nav>
           {selected ? (
-            <ThreadView key={selected.id} conversation={selected} />
+            <ThreadView
+              key={selected.id}
+              conversation={selected}
+              onDeleted={() => {
+                setSearch({});
+                refresh();
+                result.reload();
+              }}
+            />
           ) : (
             <p className="club-thread-placeholder">Sélectionnez une conversation.</p>
           )}
@@ -175,7 +183,14 @@ function Conversations() {
   );
 }
 
-function ThreadView({ conversation }: { conversation: Conversation }) {
+function ThreadView({
+  conversation,
+  onDeleted,
+}: {
+  conversation: Conversation;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
   const { api, account, admin } = useClub();
   const { refresh, thread_counts: counts = {} } = useUnread();
   const marking = useRequest();
@@ -229,7 +244,29 @@ function ThreadView({ conversation }: { conversation: Conversation }) {
             Voir l’événement
           </Link>
         )}
+        <button type="button" className="admin-button danger" onClick={() => setDeleting(true)}>
+          Supprimer
+        </button>
       </header>
+      {deleting && (
+        <Confirm
+          title={`Supprimer la conversation « ${conversationTitle(conversation)} » ?`}
+          label="Supprimer la conversation"
+          onClose={() => setDeleting(false)}
+          onConfirm={async (signal) => {
+            await api.request(`/questions/${conversation.id}`, 'DELETE', undefined, signal);
+            onDeleted();
+          }}
+        >
+          <p>
+            Elle disparaît de votre messagerie. Elle reste visible pour
+            {conversation.user_id === account.id
+              ? ' les administrateurs'
+              : ' son auteur et les autres administrateurs'}
+            , et réapparaîtra si un nouveau message y est écrit.
+          </p>
+        </Confirm>
+      )}
       <ErrorNotice message={marking.error} />
       <LoadState result={result} />
       <ol className="club-messages">

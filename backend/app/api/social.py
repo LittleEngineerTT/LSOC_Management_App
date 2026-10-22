@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import ColumnElement, delete, func, or_, select, true
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, delete, exists, func, or_, select, true
+from sqlalchemy.orm import Session, aliased
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
@@ -18,6 +18,7 @@ from app.persistence.models import (
     Event,
     EventSeries,
     Follow,
+    HiddenThread,
     Notification,
     QuestionMessage,
     QuestionThread,
@@ -39,6 +40,22 @@ def can_write(thread: QuestionThread, actor: User) -> None:
         raise HTTPException(403, "Droit de messagerie indisponible")
 
 
+def visible_to(actor: User) -> ColumnElement[bool]:
+    """Fil que le compte n’a pas supprimé, ou qui a reçu un message depuis."""
+    later = aliased(QuestionMessage)
+    return ~exists(
+        select(HiddenThread.id).where(
+            HiddenThread.user_id == actor.id,
+            HiddenThread.thread_id == QuestionThread.id,
+            ~exists(
+                select(later.id).where(
+                    later.thread_id == QuestionThread.id, later.created_at > HiddenThread.hidden_at
+                )
+            ),
+        )
+    )
+
+
 def unread_for(actor: User) -> ColumnElement[bool]:
     # Pour l’auteur du fil : les réponses reçues ; pour un admin : les messages de l’adhérent.
     received: ColumnElement[bool] = (QuestionThread.user_id == actor.id) & (
@@ -50,7 +67,7 @@ def unread_for(actor: User) -> ColumnElement[bool]:
             (QuestionThread.user_id != actor.id)
             & (QuestionMessage.author_id == QuestionThread.user_id),
         )
-    return QuestionMessage.read_at.is_(None) & received
+    return QuestionMessage.read_at.is_(None) & received & visible_to(actor)
 
 
 @router.get("/unread", response_model=UnreadView)
@@ -145,7 +162,7 @@ def questions(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[QuestionThread]:
-    query = select(QuestionThread)
+    query = select(QuestionThread).where(visible_to(actor))
     if "admin" not in actor.roles:
         query = query.where(QuestionThread.user_id == actor.id)
     if event_id:
@@ -203,6 +220,26 @@ def mark_thread_read(thread_id: str, db: DB, actor: Actor) -> None:
     read_messages(db, actor, thread_id)
 
 
+@router.delete("/questions/{thread_id}", status_code=204)
+def hide_thread(thread_id: str, db: DB, actor: Actor) -> None:
+    """Supprime la conversation de la messagerie du compte, sans l’effacer pour les autres.
+
+    Elle réapparaît si un nouveau message y est écrit.
+    """
+    thread = get(db, QuestionThread, thread_id)
+    access(thread, actor)
+    hidden = db.scalar(
+        select(HiddenThread).where(
+            HiddenThread.user_id == actor.id, HiddenThread.thread_id == thread_id
+        )
+    )
+    if hidden is None:
+        db.add(HiddenThread(user_id=actor.id, thread_id=thread_id, hidden_at=now()))
+    else:
+        hidden.hidden_at = now()
+    read_alerts(db, actor, thread_id)
+
+
 @router.post("/questions/read", status_code=204)
 def mark_all_questions_read(db: DB, actor: Actor) -> None:
     # unread_for limite déjà la lecture aux fils accessibles au compte.
@@ -222,7 +259,11 @@ def read_messages(db: Session, actor: User, thread_id: str | None) -> None:
         message.read_at = now()
     # Les alertes « nouvelle question » du fil deviennent lues elles aussi, même si un autre
     # admin avait déjà lu les messages.
-    # Alertes de nouvelles questions et décisions écrites dans ces fils.
+    read_alerts(db, actor, thread_id)
+
+
+def read_alerts(db: Session, actor: User, thread_id: str | None) -> None:
+    """Alertes du compte sur les nouvelles questions et décisions écrites dans ces fils."""
     alerts = select(Notification).where(
         Notification.user_id == actor.id,
         Notification.read_at.is_(None),

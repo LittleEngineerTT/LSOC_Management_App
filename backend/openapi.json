@@ -3746,6 +3746,47 @@
         }
       }
     },
+    "/api/v1/questions/{thread_id}": {
+      "delete": {
+        "tags": [
+          "Messagerie et suivis"
+        ],
+        "summary": "Hide Thread",
+        "operationId": "hide_thread_api_v1_questions__thread_id__delete",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Supprime la conversation de la messagerie du compte, sans l’effacer pour les autres.\n\nElle réapparaît si un nouveau message y est écrit."
+      }
+    },
     "/api/v1/questions/read": {
       "post": {
         "tags": [

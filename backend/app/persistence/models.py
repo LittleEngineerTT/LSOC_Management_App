@@ -486,6 +486,18 @@ class QuestionMessage(Identity, Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class HiddenThread(Identity, Base):
+    """Conversation supprimée de la messagerie d’un compte, jusqu’à un nouveau message."""
+
+    __tablename__ = "hidden_threads"
+    __table_args__ = (UniqueConstraint("user_id", "thread_id"),)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE", onupdate="CASCADE"), index=True
+    )
+    thread_id: Mapped[str] = mapped_column(ForeignKey("question_threads.id", ondelete="CASCADE"))
+    hidden_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Notification(Identity, Base):
     __tablename__ = "notifications"
     __table_args__ = (UniqueConstraint("user_id", "dedupe_key"),)

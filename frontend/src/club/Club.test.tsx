@@ -316,6 +316,23 @@ it('chaque notification mène à son action : examen d’une demande ou message 
   expect(within(card).getByRole('link', { name: 'Licence : Active' })).toHaveAttribute('href', '/app/profil');
 });
 
+it('la messagerie supprime une conversation après confirmation', async () => {
+  routes['/questions'] = [{ id: 'q9', user_id: 'm1', event_id: null, subject: 'Demande d’événement : Stage' }];
+  routes['/questions/q9/messages'] = [{ id: 'x9', thread_id: 'q9', author_id: 'a1', body: 'Créneau déjà pris.', created_at: at('10:00'), read_at: null }];
+  mutation = (path, method) => {
+    if (path === '/questions/q9' && method === 'DELETE') routes['/questions'] = [];
+    return reply({}, 204);
+  };
+  open('/app/messagerie?thread=q9');
+  await userEvent.click(await screen.findByRole('button', { name: 'Supprimer' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Supprimer la conversation « Demande d’événement : Stage » ?' });
+  expect(within(dialog).getByText(/Elle reste visible pour les administrateurs/)).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer la conversation' }));
+  await waitFor(() => expect(mutations).toContainEqual({ path: '/questions/q9', method: 'DELETE', body: undefined }));
+  expect(await screen.findByText(/Aucune question pour le moment/)).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Demande d’événement : Stage' })).not.toBeInTheDocument();
+});
+
 it('la messagerie affiche une conversation sans événement par son sujet', async () => {
   routes['/questions'] = [{ id: 'q9', user_id: 'm1', event_id: null, subject: 'Demande d’événement : Stage' }];
   routes['/questions/q9/messages'] = [{ id: 'x9', thread_id: 'q9', author_id: 'a1', body: 'Demande refusée : Stage\n\nCréneau déjà pris.', created_at: at('10:00'), read_at: null }];

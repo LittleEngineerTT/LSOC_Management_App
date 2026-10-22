@@ -164,6 +164,7 @@ L’inscription exige le rôle `member`, un rattachement (joueur ou coach) à un
 | `POST /events/{id}/questions` | Créer/réutiliser son fil et envoyer `{body}` |
 | `GET /questions`, `GET/POST /questions/{id}/messages` | Lire les fils autorisés et répondre |
 | `POST /questions/{id}/read` | Marquer les messages reçus comme lus |
+| `DELETE /questions/{id}` | Supprimer la conversation de sa propre messagerie : elle disparaît des listes et des compteurs du compte, reste visible pour les autres et réapparaît à un nouveau message |
 | `GET /notifications`, `POST /notifications/{id}/read` | Notifications privées du compte connecté |
 | `GET /admin/email-jobs?status=pending|failed|sent` | État technique des envois ; admin uniquement, aucun corps de message ni jeton exposé |
 | `POST /admin/email-jobs/{id}/retry` | Relancer un envoi non livré après correction de la configuration SMTP |

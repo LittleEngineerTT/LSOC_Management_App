@@ -20,6 +20,7 @@ from app.persistence.models import (
     Event,
     EventRevision,
     Follow,
+    HiddenThread,
     License,
     LoginSession,
     Notification,
@@ -93,6 +94,9 @@ def export(db: DB, actor: Actor) -> dict[str, Any]:
             plain(v) for v in db.scalars(select(Notification).where(Notification.user_id == me))
         ],
         "conversations": [plain(v) for v in threads],
+        "conversations_supprimees": [
+            plain(v) for v in db.scalars(select(HiddenThread).where(HiddenThread.user_id == me))
+        ],
         "messages": [
             plain(v)
             for v in db.scalars(
