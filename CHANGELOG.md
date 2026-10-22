@@ -4,6 +4,14 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et la numérotation
 [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.1] - 2026-10-22
+
+### Modifié
+
+- **Calendriers** (planning, mon planning, gymnases) : un clic n’importe où dans la case d’un
+  jour (vue mois) ou dans sa colonne (vue semaine) sélectionne ce jour, et plus seulement sur sa
+  date. Un clic sur un événement l’ouvre et sélectionne son jour au passage.
+
 ## [0.1.0] - 2026-10-22
 
 ### Ajouté
@@ -68,6 +76,7 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 
 Première version en production.
 
+[0.1.1]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.3...v0.1.0
 [0.0.3]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.1...v0.0.2
