@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { AuthApp } from '../auth/AuthApp';
 import { today, dayLabel, addDays } from './calendar';
 
@@ -12,6 +12,12 @@ const events = [
   { ...base, id: 'ffvb', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'match-1' },
   { ...base, id: 'friendly', title: 'Match amical local', kind: 'match', ffvb_match_id: null },
 ];
+// jsdom n’ouvre pas les <dialog> : la fiche d’un événement s’ouvre par ces substituts.
+beforeAll(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', ''); } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.removeAttribute('open'); } });
+});
+afterAll(() => { Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal'); Reflect.deleteProperty(HTMLDialogElement.prototype, 'close'); });
 afterEach(() => vi.unstubAllGlobals());
 function open(path = '/app/planning?semaine=2026-10-12', suppliedEvents = events) {
   const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
@@ -19,6 +25,9 @@ function open(path = '/app/planning?semaine=2026-10-12', suppliedEvents = events
     let body: unknown = [];
     if (url.pathname.endsWith('/auth/me')) body = account;
     if (url.pathname.endsWith('/events')) body = suppliedEvents;
+    // Fiche d’un événement ouverte depuis le calendrier.
+    const detail = suppliedEvents.find((event) => url.pathname.endsWith(`/events/${event.id}`));
+    if (detail) body = detail;
     return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -106,4 +115,38 @@ it('change le jour sélectionné de la semaine en cliquant sur un jour', async (
   await userEvent.click(within(calendar).getByRole('button', { name: 'Mardi 13 octobre, 0 événement' }));
   expect(within(calendar).getByRole('region', { name: 'Événements du Mardi 13 octobre' })).toBeInTheDocument();
   expect(within(calendar).getByRole('button', { name: 'Mercredi 14 octobre, 3 événements' })).toHaveAttribute('aria-pressed', 'false');
+});
+
+it('sélectionne un jour en cliquant n’importe où dans sa case du mois', async () => {
+  open('/app/planning?semaine=2026-10-12&vue=mois');
+  const month = await screen.findByRole('region', { name: 'Calendrier du mois' });
+  await within(month).findByRole('button', { name: 'Mercredi 14 octobre, 3 événements' });
+  // Un clic sur la case elle-même, hors du bouton de date et des événements.
+  await userEvent.click(within(month).getByRole('region', { name: 'Jeudi 15 octobre' }));
+  expect(screen.getByRole('region', { name: 'Événements du Jeudi 15 octobre' })).toBeInTheDocument();
+  expect(within(month).getByRole('button', { name: 'Jeudi 15 octobre, 0 événement' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('ouvre un événement du calendrier en sélectionnant son jour au passage', async () => {
+  open('/app/planning?semaine=2026-10-12&vue=mois');
+  const month = await screen.findByRole('region', { name: 'Calendrier du mois' });
+  const cell = within(month).getByRole('region', { name: 'Mercredi 14 octobre' });
+  const link = await within(cell).findByRole('link', { name: /Entraînement local/ });
+  expect(link.getAttribute('href')).toMatch(/event=local/);
+  expect(link.getAttribute('href')).toMatch(/jour=2026-10-14/);
+  await userEvent.click(link);
+  expect(await screen.findByRole('dialog', { name: 'Entraînement local' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Événements du Mercredi 14 octobre' })).toBeInTheDocument();
+});
+
+it('en vue semaine, un clic dans la colonne d’un jour le sélectionne', async () => {
+  open();
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  await within(calendar).findByRole('link', { name: /Entraînement local/ });
+  await userEvent.click(within(calendar).getByRole('region', { name: 'Vendredi 16 octobre' }));
+  expect(within(calendar).getByRole('region', { name: 'Événements du Vendredi 16 octobre' })).toBeInTheDocument();
+  // Ouvrir un événement sélectionne son jour plutôt que celui de la colonne cliquée avant.
+  const event = within(calendar).getByRole('region', { name: 'Mercredi 14 octobre' });
+  await userEvent.click(within(event).getByRole('link', { name: /Match fédéral/ }));
+  expect(within(calendar).getByRole('region', { name: 'Événements du Mercredi 14 octobre' })).toBeInTheDocument();
 });

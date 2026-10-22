@@ -47,9 +47,11 @@ export function registrationOpen(
 export function useEventLink() {
   const location = useLocation();
   const [search] = useSearchParams();
-  return (id: string) => {
+  // `day` sélectionne au passage le jour du calendrier où l’événement a été choisi.
+  return (id: string, day?: string) => {
     const next = new URLSearchParams(search);
     next.set('event', id);
+    if (day) next.set('jour', day);
     return `${location.pathname}?${next.toString()}`;
   };
 }

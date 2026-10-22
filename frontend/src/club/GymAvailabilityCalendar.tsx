@@ -149,12 +149,13 @@ export function GymAvailabilityCalendar({
                 <section
                   key={day}
                   className={`calendar-month-day gym-month-day ${day.slice(0, 7) !== anchor.slice(0, 7) ? 'outside' : ''} ${selected === day ? 'selected-day' : ''} ${day === today() ? 'today' : ''}`}
+                  // Toute la case sélectionne le jour ; le bouton de date reste l’accès au clavier.
+                  onClick={() => select(day)}
                 >
                   <button
                     className="calendar-date-button"
                     aria-pressed={day === selected}
                     aria-label={`Voir les disponibilités du ${dayLabel(day)}${min === null ? ', disponibilité non renseignée' : min > 0 ? `, ${min} terrain${min > 1 ? 's' : ''} libre${min > 1 ? 's' : ''} au minimum` : ''}${tone === 'excess' ? ', capacité dépassée' : ''}`}
-                    onClick={() => select(day)}
                   >
                     <strong>{Number(day.slice(8))}</strong>
                     {tone === 'excess' ? (
@@ -307,6 +308,7 @@ function GymWeek({
               className="calendar-time-column gym-time-column"
               aria-label={dayLabel(day)}
               data-gym-day={day}
+              onClick={() => select(day)}
             >
               <div className="gym-capacity-track">
                 {slots
@@ -377,7 +379,9 @@ function BookingCard({ slot, style }: { slot: GymDaySlot<Booking>; style?: CSSPr
   );
   return slot.item.type === 'event' ? (
     <Link
-      to={link(item.id)}
+      to={link(item.id, slot.day)}
+      // La case ne doit pas traiter ce clic : sa sélection écraserait l’ouverture de l’événement.
+      onClick={(click) => click.stopPropagation()}
       style={style}
       className={`calendar-event gym-booking origin-${slot.item.value.ffvb_match_id ? 'ffvb' : 'local'} ${slot.item.value.cancelled ? 'cancelled' : ''}`}
       aria-label={`${item.title}, ${slot.item.value.ffvb_match_id ? 'FFVB' : 'Local'}, ${gymSlotTime(slot)}, ${item.courts} terrain${item.courts > 1 ? 's' : ''}${slot.item.value.cancelled ? ', annulé, sans occupation' : ''}`}

@@ -133,12 +133,14 @@ function WeekCalendar({
                 className={`calendar-time-column${day === current ? ' today' : ''}${day === selected ? ' selected-day' : ''}`}
                 key={day}
                 aria-label={dayLabel(day)}
+                onClick={() => select(day)}
               >
                 {!items.length && <p className="calendar-day-empty">Aucun événement</p>}
                 {items.map((item) => (
                   <CalendarEvent
                     key={item.event.id}
                     event={item.event}
+                    day={day}
                     className="calendar-time-event"
                     style={{
                       top: ((item.startMinute - startHour * 60) * HOUR_HEIGHT) / 60,
@@ -201,11 +203,14 @@ function SelectedDay({ day, events }: { day: string; events: Event[] }) {
 
 function CalendarEvent({
   event,
+  day,
   style,
   className = '',
   continuation = false,
 }: {
   event: Event;
+  /** Jour de la case : ouvrir l’événement sélectionne aussi ce jour. */
+  day: string;
   style?: CSSProperties;
   className?: string;
   continuation?: boolean;
@@ -216,7 +221,9 @@ function CalendarEvent({
   const label = `${event.title}, ${source}, ${kindLabels[event.kind]}, ${timeRange(event.starts_at, event.ends_at)}, ${place(event)}${event.cancelled ? ', annulé' : ''}`;
   return (
     <Link
-      to={link(event.id)}
+      to={link(event.id, day)}
+      // La case ne doit pas traiter ce clic : sa sélection écraserait l’ouverture de l’événement.
+      onClick={(click) => click.stopPropagation()}
       className={`calendar-event origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${event.cancelled ? ' cancelled' : ''} ${className}`}
       style={style}
       aria-label={label}
@@ -265,12 +272,13 @@ function MonthCalendar({
               key={day}
               aria-label={dayLabel(day)}
               className={`calendar-month-day${day.slice(0, 7) !== anchor.slice(0, 7) ? ' outside' : ''}${day === current ? ' today' : ''}${day === selected ? ' selected-day' : ''}`}
+              // Toute la case sélectionne le jour ; le bouton de date reste l’accès au clavier.
+              onClick={() => select(day)}
             >
               <button
                 className="calendar-date-button"
                 aria-pressed={day === selected}
                 aria-label={`${dayLabel(day)}, ${items.length} événement${items.length > 1 ? 's' : ''}`}
-                onClick={() => select(day)}
               >
                 <span>{Number(day.slice(8))}</span>
                 <span className="calendar-month-count">{items.length > 0 ? items.length : ''}</span>
@@ -278,7 +286,7 @@ function MonthCalendar({
               </button>
               <div className="calendar-month-events">
                 {items.map((event) => (
-                  <CalendarEvent key={event.id} event={event} />
+                  <CalendarEvent key={event.id} event={event} day={day} />
                 ))}
               </div>
             </section>
