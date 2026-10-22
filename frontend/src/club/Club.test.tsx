@@ -449,7 +449,8 @@ it('un joueur avec un dossier en cours accède à l’application et dépose une
   open('/app');
   await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions 2 pièces à déposer' }));
   expect(await screen.findByRole('heading', { name: 'Mon inscription' })).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Étapes terminées : 0/3' })).toBeInTheDocument();
+  // Le titre de la page précède le chargement du dossier : on attend son contenu.
+  expect(await screen.findByRole('heading', { name: 'Étapes terminées : 0/3' })).toBeInTheDocument();
   expect(screen.getByText('Message du club : Avant la reprise')).toBeInTheDocument();
   expect(screen.getByText('Motif : Code expiré')).toBeInTheDocument();
   expect(screen.getByText('En attente')).toBeInTheDocument();

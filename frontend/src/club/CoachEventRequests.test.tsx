@@ -251,7 +251,8 @@ it.each([
     await userEvent.click(await screen.findByRole('button', { name: 'Nouveaux événements' }));
     expect(await screen.findByRole('heading', { name: 'Stage proposé' })).toBeInTheDocument();
     expect(screen.getByText('Préparation tournoi')).toBeInTheDocument();
-    expect(screen.getByText('Compétition 1')).toBeInTheDocument();
+    // Le nom de l’équipe vient d’un chargement distinct de celui de la demande.
+    expect(await screen.findByText('Compétition 1')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Examiner' }));
     await userEvent.selectOptions(screen.getByLabelText('Décision'), accept);
     await userEvent.type(screen.getByLabelText('Message au référent'), 'Décision motivée');

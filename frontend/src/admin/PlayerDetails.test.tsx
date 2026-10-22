@@ -57,7 +57,8 @@ it('affiche l’effectif de chaque équipe par poste, puis les joueurs sans post
 it('définit les postes dans l’administration', async () => {
   open('positions');
   expect(await screen.findByRole('heading', { name: 'Postes des joueurs' })).toBeInTheDocument();
-  expect(screen.getByText('Libéro', { selector: 'h3' })).toBeInTheDocument();
+  // Le titre du panneau précède le chargement des postes : on attend la liste.
+  expect(await screen.findByText('Libéro', { selector: 'h3' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Ajouter un poste' }));
   await userEvent.type(screen.getByLabelText('Nom'), 'Pointu');
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));

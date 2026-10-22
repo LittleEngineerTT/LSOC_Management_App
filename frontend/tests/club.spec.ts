@@ -9,10 +9,14 @@ function parisMonday(): string {
   date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
   return date.toISOString().slice(0, 10);
 }
-function at(offset: number, time: string) {
+// Jour d’un événement de la semaine : sur téléphone, le planning n’affiche que le jour choisi.
+function day(offset: number) {
   const date = new Date(`${parisMonday()}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + offset);
-  return new Date(`${date.toISOString().slice(0, 10)}T${time}:00+01:00`).toISOString();
+  return date.toISOString().slice(0, 10);
+}
+function at(offset: number, time: string) {
+  return new Date(`${day(offset)}T${time}:00+01:00`).toISOString();
 }
 const base = { section_ids: ['section-1'], location: '', referent_ids: ['member-1'], direct_edit: false, cancelled: false, version: 1, series_id: null, exception: false, ffvb_match_id: null, kickoff_at: null, before_minutes: 75, after_minutes: 150, match_courts: 3, occupancy_unknown: false, registration_section_ids: [], registration_limit: null, registration_count: 0 };
 const events: Row[] = [
@@ -76,8 +80,8 @@ async function noOverflow(page: Page) {
 
 test('planning, détail, suivi et question depuis un événement', async ({ page }) => {
   const mutations = await prepare(page);
-  await page.goto('/app/planning');
-  await page.getByRole('link', { name: /Entraînement loisir du mercredi soir/ }).click();
+  await page.goto(`/app/planning?jour=${day(2)}`);
+  await page.getByRole('link', { name: /Entraînement loisir du mercredi soir/ }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Entraînement loisir du mercredi soir' });
   await expect(dialog).toBeVisible();
   await noOverflow(page);
@@ -114,12 +118,12 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
       await noOverflow(page);
     }
   }
-  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lu'], ['planning', '/app/planning', 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['sections', '/app/sections', 'Joueur']];
+  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lu'], ['planning', `/app/planning?jour=${day(2)}`, 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['sections', '/app/sections', 'Joueur']];
   for (const [name, path, text] of previews) {
     for (const [device, size] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]] as const) {
       await page.setViewportSize(size);
       await page.goto(path);
-      await expect(page.getByText(text).first()).toBeVisible();
+      await expect(page.getByText(text).filter({ visible: true }).first()).toBeVisible();
       await page.screenshot({ path: `.cache/previews/club-${name}-${device}.png`, fullPage: true });
     }
   }

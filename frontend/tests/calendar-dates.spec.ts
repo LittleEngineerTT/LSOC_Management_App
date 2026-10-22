@@ -99,13 +99,18 @@ test('calendrier semaine et mois : couleurs, filtres, sélection et détail cons
   await prepare(page);
   await page.goto('/app/planning?semaine=2026-10-12');
   const calendar = page.getByRole('region', { name: 'Calendrier de la semaine' });
-  await expect(calendar.getByRole('link', { name: /Entraînement local/ })).toHaveClass(/origin-local/);
-  await expect(calendar.getByRole('link', { name: /Match fédéral/ })).toHaveClass(/origin-ffvb/);
-  await expect(calendar.getByRole('link', { name: /Match amical local/ })).toHaveClass(/origin-local/);
+  // Un clic sur le mercredi le sélectionne : en-tête de la grille, ou bandeau des jours sur téléphone.
+  await calendar.getByRole('button', { name: /^(Voir le )?Mercredi 14 octobre/ }).click();
+  await expect(page).toHaveURL(/jour=2026-10-14/);
+  // Grille horaire (ordinateur) ou liste du jour choisi (téléphone) : seule la partie visible compte.
+  const entry = (name: RegExp) => calendar.locator('.calendar-event, .club-event').filter({ hasText: name, visible: true });
+  await expect(entry(/Entraînement local/).first()).toHaveClass(/origin-local/);
+  await expect(entry(/Match fédéral/).first()).toHaveClass(/origin-ffvb/);
+  await expect(entry(/Match amical local/).first()).toHaveClass(/origin-local/);
   await page.getByLabel('Origine des événements').selectOption('ffvb');
-  await expect(calendar.getByRole('link', { name: /Match amical local/ })).toHaveCount(0);
+  await expect(entry(/Match amical local/)).toHaveCount(0);
   await page.getByLabel('Origine des événements').selectOption('local');
-  await expect(calendar.getByRole('link', { name: /Match fédéral/ })).toHaveCount(0);
+  await expect(entry(/Match fédéral/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Mois', exact: true }).click();
   const month = page.getByRole('region', { name: 'Calendrier du mois' });
   await month.getByRole('button', { name: 'Mercredi 14 octobre, 2 événements', exact: true }).click();
