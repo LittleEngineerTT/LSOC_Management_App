@@ -511,6 +511,8 @@ class EmailJob(Identity, Base):
     )
     encrypted_payload: Mapped[str] = mapped_column(Text)
     dedupe_key: Mapped[str] = mapped_column(String(200))
+    # Catégorie d’un e-mail de notification, groupé avec ses pareils ; vide : envoyé seul.
+    category: Mapped[str | None] = mapped_column(String(50))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

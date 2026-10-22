@@ -4275,16 +4275,6 @@
               "type": "string",
               "title": "Source Id"
             }
-          },
-          {
-            "name": "cancel_upcoming",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Cancel Upcoming"
-            }
           }
         ],
         "responses": {

@@ -90,13 +90,12 @@ it('règle les terrains et marges d’une source, vides pour suivre la configura
   expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ courts: 2, before_minutes: null, after_minutes: null });
 });
 
-it('supprime une source après confirmation, avec annulation facultative des matchs à venir', async () => {
+it('supprime une source et ses matchs après confirmation', async () => {
   source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: null, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
   open();
   await userEvent.click(await screen.findByRole('button', { name: 'Supprimer' }));
   const dialog = await screen.findByRole('dialog', { name: /Supprimer la source LSO COLOMBES n°6 \(équipe locale Seniors M1 \(Seniors\)\)/ });
-  await userEvent.click(within(dialog).getByLabelText(/Annuler aussi ses matchs à venir/));
   await userEvent.click(within(dialog).getByRole('button', { name: 'Supprimer la source' }));
-  expect(await screen.findByText('Source supprimée ; ses matchs à venir sont annulés.')).toBeInTheDocument();
-  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/sources/source?cancel_upcoming=true', expect.objectContaining({ method: 'DELETE' }));
+  expect(await screen.findByText('Source supprimée avec tous ses matchs.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/sources/source', expect.objectContaining({ method: 'DELETE' }));
 });

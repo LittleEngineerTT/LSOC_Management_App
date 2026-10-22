@@ -123,3 +123,18 @@ def test_ffvb_official_move_applies_even_when_over_capacity(admin: TestClient) -
     sync(source,HTML.replace(b'02/11/26',b'03/11/26'))
     assert match_event('BRC007').kickoff_at.isoformat()=='2026-11-03T19:30:00+00:00'
     assert any(n['kind']=='capacity_conflict' for n in admin.get('/api/v1/notifications').json())
+
+
+def test_import_grouped_in_one_notification_changes_stay_unitary(admin: TestClient) -> None:
+    source,_,_=configure(admin)
+    sync(source)
+    imported=[n for n in admin.get('/api/v1/notifications').json() if n['title'].startswith('Calendrier FFVB LSO COLOMBES')]
+    assert len(imported)==1
+    assert imported[0]['event_id'] is None and 'matchs ajoutés' in imported[0]['title']
+    assert '• Match ajouté : ' in imported[0]['body']
+    assert not any(n['title'].startswith('Match ajouté') for n in admin.get('/api/v1/notifications').json())
+    with SessionFactory() as db:
+        assert len(list(db.scalars(select(EmailJob).where(EmailJob.dedupe_key.like('group:%')))))==1
+    sync(source,HTML.replace(b'02/11/26',b'03/11/26'))
+    changed=[n for n in admin.get('/api/v1/notifications').json() if n['kind']=='event_changed']
+    assert len(changed)>=1 and all(n['event_id'] for n in changed)

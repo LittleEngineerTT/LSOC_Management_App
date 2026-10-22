@@ -60,7 +60,6 @@ export function SourcesPanel({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [notice, setNotice] = useState('');
   const [removing, setRemoving] = useState<Source | null>(null);
-  const [cancelUpcoming, setCancelUpcoming] = useState(false);
   const item = editing && editing !== 'new' ? editing : null;
   // Plusieurs sources portent souvent le même nom FFVB : l’équipe locale les distingue.
   function localTeam(id: string) {
@@ -409,7 +408,6 @@ export function SourcesPanel({
                 className="admin-button danger"
                 onClick={() => {
                   setNotice('');
-                  setCancelUpcoming(false);
                   setRemoving(source);
                 }}
               >
@@ -425,35 +423,17 @@ export function SourcesPanel({
           label="Supprimer la source"
           onClose={() => setRemoving(null)}
           onConfirm={async (signal) => {
-            await api.request(
-              `/ffvb/sources/${removing.id}${cancelUpcoming ? '?cancel_upcoming=true' : ''}`,
-              'DELETE',
-              undefined,
-              signal,
-            );
+            await api.request(`/ffvb/sources/${removing.id}`, 'DELETE', undefined, signal);
             if (editing && editing !== 'new' && editing.id === removing.id) setEditing(null);
-            setNotice(
-              cancelUpcoming
-                ? 'Source supprimée ; ses matchs à venir sont annulés.'
-                : 'Source supprimée ; ses matchs sont conservés comme événements ordinaires.',
-            );
+            setNotice('Source supprimée avec tous ses matchs.');
             result.reload();
           }}
         >
           <p>
-            La synchronisation de cette source s’arrête. Ses matchs déjà importés sont conservés
-            avec leur historique, leurs suivis et leurs inscriptions, mais ne seront plus mis à jour
-            par la FFVB.
+            La source et tous les matchs importés depuis elle, passés comme à venir, sont supprimés
+            définitivement avec leur historique, leurs suivis et leurs inscriptions. Les personnes
+            concernées sont prévenues. Cette action est irréversible.
           </p>
-          <label className="admin-confirm-option">
-            <input
-              type="checkbox"
-              checked={cancelUpcoming}
-              onChange={(change) => setCancelUpcoming(change.target.checked)}
-            />
-            Annuler aussi ses matchs à venir (libère les terrains et prévient les personnes qui les
-            suivent)
-          </label>
         </Confirm>
       )}
     </>

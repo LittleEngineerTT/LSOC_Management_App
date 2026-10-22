@@ -17,6 +17,7 @@ from app.core.security import cipher, now
 from app.persistence.database import SessionFactory
 from app.persistence.models import AuthToken, EmailJob, FFVBSource, LoginSession, RateBucket, User
 from app.services.ffvb import results_due, sync_source
+from app.services.notifications import EMAIL_SUBJECTS
 
 logger = logging.getLogger(__name__)
 # Tentatives d’envoi avant abandon (voir aussi GET /admin/email-jobs?status=failed).
@@ -24,12 +25,36 @@ MAX_EMAIL_ATTEMPTS = 8
 # Un e-mail abandonné reste ce délai visible des administrateurs, qui peuvent le relancer,
 # puis son contenu chiffré (liens d’invitation, de réinitialisation…) est effacé.
 FAILED_EMAIL_RETENTION = timedelta(days=30)
+# Notifications détaillées dans un e-mail groupé ; les suivantes sont seulement comptées.
+EMAIL_LISTED = 20
 _stopping = False
 
 
 def message_domain() -> str:
     """Domaine des Message-ID : celui du frontend, pour ne pas être pris pour du spam."""
     return urlsplit(settings.frontend_url).hostname or "lsoc.local"
+
+
+def compose(batch: list[EmailJob]) -> tuple[str, str]:
+    """Objet et corps d’un envoi : le message tel quel, ou un récapitulatif de la catégorie."""
+    payloads = [json.loads(cipher().decrypt(item.encrypted_payload.encode())) for item in batch]
+    if len(payloads) == 1:
+        return payloads[0]["subject"], payloads[0]["body"]
+    template = EMAIL_SUBJECTS.get(batch[0].category or "", "{n} nouvelles notifications")
+    subject = template.format(n=len(payloads))
+    lines = [f"• {payload['subject']}" for payload in payloads[:EMAIL_LISTED]]
+    if len(payloads) > EMAIL_LISTED:
+        lines.append(f"… et {len(payloads) - EMAIL_LISTED} autres")
+    body = "\n".join(
+        [
+            f"{subject}.",
+            "",
+            *lines,
+            "",
+            f"Le détail est dans vos notifications : {settings.frontend_url}/app",
+        ]
+    )
+    return subject, body
 
 
 def process_emails(limit: int = 100) -> int:
@@ -65,17 +90,33 @@ def process_emails(limit: int = 100) -> int:
             )
             if job is None:
                 continue
+            # Les e-mails de même catégorie en attente pour ce compte partent avec lui.
+            batch = [job]
+            if job.category:
+                batch += db.scalars(
+                    select(EmailJob)
+                    .where(
+                        EmailJob.user_id == user.id,
+                        EmailJob.category == job.category,
+                        EmailJob.sent_at.is_(None),
+                        EmailJob.attempts < MAX_EMAIL_ATTEMPTS,
+                        EmailJob.id != job.id,
+                    )
+                    .order_by(EmailJob.due_at, EmailJob.id)
+                    .with_for_update(skip_locked=True)
+                ).all()
             if not user.email:
-                db.delete(job)
+                for item in batch:
+                    db.delete(item)
                 continue
             try:
-                payload = json.loads(cipher().decrypt(job.encrypted_payload.encode()))
+                subject, body = compose(batch)
                 message = EmailMessage()
                 message["From"] = settings.smtp_from
                 message["To"] = user.email
-                message["Subject"] = payload["subject"]
+                message["Subject"] = subject
                 message["Message-ID"] = f"<{job.id}@{message_domain()}>"
-                message.set_content(payload["body"])
+                message.set_content(body)
                 smtp_class = smtplib.SMTP_SSL if settings.smtp_ssl else smtplib.SMTP
                 with smtp_class(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
                     if settings.smtp_starttls:
@@ -84,12 +125,14 @@ def process_emails(limit: int = 100) -> int:
                         smtp.login(settings.smtp_username, settings.smtp_password)
                     smtp.send_message(message)
             except (smtplib.SMTPException, OSError, InvalidToken, ValueError, KeyError):
-                job.attempts += 1
-                job.due_at = now() + timedelta(seconds=min(3600, 30 * 2**job.attempts))
+                for item in batch:
+                    item.attempts += 1
+                    item.due_at = now() + timedelta(seconds=min(3600, 30 * 2**item.attempts))
                 logger.warning("Échec d’envoi, tâche %s, tentative %s", job.id, job.attempts)
             else:
-                job.sent_at = now()
-                job.encrypted_payload = ""
+                for item in batch:
+                    item.sent_at = now()
+                    item.encrypted_payload = ""
                 sent += 1
     return sent
 

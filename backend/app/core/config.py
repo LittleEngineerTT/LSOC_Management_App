@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # TLS implicite dès la connexion (port 465) ; exclusif de STARTTLS.
     smtp_ssl: bool = False
     smtp_from: str = "LSOC <noreply@lsoc.local>"
+    # Attente avant l’envoi d’un e-mail de notification, pour le grouper avec ceux de même
+    # catégorie (capacité dépassée, annulation, demandes…) adressés au même compte.
+    email_group_minutes: int = 10
     worker_poll_seconds: int = 10
     ffvb_interval_minutes: int = 1440
     match_before_minutes: int = 75

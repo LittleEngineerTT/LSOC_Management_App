@@ -192,9 +192,9 @@ def update_source(source_id: str, body: FFVBSourceInput, db: DB, actor: Admin) -
 
 
 @router.delete("/sources/{source_id}", status_code=204)
-def remove_source(source_id: str, db: DB, actor: Admin, cancel_upcoming: bool = False) -> None:
+def remove_source(source_id: str, db: DB, actor: Admin) -> None:
     lock_planning(db)
-    delete_source(db, get(db, FFVBSource, source_id), actor, cancel_upcoming)
+    delete_source(db, get(db, FFVBSource, source_id), actor)
 
 
 @router.post("/sources/{source_id}/sync", response_model=FFVBSourceView)

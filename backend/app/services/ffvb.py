@@ -26,8 +26,22 @@ from app.persistence.models import (
     Team,
     User,
 )
-from app.services.events import check_capacity, lock_gyms, lock_planning, revision, snapshot
-from app.services.notifications import active_referents, admins, email, event_changed
+from app.services.events import (
+    check_capacity,
+    delete_event,
+    lock_gyms,
+    lock_planning,
+    revision,
+    snapshot,
+)
+from app.services.notifications import (
+    active_referents,
+    admins,
+    email,
+    event_changed,
+    ffvb_added,
+    grouping,
+)
 
 
 def defaults(db: Session) -> ClubSettings:
@@ -118,28 +132,21 @@ def apply_source_settings(
     return changed
 
 
-def delete_source(db: Session, source: FFVBSource, actor: User, cancel_upcoming: bool) -> None:
-    """Supprime une source ; ses matchs deviennent des événements ordinaires non synchronisés.
+def delete_source(db: Session, source: FFVBSource, actor: User) -> None:
+    """Supprime définitivement une source et tous les événements importés depuis elle.
 
-    Avec `cancel_upcoming`, les matchs à venir sont annulés, ce qui libère leurs terrains.
+    Chaque match est effacé comme un événement local (historique, suivis, inscriptions,
+    questions) ; les personnes concernées sont prévenues.
     """
     lock_planning(db)
-    states = list(db.scalars(select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)))
-    for state in states:
-        event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
-        if event is None:
-            continue
-        before = snapshot(event)
-        event.ffvb_match_id = None
-        event.occupancy_unknown = False
-        if cancel_upcoming and not event.cancelled and event.starts_at > now():
-            event.cancelled = True
-        event.version += 1
-        db.flush()
-        revision(db, event, actor, before, "ffvb_source_deleted")
-        event_changed(db, event, actor.id)
-    identifiers = [state.id for state in states]
+    identifiers = list(
+        db.scalars(select(FFVBMatchState.id).where(FFVBMatchState.source_id == source.id))
+    )
     if identifiers:
+        events = db.scalars(select(Event).where(Event.ffvb_match_id.in_(identifiers))).all()
+        for event in events:
+            delete_event(db, event, actor)
+        db.flush()
         db.execute(delete(FFVBConflict).where(FFVBConflict.match_id.in_(identifiers)))
         db.execute(delete(FFVBMatchState).where(FFVBMatchState.id.in_(identifiers)))
     db.delete(source)
@@ -228,6 +235,7 @@ def apply_official(
                     f"ffvb-conflict:{conflict.id}",
                     "Conflit avec le calendrier FFVB",
                     f"Une valeur locale de {event.title} diffère de la FFVB. Consultez le conflit dans l’application.",
+                    "ffvb_conflict",
                 )
             continue
         if key in state.protected:
@@ -337,99 +345,106 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     if not active_referents(db, team.referent_ids):
         source.last_error = "Un référent actif doit être configuré sur l’équipe"
         return False
-    venues = Venues(db)
-    seen: set[str] = set()
-    before, after, courts = match_settings(db, source)
-    for match in matches:
-        seen.add(match.code)
-        if match.result is not None:
-            record_result(db, source, match, match.result)
-        state = db.scalar(
-            select(FFVBMatchState).where(
-                FFVBMatchState.season == source.season,
-                FFVBMatchState.entity == source.entity,
-                FFVBMatchState.match_code == match.code,
-            )
-        )
-        if state is not None and (
-            state.disabled or (state.suspended_until is not None and state.suspended_until > now())
-        ):
-            continue
-        if match.location is None and state is None:
-            # Match déjà joué jamais importé : passé et sans lieu connu, il n’est pas créé.
-            continue
-        location = (
-            match.location
-            if match.location is not None
-            else str(state.official.get("location", ""))
-            if state is not None
-            else ""
-        )
-        home, gym = venues.resolve(location, match.home_team, source.team_name)
-        official: dict[str, Any] = {
-            "kickoff_at": match.kickoff_at.isoformat(),
-            "gymnasium_id": gym,
-            "location": location,
-            "home_team": match.home_team,
-            "away_team": match.away_team,
-            "home": home,
-        }
-        initial = state is None
-        if state is None:
-            state = FFVBMatchState(
-                source_id=source.id,
-                season=source.season,
-                entity=source.entity,
-                match_code=match.code,
-                official=official,
-            )
-            db.add(state)
-            db.flush()
-            event = Event(
-                title=f"{match.home_team} / {match.away_team}"[:200],
-                kind="match",
-                section_ids=[team.section_id],
-                team_ids=[team.id],
-                gymnasium_id=official["gymnasium_id"],
-                location=location,
-                starts_at=match.kickoff_at,
-                ends_at=match.kickoff_at + timedelta(minutes=after),
-                courts=courts if official["gymnasium_id"] else 0,
-                referent_ids=list(team.referent_ids),
-                ffvb_match_id=state.id,
-                kickoff_at=match.kickoff_at,
-                before_minutes=before,
-                after_minutes=after,
-                match_courts=courts,
-            )
-            db.add(event)
-            db.flush()
-        else:
-            existing_event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
-            if existing_event is None:
-                raise HTTPException(409, "État FFVB sans événement")
-            event = existing_event
-        lock_gyms(db, [event.gymnasium_id, official["gymnasium_id"]])
-        state.official = official
-        state.last_verified_at = now()
-        state.missing = False
-        state.suspended_until = None
-        apply_official(db, event, state, official, initial)
-    for state in db.scalars(select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)):
-        if (
-            state.match_code not in seen
-            and not state.disabled
-            and not (state.suspended_until and state.suspended_until > now())
-        ):
-            if not state.missing:
-                admins(
-                    db,
-                    f"ffvb-missing:{state.id}:{now().isoformat()}",
-                    "ffvb_missing",
-                    f"Match FFVB absent : {state.match_code}",
-                    link="/app/administration?tab=ffvb&vue=matches",
+    # Une notification par compte pour la synchronisation : matchs ajoutés, gymnases à associer…
+    with grouping(db, f"ffvb:{source.id}", f"Calendrier FFVB {team.name}"):
+        venues = Venues(db)
+        seen: set[str] = set()
+        before, after, courts = match_settings(db, source)
+        for match in matches:
+            seen.add(match.code)
+            if match.result is not None:
+                record_result(db, source, match, match.result)
+            state = db.scalar(
+                select(FFVBMatchState).where(
+                    FFVBMatchState.season == source.season,
+                    FFVBMatchState.entity == source.entity,
+                    FFVBMatchState.match_code == match.code,
                 )
-            state.missing = True
+            )
+            if state is not None and (
+                state.disabled
+                or (state.suspended_until is not None and state.suspended_until > now())
+            ):
+                continue
+            if match.location is None and state is None:
+                # Match déjà joué jamais importé : passé et sans lieu connu, il n’est pas créé.
+                continue
+            location = (
+                match.location
+                if match.location is not None
+                else str(state.official.get("location", ""))
+                if state is not None
+                else ""
+            )
+            home, gym = venues.resolve(location, match.home_team, source.team_name)
+            official: dict[str, Any] = {
+                "kickoff_at": match.kickoff_at.isoformat(),
+                "gymnasium_id": gym,
+                "location": location,
+                "home_team": match.home_team,
+                "away_team": match.away_team,
+                "home": home,
+            }
+            initial = state is None
+            if state is None:
+                state = FFVBMatchState(
+                    source_id=source.id,
+                    season=source.season,
+                    entity=source.entity,
+                    match_code=match.code,
+                    official=official,
+                )
+                db.add(state)
+                db.flush()
+                event = Event(
+                    title=f"{match.home_team} / {match.away_team}"[:200],
+                    kind="match",
+                    section_ids=[team.section_id],
+                    team_ids=[team.id],
+                    gymnasium_id=official["gymnasium_id"],
+                    location=location,
+                    starts_at=match.kickoff_at,
+                    ends_at=match.kickoff_at + timedelta(minutes=after),
+                    courts=courts if official["gymnasium_id"] else 0,
+                    referent_ids=list(team.referent_ids),
+                    ffvb_match_id=state.id,
+                    kickoff_at=match.kickoff_at,
+                    before_minutes=before,
+                    after_minutes=after,
+                    match_courts=courts,
+                )
+                db.add(event)
+                db.flush()
+            else:
+                existing_event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
+                if existing_event is None:
+                    raise HTTPException(409, "État FFVB sans événement")
+                event = existing_event
+            lock_gyms(db, [event.gymnasium_id, official["gymnasium_id"]])
+            state.official = official
+            state.last_verified_at = now()
+            state.missing = False
+            state.suspended_until = None
+            apply_official(db, event, state, official, initial)
+            if initial:
+                ffvb_added(db, event)
+        for state in db.scalars(
+            select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)
+        ):
+            if (
+                state.match_code not in seen
+                and not state.disabled
+                and not (state.suspended_until and state.suspended_until > now())
+            ):
+                if not state.missing:
+                    admins(
+                        db,
+                        f"ffvb-missing:{state.id}:{now().isoformat()}",
+                        "ffvb_missing",
+                        f"Match FFVB absent : {state.match_code}",
+                        link="/app/administration?tab=ffvb&vue=matches",
+                    )
+                state.missing = True
     source.last_success_at = now()
     source.last_error = None
     return True

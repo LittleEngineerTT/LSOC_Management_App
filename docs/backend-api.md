@@ -176,6 +176,10 @@ Les questions sont privées entre l’adhérent auteur et les admins. Être réf
 
 Un utilisateur ne reçoit pas d’e-mail pour sa propre modification d’événement. Le référent est informé des modifications externes, selon sa préférence. Un suivi de série retiré ne supprime pas les suivis individuels explicites. Une vérification FFVB sans changement réel ne crée aucune notification de modification.
 
+Les alertes sont regroupées pour ne pas surcharger les comptes : dans une même opération, les matchs ajoutés depuis une source FFVB, les gymnases FFVB à associer, les matchs FFVB absents, les dépassements de capacité et les référents à réattribuer forment une seule notification par compte (`kind` du type, ou `grouped` s’ils sont mélangés), avec un décompte en titre, le détail des dix premiers dans `body` et un seul e-mail. Une synchronisation FFVB les réunit sous « Calendrier FFVB {équipe} ». Une alerte seule garde sa forme unitaire. Les modifications, annulations, suppressions et demandes à valider restent unitaires.
+
+Les e-mails de notification ne partent pas immédiatement : chacun attend `LSOC_EMAIL_GROUP_MINUTES` (10 minutes par défaut), puis le worker envoie en un seul message tous ceux de même catégorie en attente pour le compte (capacité dépassée, annulations, modifications, suppressions, demandes, décisions, questions, alertes FFVB…). L’objet donne le nombre (« 3 événements ont une capacité dépassée »), le corps liste les vingt premiers et renvoie aux notifications de l’application, qui restent unitaires. Un e-mail seul dans sa catégorie part tel quel ; les autres e-mails (`email_jobs.category` vide) partent sans délai.
+
 ## FFVB
 
 Configurer une fois le code du club avec `PUT /ffvb/club` (`{ "club_code": "0926620" }`), puis créer une équipe rattachée à une section avec un référent actif. Configurer une association de gymnase, puis une source :
@@ -195,7 +199,7 @@ Configurer une fois le code du club avec `PUT /ffvb/club` (`{ "club_code": "0926
 
 Gymnase local d’un match FFVB à domicile : l’association `/ffvb/gym-mappings` du nom officiel, sinon le gymnase local de même nom si l’équipe qui reçoit commence par `LSOC_FFVB_HOME_PREFIX` (« LSO COLOMBES » par défaut). Une telle rencontre compte comme jouée à domicile même si l’équipe suivie est l’équipe visiteuse. Les noms sont comparés sans accents, sans casse et à espaces près, et deux associations ne peuvent pas avoir la même clé (409). Créer, modifier ou supprimer une association, créer un gymnase ou en renommer un réapplique aussitôt ces règles aux matchs importés, sauf aux valeurs protégées par une modification locale, qui ouvrent un conflit.
 
-`DELETE /ffvb/sources/{id}` (admin) supprime une source, ses états de match et ses conflits. Ses matchs restent des événements ordinaires, avec historique, suivis et inscriptions, mais ne sont plus synchronisés (action d’historique `ffvb_source_deleted`). Avec `?cancel_upcoming=true`, les matchs à venir sont annulés, ce qui libère leurs terrains et prévient les personnes qui les suivent.
+`DELETE /ffvb/sources/{id}` (admin) supprime définitivement une source, ses états de match, ses conflits, ses résultats et tous les événements importés depuis elle, passés comme à venir, avec leur historique, leurs demandes, leurs questions, leurs suivis et leurs inscriptions. Leurs terrains sont libérés ; les personnes qui suivaient ces matchs, y étaient inscrites ou en étaient référentes reçoivent une notification de suppression par match. Les événements locaux ne sont pas touchés.
 
 Chaque source peut porter ses propres `courts` (terrains réservés), `before_minutes` et `after_minutes` (marges autour du coup d’envoi). `null` suit la configuration par défaut (`GET/PUT /ffvb/defaults`), qui ne vaut que pour les imports suivants. Modifier les réglages d’une source les reporte aussitôt sur ses matchs à venir (action d’historique `source_settings`) ; une valeur modifiée à la main sur un match est conservée.
 

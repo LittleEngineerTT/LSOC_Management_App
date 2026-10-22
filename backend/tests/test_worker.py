@@ -1,4 +1,5 @@
 import asyncio
+from email import message_from_bytes, policy
 from datetime import timedelta
 
 from aiosmtpd.controller import Controller
@@ -75,3 +76,37 @@ def test_abandoned_emails_are_purged_after_retention() -> None:
     cleanup_expired()
     with SessionFactory() as db:
         assert sorted(job.dedupe_key for job in db.scalars(select(EmailJob)))==['recent-failure','still-retrying']
+
+
+def test_notification_emails_wait_then_group_by_category(monkeypatch) -> None:
+    from app.jobs.worker import process_emails
+    inbox=Inbox()
+    controller=Controller(inbox,hostname='127.0.0.1',port=8027)
+    controller.start()
+    try:
+        monkeypatch.setattr(settings,'smtp_host','127.0.0.1')
+        monkeypatch.setattr(settings,'smtp_port',8027)
+        with SessionFactory.begin() as db:
+            user=db.get(User,'admin')
+            email(db,user,'capacity:1','Capacité dépassée : Match A','Corps A','capacity_conflict')
+            email(db,user,'capacity:2','Capacité dépassée : Match B','Corps B','capacity_conflict')
+            email(db,user,'cancelled:1','Événement annulé : Match C','Corps C','event_cancelled')
+        # Les e-mails de notification attendent avant de partir.
+        assert process_emails()==0
+        with SessionFactory.begin() as db:
+            for job in db.scalars(select(EmailJob)):
+                assert job.due_at>now()+timedelta(minutes=settings.email_group_minutes-1)
+            db.scalar(select(EmailJob).where(EmailJob.dedupe_key=='capacity:1')).due_at=now()
+        # Le premier e-mail échu emporte ses pareils encore en attente, pas les autres catégories.
+        assert process_emails()==1
+        assert len(inbox.messages)==1
+        message=message_from_bytes(inbox.messages[0],policy=policy.default)
+        assert message['Subject']=='2 événements ont une capacité dépassée'
+        body=message.get_content()
+        assert 'Capacité dépassée : Match A' in body and 'Capacité dépassée : Match B' in body
+        with SessionFactory() as db:
+            jobs={job.dedupe_key:job for job in db.scalars(select(EmailJob))}
+            assert jobs['capacity:1'].sent_at and jobs['capacity:2'].sent_at
+            assert jobs['cancelled:1'].sent_at is None
+    finally:
+        controller.stop()
