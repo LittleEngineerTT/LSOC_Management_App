@@ -1,18 +1,11 @@
-import { useRef, type CSSProperties } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import type { CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import type { Event } from '../admin/types';
 import { Empty } from '../admin/ui';
 import { dayLabel, timeRange, today } from './calendar';
-import {
-  HOUR_HEIGHT,
-  MIN_EVENT_MINUTES,
-  placeSegments,
-  splitEvents,
-  type PlacedSegment,
-} from './calendarLayout';
-import type { CalendarMode } from './CalendarNavigation';
+import { HOUR_HEIGHT, MIN_EVENT_MINUTES, placeSegments, splitEvents } from './calendarLayout';
+import { useSelectedDay, type CalendarMode } from './CalendarNavigation';
 import { EventRow, EventOrigin, kindLabels, useEventLink, usePlace } from './events';
-import { validDay } from './calendar';
 import './calendar.css';
 
 export function CalendarLegend() {
@@ -48,7 +41,7 @@ export function CalendarView({
     <>
       {!segments.length && <Empty>{empty}</Empty>}
       {mode === 'week' ? (
-        <WeekCalendar key={days[0]} days={days} segments={placeSegments(segments)} />
+        <WeekCalendar key={days[0]} days={days} events={events} anchor={anchor} />
       ) : (
         <MonthCalendar key={anchor.slice(0, 7)} days={days} events={events} anchor={anchor} />
       )}
@@ -58,10 +51,19 @@ export function CalendarView({
 
 const weekdayFormat = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short' });
 const weekday = (day: string) => weekdayFormat.format(new Date(`${day}T12:00:00Z`));
-function WeekCalendar({ days, segments }: { days: string[]; segments: PlacedSegment[] }) {
-  const scroll = useRef<HTMLDivElement>(null);
-  const columns = useRef(new Map<string, HTMLElement>());
+function WeekCalendar({
+  days,
+  events,
+  anchor,
+}: {
+  days: string[];
+  events: Event[];
+  anchor: string;
+}) {
   const current = today();
+  const { selected, select } = useSelectedDay(days, anchor);
+  const segments = placeSegments(splitEvents(events, days));
+  const groups = dayGroups(events, days);
   const startHour = Math.max(
     0,
     Math.min(8, ...segments.map((item) => Math.floor(item.startMinute / 60))),
@@ -73,33 +75,27 @@ function WeekCalendar({ days, segments }: { days: string[]; segments: PlacedSegm
   const height = (endHour - startHour) * HOUR_HEIGHT + (MIN_EVENT_MINUTES * HOUR_HEIGHT) / 60;
   const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
   return (
-    <section className="calendar-week" aria-label="Calendrier de la semaine">
-      <div className="calendar-mobile-days" role="group" aria-label="Aller à un jour">
-        {days.map((day) => (
-          <button
-            key={day}
-            className="admin-button"
-            aria-label={dayLabel(day)}
-            onClick={() => {
-              const column = columns.current.get(day);
-              const container = scroll.current;
-              if (column && container)
-                container.scrollTo({ left: column.offsetLeft - 48, behavior: 'smooth' });
-            }}
-          >
-            {weekday(day)} {Number(day.slice(8))}
-          </button>
-        ))}
+    <section className="calendar-week planning-week" aria-label="Calendrier de la semaine">
+      {/* Sur téléphone, la grille horaire laisse place à ces jours et au détail du jour choisi. */}
+      <div className="calendar-mobile-days" role="group" aria-label="Choisir un jour">
+        {days.map((day) => {
+          const items = groups.get(day) ?? [];
+          return (
+            <button
+              key={day}
+              className={`calendar-mobile-day${day === current ? ' today' : ''}`}
+              aria-pressed={day === selected}
+              aria-label={`${dayLabel(day)}, ${items.length} événement${items.length > 1 ? 's' : ''}`}
+              onClick={() => select(day)}
+            >
+              <span>{weekday(day)}</span>
+              <strong>{Number(day.slice(8))}</strong>
+              <OriginDots events={items} />
+            </button>
+          );
+        })}
       </div>
-      <p className="calendar-mobile-hint">
-        Faites glisser le calendrier pour voir les autres jours.
-      </p>
-      <div
-        className="calendar-week-scroll"
-        ref={scroll}
-        tabIndex={0}
-        aria-label="Grille horaire, défilement horizontal et vertical"
-      >
+      <div className="calendar-week-scroll">
         <div
           className="calendar-week-grid"
           style={
@@ -111,15 +107,17 @@ function WeekCalendar({ days, segments }: { days: string[]; segments: PlacedSegm
         >
           <div className="calendar-corner">Paris</div>
           {days.map((day) => (
-            <div
-              className={`calendar-day-heading${day === current ? ' today' : ''}`}
+            <button
+              className={`calendar-day-heading${day === current ? ' today' : ''}${day === selected ? ' selected-day' : ''}`}
               key={day}
-              aria-hidden="true"
+              aria-pressed={day === selected}
+              aria-label={`Voir le ${dayLabel(day)}`}
+              onClick={() => select(day)}
             >
               <span>{weekday(day)}</span>
               <strong>{Number(day.slice(8))}</strong>
               {day === current && <span>Aujourd’hui</span>}
-            </div>
+            </button>
           ))}
           <div className="calendar-hours" aria-hidden="true">
             {hours.map((hour) => (
@@ -132,13 +130,9 @@ function WeekCalendar({ days, segments }: { days: string[]; segments: PlacedSegm
             const items = segments.filter((item) => item.day === day);
             return (
               <section
-                className={`calendar-time-column${day === current ? ' today' : ''}`}
+                className={`calendar-time-column${day === current ? ' today' : ''}${day === selected ? ' selected-day' : ''}`}
                 key={day}
                 aria-label={dayLabel(day)}
-                ref={(node) => {
-                  if (node) columns.current.set(day, node);
-                  else columns.current.delete(day);
-                }}
               >
                 {!items.length && <p className="calendar-day-empty">Aucun événement</p>}
                 {items.map((item) => (
@@ -163,6 +157,44 @@ function WeekCalendar({ days, segments }: { days: string[]; segments: PlacedSegm
           })}
         </div>
       </div>
+      <SelectedDay day={selected} events={groups.get(selected) ?? []} />
+    </section>
+  );
+}
+
+/** Événements de chaque jour affiché, une activité sur plusieurs jours comptant pour chacun. */
+function dayGroups(events: Event[], days: string[]): Map<string, Event[]> {
+  const segments = splitEvents(events, days);
+  return new Map(
+    days.map((day) => [day, segments.filter((item) => item.day === day).map((item) => item.event)]),
+  );
+}
+
+function OriginDots({ events }: { events: Event[] }) {
+  return (
+    <span className="calendar-month-dots" aria-hidden="true">
+      {events.some((item) => item.ffvb_match_id) && <i className="origin-ffvb calendar-dot" />}
+      {events.some((item) => !item.ffvb_match_id) && <i className="origin-local calendar-dot" />}
+    </span>
+  );
+}
+
+function SelectedDay({ day, events }: { day: string; events: Event[] }) {
+  return (
+    <section
+      className="calendar-selected-day club-day"
+      aria-label={`Événements du ${dayLabel(day)}`}
+    >
+      <h3>{dayLabel(day)}</h3>
+      {events.length ? (
+        <ul className="club-events">
+          {events.map((event) => (
+            <EventRow key={event.id} event={event} />
+          ))}
+        </ul>
+      ) : (
+        <Empty>Aucun événement ce jour avec ces filtres.</Empty>
+      )}
     </section>
   );
 }
@@ -216,13 +248,8 @@ function MonthCalendar({
   anchor: string;
 }) {
   const current = today();
-  const [search, setSearch] = useSearchParams();
-  const requested = search.get('jour');
-  const selected = validDay(requested) && days.includes(requested) ? requested : anchor;
-  const segments = splitEvents(events, days);
-  const groups = new Map(
-    days.map((day) => [day, segments.filter((item) => item.day === day).map((item) => item.event)]),
-  );
+  const { selected, select } = useSelectedDay(days, anchor);
+  const groups = dayGroups(events, days);
   return (
     <section className="calendar-month" aria-label="Calendrier du mois">
       <div className="calendar-month-grid">
@@ -243,24 +270,11 @@ function MonthCalendar({
                 className="calendar-date-button"
                 aria-pressed={day === selected}
                 aria-label={`${dayLabel(day)}, ${items.length} événement${items.length > 1 ? 's' : ''}`}
-                onClick={() =>
-                  setSearch((previous) => {
-                    const next = new URLSearchParams(previous);
-                    next.set('jour', day);
-                    return next;
-                  })
-                }
+                onClick={() => select(day)}
               >
                 <span>{Number(day.slice(8))}</span>
                 <span className="calendar-month-count">{items.length > 0 ? items.length : ''}</span>
-                <span className="calendar-month-dots" aria-hidden="true">
-                  {items.some((item) => item.ffvb_match_id) && (
-                    <i className="origin-ffvb calendar-dot" />
-                  )}
-                  {items.some((item) => !item.ffvb_match_id) && (
-                    <i className="origin-local calendar-dot" />
-                  )}
-                </span>
+                <OriginDots events={items} />
               </button>
               <div className="calendar-month-events">
                 {items.map((event) => (
@@ -271,21 +285,7 @@ function MonthCalendar({
           );
         })}
       </div>
-      <section
-        className="calendar-selected-day club-day"
-        aria-label={`Événements du ${dayLabel(selected)}`}
-      >
-        <h3>{dayLabel(selected)}</h3>
-        {(groups.get(selected) ?? []).length ? (
-          <ul className="club-events">
-            {groups.get(selected)!.map((event) => (
-              <EventRow key={event.id} event={event} />
-            ))}
-          </ul>
-        ) : (
-          <Empty>Aucun événement ce jour avec ces filtres.</Empty>
-        )}
-      </section>
+      <SelectedDay day={selected} events={groups.get(selected) ?? []} />
     </section>
   );
 }

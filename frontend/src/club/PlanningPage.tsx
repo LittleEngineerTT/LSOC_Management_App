@@ -8,7 +8,7 @@ import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
-import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
+import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
 
@@ -52,6 +52,8 @@ export function PlanningPage() {
   const [search, setSearch] = useSearchParams();
   const { mode, anchor, days } = useCalendarPeriod();
   const firstDay = days[0]!;
+  // Un nouvel événement est proposé le jour choisi dans le calendrier.
+  const { selected } = useSelectedDay(days, anchor);
   const section = search.get('section') ?? '';
   const gym = search.get('gymnase') ?? '';
   // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
@@ -123,7 +125,7 @@ export function PlanningPage() {
       )}
       {proposing && coached.length > 0 && (
         <EventProposalForm
-          defaultDay={anchor}
+          defaultDay={selected}
           onCancel={() => setProposing(false)}
           onDone={() => {
             setProposing(false);
@@ -134,7 +136,7 @@ export function PlanningPage() {
       )}
       {creating && (
         <EventEditor
-          defaultDay={anchor}
+          defaultDay={selected}
           onCancel={() => setCreating(false)}
           onDone={(message, created) => {
             setCreating(false);

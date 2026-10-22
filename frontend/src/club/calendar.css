@@ -298,6 +298,79 @@
 .calendar-selected-day {
   margin-top: 16px;
 }
+/* Planning : la grille de la semaine s’affiche en entier, sans défilement interne. */
+.planning-week .calendar-week-scroll {
+  max-height: none;
+  overflow: hidden;
+}
+.planning-week .calendar-day-heading {
+  border: 0;
+  border-left: 1px solid #e5edf3;
+  border-bottom: 1px solid #d4e0e9;
+  color: #182d3e;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.planning-week .calendar-day-heading.today {
+  color: #285ca2;
+}
+.planning-week .calendar-day-heading:hover {
+  background: #eef4fa;
+}
+.planning-week .calendar-day-heading:focus-visible {
+  outline: 2px solid #285ca2;
+  outline-offset: -2px;
+}
+.planning-week .calendar-day-heading.selected-day {
+  box-shadow: inset 0 -3px #285ca2;
+}
+.planning-week .calendar-time-column.selected-day {
+  box-shadow: inset 0 0 0 2px #285ca2;
+}
+.calendar-mobile-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 0;
+  border: 1px solid #d4e0e9;
+  border-radius: 8px;
+  background: #fff;
+  color: #182d3e;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.calendar-mobile-day strong {
+  font-size: 16px;
+  line-height: 1.1;
+}
+.calendar-mobile-day.today {
+  color: #285ca2;
+}
+.calendar-mobile-day[aria-pressed='true'] {
+  border-color: #285ca2;
+  background: #285ca2;
+  color: #fff;
+}
+.calendar-mobile-day:focus-visible {
+  outline: 2px solid #285ca2;
+  outline-offset: 2px;
+}
+.calendar-mobile-day .calendar-month-dots {
+  display: flex;
+  gap: 3px;
+  min-height: 6px;
+}
+.calendar-mobile-day .calendar-dot {
+  width: 5px;
+  height: 5px;
+}
+.calendar-mobile-day[aria-pressed='true'] .calendar-dot {
+  box-shadow: 0 0 0 1px #fff;
+}
 @media (max-width: 900px) {
   .calendar-week-grid {
     min-width: 1218px;
@@ -347,5 +420,46 @@
   .calendar-month-dots .calendar-dot {
     width: 5px;
     height: 5px;
+  }
+}
+/* Planning sur téléphone : les sept jours tiennent en largeur et le jour choisi s’affiche
+   en liste, à la place de la grille horaire qui obligeait à défiler. */
+@media (max-width: 900px) {
+  .planning-week .calendar-week-scroll {
+    display: none;
+  }
+  .planning-week .calendar-mobile-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .planning-week .calendar-selected-day {
+    margin-top: 8px;
+  }
+}
+@media (max-width: 600px) {
+  .calendar-navigation-text {
+    display: none;
+  }
+  .calendar-navigation .club-week {
+    gap: 6px;
+  }
+  .calendar-navigation .club-week strong {
+    min-width: 0;
+  }
+  .calendar-legend {
+    gap: 4px 12px;
+    margin: 4px 0 8px;
+  }
+  .calendar-month-weekday {
+    padding: 6px 0;
+    font-size: 11px;
+  }
+  .calendar-month-day,
+  .calendar-date-button {
+    min-height: 48px;
+  }
+  .calendar-selected-day.club-day {
+    padding: 12px;
   }
 }

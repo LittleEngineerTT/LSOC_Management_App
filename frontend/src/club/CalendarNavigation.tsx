@@ -18,6 +18,25 @@ export function useCalendarPeriod(defaultMode: CalendarMode = 'week') {
   return { mode, anchor, days };
 }
 
+/** Jour sélectionné : celui du lien (`jour`) s’il est affiché, sinon la date ancrée. */
+export function useSelectedDay(days: string[], anchor: string) {
+  const [search, setSearch] = useSearchParams();
+  const requested = search.get('jour');
+  const selected =
+    validDay(requested) && days.includes(requested)
+      ? requested
+      : days.includes(anchor)
+        ? anchor
+        : days[0]!;
+  const select = (day: string) =>
+    setSearch((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set('jour', day);
+      return next;
+    });
+  return { selected, select };
+}
+
 const monthFormat = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'UTC',
   month: 'long',
@@ -44,19 +63,23 @@ export function CalendarNavigation({ mode, anchor }: { mode: CalendarMode; ancho
       semaine:
         mode === 'month' ? shiftMonth(anchor, direction) : addDays(mondayOf(anchor), direction * 7),
     });
+  const previous = mode === 'month' ? 'Mois précédent' : 'Semaine précédente';
+  const following = mode === 'month' ? 'Mois suivant' : 'Semaine suivante';
   return (
     <div className="calendar-navigation">
       <div className="club-week">
-        <button className="admin-button" onClick={() => move(-1)}>
+        {/* Sur téléphone, seules les flèches restent visibles ; le nom reste lu à l’écran. */}
+        <button className="admin-button" aria-label={previous} onClick={() => move(-1)}>
           <span aria-hidden="true">←</span>{' '}
-          {mode === 'month' ? 'Mois précédent' : 'Semaine précédente'}
+          <span className="calendar-navigation-text">{previous}</span>
         </button>
         <strong aria-live="polite">{label}</strong>
         <button className="admin-button" onClick={() => change({ semaine: today() })}>
           Aujourd’hui
         </button>
-        <button className="admin-button" onClick={() => move(1)}>
-          {mode === 'month' ? 'Mois suivant' : 'Semaine suivante'} <span aria-hidden="true">→</span>
+        <button className="admin-button" aria-label={following} onClick={() => move(1)}>
+          <span className="calendar-navigation-text">{following}</span>{' '}
+          <span aria-hidden="true">→</span>
         </button>
       </div>
       <div className="admin-subtabs" role="group" aria-label="Vue du calendrier">

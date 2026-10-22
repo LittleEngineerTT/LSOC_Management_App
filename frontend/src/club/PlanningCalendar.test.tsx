@@ -91,3 +91,19 @@ it('affiche par défaut un événement annulé, en rouge avec la mention Annulé
   expect(screen.getByLabelText('Afficher les annulations')).toBeChecked();
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('include_cancelled=true'))).toBe(true);
 });
+
+it('change le jour sélectionné de la semaine en cliquant sur un jour', async () => {
+  open();
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  await within(calendar).findByRole('link', { name: /Entraînement local/ });
+  // Le jour ancré (lundi) est sélectionné par défaut.
+  expect(within(calendar).getByRole('region', { name: 'Événements du Lundi 12 octobre' })).toBeInTheDocument();
+  await userEvent.click(within(calendar).getByRole('button', { name: 'Voir le Mercredi 14 octobre' }));
+  const detail = within(calendar).getByRole('region', { name: 'Événements du Mercredi 14 octobre' });
+  expect(within(detail).getByRole('link', { name: /Match fédéral/ })).toBeInTheDocument();
+  expect(within(calendar).getByRole('button', { name: 'Voir le Mercredi 14 octobre' })).toHaveAttribute('aria-pressed', 'true');
+  // Le bandeau des jours (téléphone) sélectionne aussi et indique le nombre d’événements.
+  await userEvent.click(within(calendar).getByRole('button', { name: 'Mardi 13 octobre, 0 événement' }));
+  expect(within(calendar).getByRole('region', { name: 'Événements du Mardi 13 octobre' })).toBeInTheDocument();
+  expect(within(calendar).getByRole('button', { name: 'Mercredi 14 octobre, 3 événements' })).toHaveAttribute('aria-pressed', 'false');
+});
