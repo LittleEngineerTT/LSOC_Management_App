@@ -61,6 +61,13 @@ def test_a_coach_attached_to_a_team_becomes_its_referent(admin: TestClient) -> N
     # Déjà référent : pas de doublon au second rattachement.
     assert admin.post('/api/v1/users/trainer/assignments', json={'team_id': team, 'kind': 'coach'}).status_code in (201, 409)
     assert next(t for t in admin.get('/api/v1/teams').json() if t['id'] == team)['referent_ids'] == ['admin', 'trainer']
+    # Détaché, il cesse d’être référent de l’équipe et de ses matchs.
+    assignment = next(a for a in admin.get('/api/v1/users/trainer/assignments').json() if a['kind'] == 'coach')['id']
+    assert admin.delete(f'/api/v1/users/trainer/assignments/{assignment}').status_code == 200
+    assert next(t for t in admin.get('/api/v1/teams').json() if t['id'] == team)['referent_ids'] == ['admin']
+    with SessionFactory() as db:
+        lists = set(tuple(ids) for ids in db.scalars(select(Event.referent_ids).where(Event.ffvb_match_id.is_not(None))))
+    assert lists == {('admin',)}
 
 
 

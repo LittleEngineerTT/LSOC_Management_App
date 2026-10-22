@@ -10,6 +10,7 @@ from app.core.security import now
 from app.persistence.models import Assignment, CoachEventRequest, Event, Team, User
 from app.services.events import (
     PARIS,
+    REFERENT_ROLES,
     blocking,
     create_event,
     create_series_events,
@@ -208,6 +209,9 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> CoachE
         if value.actor_id is None or value.team_id is None:
             raise HTTPException(409, "Demande non exécutable")
         requester = get(db, User, value.actor_id)
+        # Le demandeur devient référent de l’événement : il doit encore pouvoir l’être.
+        if not REFERENT_ROLES & set(requester.roles):
+            raise HTTPException(409, "Le demandeur n’est plus coach ni administrateur")
         team = coach_team(db, requester, value.team_id)
         recurrence = {
             key: value.proposal[key] for key in ("until", "weekdays") if key in value.proposal

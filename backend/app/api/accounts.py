@@ -317,8 +317,11 @@ def update_assignment(
 
 @router.delete("/users/{user_id}/assignments/{assignment_id}", response_model=UserView)
 def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> User:
-    """Retire un rattachement ; renvoie le compte, dont l’identifiant temporaire peut changer."""
-    from app.services.events import lock_planning
+    """Retire un rattachement ; renvoie le compte, dont l’identifiant temporaire peut changer.
+
+    Un coach détaché cesse d’être référent de l’équipe et de ses événements.
+    """
+    from app.services.events import lock_planning, reassign_team_events
 
     lock_planning(db)
     value = get(db, Assignment, assignment_id)
@@ -326,6 +329,20 @@ def unassign(user_id: str, assignment_id: str, db: DB, actor: Admin) -> User:
         raise HTTPException(404, "Rattachement introuvable")
     db.delete(value)
     db.flush()
+    team = get(db, Team, value.team_id)
+    if value.kind == "coach" and user_id in team.referent_ids:
+        previous = list(team.referent_ids)
+        team.referent_ids = without(previous, user_id)
+        reassign_team_events(db, team, previous, actor)
+        if not team.referent_ids:
+            admins(
+                db,
+                f"team-orphan:{team.id}:{issue_marker()}",
+                "referent_missing",
+                f"Référent d’équipe à réattribuer : {team.name}",
+                link="/app/administration?tab=sections",
+            )
+        db.flush()
     return rekey(db, get(db, User, user_id))
 
 

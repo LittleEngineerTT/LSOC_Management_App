@@ -72,7 +72,7 @@ Rôles cumulables : `member`, `coach`, `admin`. Catégories : `M18`, `M21`, `adu
 
 Les suppressions de sections, équipes et gymnases encore utilisés sont refusées par 409. Les comptes sont supprimés avec purge des données privées, des rattachements, suivis et travaux d’e-mail. Les événements deviennent sans référent et sont signalés aux admins ; les actions historiques conservent seulement le prénom de leur auteur.
 
-Changer le référent d’une équipe (`PUT /teams/{id}`) le reporte sur ses événements, passés compris. Sont concernés ses matchs FFVB et les événements nés de ses demandes, lorsqu’ils avaient l’ancien référent ou aucun ; un référent choisi explicitement pour un événement est conservé. Chaque report est historisé et notifié. La migration 0009 rattrape les matchs FFVB restés sur un ancien référent.
+Changer le référent d’une équipe (`PUT /teams/{id}`) le reporte sur ses événements, passés compris. Sont concernés ses matchs FFVB et les événements nés de ses demandes, lorsqu’ils avaient l’ancien référent ou aucun ; un référent choisi explicitement pour un événement est conservé. Chaque report est historisé et notifié. La migration 0009 rattrape les matchs FFVB restés sur un ancien référent. Rattacher un compte comme coach à une équipe (`kind="coach"`) le rend référent de l’équipe ; retirer ce rattachement le retire des référents de l’équipe et de ses événements, et une équipe restée sans référent est signalée aux admins.
 
 ## Planning et validation
 
@@ -119,7 +119,7 @@ Un blocage comporte `gymnasium_id`, `title`, `starts_at`, `ends_at`, `courts`. I
 
 ## Demandes de création des coachs
 
-Un compte actif peut proposer un événement pour une équipe dont il est référent, ou, avec le rôle coach, à laquelle il est rattaché comme coach (`kind="coach"`). Le serveur déduit la section et le référent ; la demande ne crée aucun événement ni réservation avant validation.
+Un compte actif peut proposer un événement pour une équipe dont il est référent, ou, avec le rôle coach, à laquelle il est rattaché comme coach (`kind="coach"`). Le serveur déduit la section et le référent ; la demande ne crée aucun événement ni réservation avant validation. À la validation, le demandeur doit encore être coach ou administrateur et référent ou coach de l’équipe (409 ou 403 sinon) : un refus reste toujours possible.
 
 | Routes | Usage |
 | --- | --- |

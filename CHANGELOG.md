@@ -32,12 +32,15 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
   depuis elle, passés comme à venir, avec leur historique, suivis et inscriptions. Les personnes
   concernées sont prévenues. L’option d’annulation des matchs à venir disparaît.
 - **Référents** : seuls les coachs et les administrateurs peuvent être désignés référents d’une
-  équipe ou d’un événement. Un coach rattaché à une équipe en devient référent.
+  équipe ou d’un événement. Un coach rattaché à une équipe en devient référent ; retirer ce
+  rattachement le retire des référents de l’équipe et de ses événements.
 - **Notre club** : créneau du samedi 12 h – 14 h pour Loisirs compétition et présentation de
   l’équipe SM1.
 
 ### Corrigé
 
+- Une demande d’événement ne peut plus être acceptée quand son auteur a perdu son rôle de coach
+  ou son rattachement à l’équipe ; elle peut toujours être refusée.
 - Tests unitaires qui échouaient au hasard quand la suite complète tournait : ils attendent
   désormais la fin du chargement.
 
