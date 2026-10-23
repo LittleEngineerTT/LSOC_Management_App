@@ -18,3 +18,5 @@ frontend/dist/
 frontend/.cache/
 frontend/test-results/
 frontend/playwright-report/
+.cache/
+frontend/.vite/
