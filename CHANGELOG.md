@@ -4,6 +4,24 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et la numérotation
 [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.1.2] - 2026-10-23
+
+### Ajouté
+
+- **Notre club** : pages des sections Séniors féminins, Jeunes féminins et Jeunes masculins, et
+  présentations des équipes SF1, SF2, SM2 et M18 F1 avec leurs entraînements. Les photos des
+  équipes illustrent leurs pages et celles de leur section.
+- **Notre club** : chaque section et chaque équipe créée dans l’administration a d’elle-même sa
+  page « En cours de rédaction », en attendant sa présentation. Toutes les équipes d’une section
+  s’ouvrent ainsi depuis ses cartes « Nos équipes ».
+- **Notre club** : chaque page de section se termine par « Nous rejoindre », qui invite à
+  contacter le club pour une séance d’essai.
+
+### Modifié
+
+- **Notre club** : les onglets suivent l’ordre Séniors féminins, Séniors masculins, Jeunes
+  féminins, Jeunes masculins, Loisirs. Les photos s’affichent entières, sans être recadrées.
+
 ## [0.1.1] - 2026-10-22
 
 ### Modifié
@@ -76,6 +94,7 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 
 Première version en production.
 
+[0.1.2]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.3...v0.1.0
 [0.0.3]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.2...v0.0.3
