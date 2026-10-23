@@ -602,19 +602,22 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
 });
 
 it('Notre club passe d’une section à l’autre par les onglets et ouvre les équipes d’une section', async () => {
-  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Séniors masculins' }];
-  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }];
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Séniors masculins' }, { id: 's3', name: 'Séniors féminins' }, { id: 's4', name: 'Jeunes' }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }, { id: 't2', name: 'M18 F1', section_id: 's4', referent_ids: [] }];
   open('/app/notre-club');
   const tabs = await screen.findByRole('navigation', { name: 'Sections du club' });
-  expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Loisir', 'Séniors masculins']);
-  expect(within(tabs).getByRole('link', { name: 'Loisir' })).toHaveAttribute('aria-current', 'page');
+  // Les sections écrites dans clubPages.ts, dans leur ordre, puis celle créée sans présentation ;
+  // une équipe présentée rejoint sa section plutôt que d’avoir son onglet.
+  expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Séniors féminins', 'Séniors masculins', 'Jeunes féminins', 'Jeunes masculins', 'Loisir', 'Jeunes']);
+  expect(within(tabs).getByRole('link', { name: 'Séniors féminins' })).toHaveAttribute('aria-current', 'page');
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Loisir' }));
   const section = screen.getByRole('article', { name: /Loisir/ });
   expect(within(section).getByRole('img', { name: 'Photo : Loisir' })).toHaveAttribute('src', '/notre-club/placeholder.svg');
-  // Les équipes s’affichent directement : cliquable si présentée, sinon à venir.
+  // Les équipes s’affichent directement ; une équipe créée sans présentation écrite a la sienne,
+  // en cours de rédaction.
   const teams = within(section).getByRole('region', { name: 'Nos équipes' });
-  expect(within(teams).getByText('Loisir 1').closest('a')).toBeNull();
-  expect(within(teams).getByText('Présentation à venir')).toBeInTheDocument();
-  await userEvent.click(within(teams).getByRole('link', { name: /Loisirs compétition.*Voir la présentation/ }));
+  expect(within(teams).getByRole('link', { name: /Loisir 1.*Présentation de l’équipe/ })).toBeInTheDocument();
+  await userEvent.click(within(teams).getByRole('link', { name: /Loisirs compétition.*Présentation de l’équipe/ }));
   const team = await screen.findByRole('article', { name: /Loisirs compétition/ });
   expect(within(tabs).getByRole('link', { name: 'Loisir' })).toHaveAttribute('aria-current', 'page');
   const crumbs = within(team).getByRole('navigation', { name: 'Fil d’Ariane' });
@@ -624,10 +627,15 @@ it('Notre club passe d’une section à l’autre par les onglets et ouvre les �
   expect(schedule).toHaveTextContent('Au gymnase Ambroise Paré, Colombes.');
   await userEvent.click(within(tabs).getByRole('link', { name: 'Séniors masculins' }));
   const seniors = await screen.findByRole('article', { name: /Séniors masculins/ });
-  expect(within(seniors).getByText(/compétition fédérale/)).toBeInTheDocument();
+  expect(within(seniors).getByText(/engagées en championnat/)).toBeInTheDocument();
   await userEvent.click(within(within(seniors).getByRole('region', { name: 'Nos équipes' })).getByRole('link', { name: /SM1/ }));
   const sm1 = await screen.findByRole('article', { name: /SM1/ });
   const sm1Schedule = within(sm1).getByRole('heading', { name: 'Entraînements' }).parentElement!;
   expect(sm1Schedule).toHaveTextContent('Mercredi : 19 h 30 – 22 h 30Vendredi : 20 h 30 – 22 h 30');
   expect(sm1Schedule).toHaveTextContent('Au gymnase Henri Dunant, Colombes.');
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Jeunes' }));
+  await userEvent.click(within(await screen.findByRole('region', { name: 'Nos équipes' })).getByRole('link', { name: /M18 F1/ }));
+  const m18 = await screen.findByRole('article', { name: /M18 F1/ });
+  expect(within(m18).getByRole('img', { name: 'Photo : M18 F1' })).toHaveAttribute('src', '/notre-club/m18f1_team_photo.jpeg');
+  expect(within(m18).getByRole('heading', { name: 'Entraînements' }).parentElement).toHaveTextContent('Mardi : 19 h 30 – 21 h 15Vendredi : 19 h – 20 h 45');
 });

@@ -675,12 +675,14 @@
 }
 /* Notre club : page choisie (image, puis blocs titrés). */
 .club-page-image {
+  /* Photo entière, à sa taille naturelle centrée, sans dépasser la carte ni l’écran : jamais recadrée. */
   display: block;
-  width: 100%;
-  max-height: 420px;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 70vh;
   border-radius: 6px;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
 }
 .club-page h3 {
   margin: 0 0 12px;
@@ -789,12 +791,4 @@ a.club-team-card:focus-visible {
 .club-team-card-action svg {
   width: 16px;
   height: 16px;
-}
-.club-team-card.disabled {
-  background: #f1f4f6;
-  color: #617282;
-}
-.club-team-card.disabled .club-team-card-action {
-  color: #617282;
-  font-weight: 400;
 }

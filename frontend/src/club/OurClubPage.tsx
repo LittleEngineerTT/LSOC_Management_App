@@ -43,9 +43,46 @@ function resolve(page: ClubPage, sections: Section[], teams: Team[]): Resolved {
   };
 }
 
+/** Texte d’une présentation pas encore écrite dans clubPages.ts. */
+export const DRAFT = 'En cours de rédaction.';
+
+/** Bloc « Nous rejoindre » d’une page de section pas encore écrite dans clubPages.ts. */
+export const JOIN = {
+  title: 'Nous rejoindre',
+  content:
+    'Vous souhaitez rejoindre l’une de nos équipes ? Contactez le club pour convenir d’une séance d’essai.',
+};
+
+/** Pages de clubPages.ts, complétées d’une page « en cours de rédaction » pour chaque section
+ * et chaque équipe du club qui n’en a pas encore : une nouvelle section ou équipe créée dans
+ * l’administration apparaît ainsi d’elle-même.
+ */
+function withCatalog(pages: ClubPage[], sections: Section[], teams: Team[]): ClubPage[] {
+  const described = (type: ClubPage['type'], item: { id: string; name: string }) =>
+    pages.some((page) => page.type === type && same(item, page.target));
+  return [
+    ...pages,
+    ...sections
+      .filter((section) => !described('section', section))
+      .map((section): ClubPage => ({
+        type: 'section',
+        target: section.name,
+        sections: [{ title: 'La section', content: DRAFT }, JOIN],
+      })),
+    ...teams
+      .filter((team) => !described('team', team))
+      .map((team): ClubPage => ({
+        type: 'team',
+        target: team.name,
+        sections: [{ title: 'Notre équipe', content: DRAFT }],
+      })),
+  ];
+}
+
 /** Pages et catalogue rapprochés : qui présente quoi, et quelles équipes a chaque section. */
-function useClubPages(pages: ClubPage[]) {
+function useClubPages(configured: ClubPage[]) {
   const { sections, teams } = useClub();
+  const pages = withCatalog(configured, sections, teams);
   const entries = pages.map((page) => ({ page, ...resolve(page, sections, teams) }));
   const sameSection = (left: Resolved['section'], right: Resolved['section']) =>
     !!left &&
@@ -53,16 +90,11 @@ function useClubPages(pages: ClubPage[]) {
     (left.id && right.id ? left.id === right.id : normalize(left.name) === normalize(right.name));
   const sectionPage = (section: Resolved['section']) =>
     entries.find((entry) => entry.page.type === 'section' && sameSection(entry.section, section));
-  /** Équipes d’une section : celles du catalogue et celles décrites dans la configuration. */
-  const teamsOf = (section: NonNullable<Resolved['section']>) => {
-    const listed = new Map<string, { name: string; page?: ClubPage }>();
-    for (const team of teams.filter((item) => section.id && item.section_id === section.id))
-      listed.set(normalize(team.name), { name: team.name });
-    for (const entry of entries)
-      if (entry.page.type === 'team' && sameSection(entry.section, section))
-        listed.set(normalize(entry.name), { name: entry.name, page: entry.page });
-    return [...listed.values()].sort((left, right) => left.name.localeCompare(right.name, 'fr'));
-  };
+  /** Équipes d’une section : chacune a sa page, écrite ou en cours de rédaction. */
+  const teamsOf = (section: NonNullable<Resolved['section']>) =>
+    entries
+      .filter((entry) => entry.page.type === 'team' && sameSection(entry.section, section))
+      .sort((left, right) => left.name.localeCompare(right.name, 'fr'));
   return { entries, sectionPage, teamsOf };
 }
 
@@ -88,7 +120,8 @@ function Paragraphs({ content }: { content: string }) {
   );
 }
 
-/** Application « Notre club » : présentation des sections et équipes, configurée dans clubPages.ts.
+/** Application « Notre club » : présentation des sections et équipes du club, écrite dans
+ * clubPages.ts ou, à défaut, « en cours de rédaction ».
  *
  * Les sections sont des onglets en haut ; leurs équipes s’affichent en cartes sous la
  * présentation, et une page d’équipe garde sa section active avec un fil d’Ariane.
@@ -139,18 +172,16 @@ export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
                 </nav>
                 {teams.length > 1 && (
                   <nav className="club-page-team-switch" aria-label={`Équipes ${parent.name}`}>
-                    {teams.map((team) =>
-                      team.page ? (
-                        <Link
-                          key={team.name}
-                          to={`?page=${pageSlug(team.page)}`}
-                          className={team.page === selected.page ? 'active' : undefined}
-                          aria-current={team.page === selected.page ? 'page' : undefined}
-                        >
-                          {team.name}
-                        </Link>
-                      ) : null,
-                    )}
+                    {teams.map((team) => (
+                      <Link
+                        key={pageSlug(team.page)}
+                        to={`?page=${pageSlug(team.page)}`}
+                        className={team.page === selected.page ? 'active' : undefined}
+                        aria-current={team.page === selected.page ? 'page' : undefined}
+                      >
+                        {team.name}
+                      </Link>
+                    ))}
                   </nav>
                 )}
               </>
@@ -179,21 +210,14 @@ export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
                 <h4 id="club-page-teams-title">Nos équipes</h4>
                 <ul className="club-team-cards">
                   {teams.map((team) => (
-                    <li key={team.name}>
-                      {team.page ? (
-                        <Link className="club-team-card" to={`?page=${pageSlug(team.page)}`}>
-                          <strong>{team.name}</strong>
-                          <span className="club-team-card-action">
-                            <span>Voir la présentation</span>
-                            <Icon name="arrow" />
-                          </span>
-                        </Link>
-                      ) : (
-                        <div className="club-team-card disabled">
-                          <strong>{team.name}</strong>
-                          <span className="club-team-card-action">Présentation à venir</span>
-                        </div>
-                      )}
+                    <li key={pageSlug(team.page)}>
+                      <Link className="club-team-card" to={`?page=${pageSlug(team.page)}`}>
+                        <strong>{team.name}</strong>
+                        <span className="club-team-card-action">
+                          <span>Présentation de l’équipe</span>
+                          <Icon name="arrow" />
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
