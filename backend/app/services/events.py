@@ -302,7 +302,7 @@ def reassign_team_events(db: Session, team: Team, previous: list[str], actor: Us
         event.version += 1
         db.flush()
         revision(db, event, actor, before, "update")
-        event_changed(db, event, actor.id)
+        event_changed(db, event, actor.id, before)
 
 
 def series_days(start: datetime, until: date, weekdays: list[int] | None) -> list[date]:
@@ -507,7 +507,7 @@ def change_event(
     forced = False if defer_capacity else check_capacity(db, event, actor, force)
     revision(db, event, actor, before, "update", forced)
     if notify_change:
-        event_changed(db, event, actor.id)
+        event_changed(db, event, actor.id, before)
     return event
 
 

@@ -1,8 +1,9 @@
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import event as orm_event
@@ -22,6 +23,19 @@ from app.persistence.models import (
     QuestionThread,
     Registration,
     User,
+)
+from app.services.mails import (
+    Block,
+    event_card,
+    event_changes,
+    event_path,
+    heading,
+    item_link,
+    join,
+    person,
+    rule,
+    state,
+    text_html,
 )
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -75,14 +89,26 @@ EMAIL_SUBJECTS = {
 
 
 def email(
-    db: Session, user: User, key: str, subject: str, body: str, kind: str | None = None
+    db: Session,
+    user: User,
+    key: str,
+    subject: str,
+    body: str,
+    kind: str | None = None,
+    html: str = "",
+    link: str | None = None,
 ) -> None:
-    """Met un e-mail en file ; celui d’une notification attend d’être groupé avec ses pareils."""
+    """Met un e-mail en file ; celui d’une notification attend d’être groupé avec ses pareils.
+
+    `body` et `html` sont le contenu, en texte et en HTML (déduit du texte s’il manque) ;
+    `link` est l’écran de l’application où l’e-mail se traite.
+    """
     if not user.email or db.scalar(
         select(EmailJob.id).where(EmailJob.user_id == user.id, EmailJob.dedupe_key == key)
     ):
         return
-    payload = cipher().encrypt(json.dumps({"subject": subject, "body": body}).encode()).decode()
+    content = {"subject": subject, "body": body, "html": html or text_html(body), "link": link}
+    payload = cipher().encrypt(json.dumps(content).encode()).decode()
     category = EMAIL_CATEGORIES.get(kind, kind) if kind else None
     db.add(
         EmailJob(
@@ -129,6 +155,10 @@ class Pending:
     event_id: str | None
     send_email: bool
     label: str
+    # Contenu propre à l’e-mail ; à défaut, la fiche de l’événement.
+    blocks: list[Block] = field(default_factory=list)
+    # Alertes réunies par `summary`, détaillées une à une dans l’e-mail.
+    items: list["Pending"] = field(default_factory=list)
 
 
 @contextmanager
@@ -160,8 +190,39 @@ def write(db: Session, user: User, item: Pending) -> None:
         )
     )
     if item.send_email:
-        body = f"{item.title}\n\n{item.body}" if item.body else item.title
-        email(db, user, item.key, item.title, body, item.kind)
+        content = details(db, item)
+        email(db, user, item.key, item.title, content.text, item.kind, content.html, target(db, item))
+
+
+def target(db: Session, item: Pending) -> str | None:
+    """Écran où l’alerte se traite : son lien, sinon son événement (comme dans l’application)."""
+    if item.link:
+        return item.link
+    event = db.get(Event, item.event_id) if item.event_id else None
+    return event_path(event) if event else None
+
+
+def details(db: Session, item: Pending) -> Block:
+    """Contenu de l’e-mail d’une alerte : son texte, puis la fiche de l’événement concerné."""
+    blocks = [Block(item.body, text_html(item.body))] if item.body and not item.items else []
+    if item.items:
+        for index, child in enumerate(item.items[:LISTED]):
+            path = target(db, child)
+            blocks += [
+                *([rule()] if index else []),
+                heading(child.title, 2),
+                details(db, child),
+                *([item_link(path)] if path else []),
+            ]
+        if len(item.items) > LISTED:
+            more = f"… et {len(item.items) - LISTED} autres"
+            blocks.append(Block(more, text_html(more)))
+        return join(blocks)
+    if item.blocks:
+        blocks += item.blocks
+    elif item.event_id and (event := db.get(Event, item.event_id)):
+        blocks.append(event_card(db, state(event)))
+    return join(blocks)
 
 
 def summary(items: list[Pending]) -> Pending:
@@ -188,6 +249,7 @@ def summary(items: list[Pending]) -> Pending:
         event_id=None,
         send_email=any(item.send_email for item in items),
         label=label,
+        items=items,
     )
 
 
@@ -225,7 +287,9 @@ def notify(
     send_email: bool = True,
     body: str = "",
     link: str | None = None,
+    blocks: list[Block] | None = None,
 ) -> None:
+    """Prévient un compte ; `blocks` remplace, dans l’e-mail, la fiche de l’événement."""
     if not user.active:
         return
     pending: dict[tuple[str, str], list[Pending]] = db.info.setdefault(PENDING, {})
@@ -241,7 +305,7 @@ def notify(
     ):
         return
     group, label = db.info.get(GROUP) or (kind, "")
-    item = Pending(key, kind, title, body, link, event_id, bool(send_email), label)
+    item = Pending(key, kind, title, body, link, event_id, bool(send_email), label, blocks or [])
     if kind not in GROUPED:
         write(db, user, item)
         return
@@ -257,10 +321,22 @@ def admins(
     event_id: str | None = None,
     link: str | None = None,
     body: str = "",
+    blocks: list[Block] | None = None,
 ) -> None:
     for user in db.scalars(select(User).where(User.active.is_(True))):
         if "admin" in user.roles:
-            notify(db, user, key, kind, title, event_id, user.admin_email, body=body, link=link)
+            notify(
+                db,
+                user,
+                key,
+                kind,
+                title,
+                event_id,
+                user.admin_email,
+                body=body,
+                link=link,
+                blocks=blocks,
+            )
 
 
 def resolve_admin_alerts(db: Session, key: str) -> None:
@@ -404,6 +480,8 @@ def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
     # Sans lien vers l’événement : la notification survit à sa suppression.
     recipients = concerned(db, event) | set(event.referent_ids)
     day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+    # Fiche faite avant la suppression, seule trace de l’événement dans l’e-mail.
+    card = [event_card(db, state(event))]
     for user in db.scalars(select(User).where(User.id.in_(recipients - {actor_id}))):
         email_wanted = user.followed_email or (
             user.id in event.referent_ids and user.referent_email
@@ -417,6 +495,7 @@ def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
             None,
             email_wanted,
             link="/app/mon-planning",
+            blocks=card,
         )
 
 
@@ -448,7 +527,17 @@ def changed_recipients(db: Session, event: Event, actor_id: str | None) -> dict[
     return recipients
 
 
-def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
+def author(db: Session, actor_id: str | None) -> str:
+    """Auteur d’une modification, tel que l’e-mail le nomme."""
+    actor = db.get(User, actor_id) if actor_id else None
+    return person(actor) if actor else "le calendrier FFVB"
+
+
+def event_changed(
+    db: Session, event: Event, actor_id: str | None, before: dict[str, Any] | None = None
+) -> None:
+    """Prévient d’une modification ; `before`, l’état d’avant, montre ce qui a changé."""
+    blocks = [event_changes(db, before, state(event), author(db, actor_id))] if before else None
     for user_id, send in changed_recipients(db, event, actor_id).items():
         notify(
             db,
@@ -458,14 +547,21 @@ def event_changed(db: Session, event: Event, actor_id: str | None) -> None:
             f"Événement modifié : {event.title}",
             event.id,
             send,
+            blocks=blocks,
         )
 
 
-def series_changed(db: Session, events: list[Event], actor_id: str | None) -> None:
+def series_changed(
+    db: Session,
+    events: list[Event],
+    actor_id: str | None,
+    before: dict[str, dict[str, Any]] | None = None,
+) -> None:
     """Une seule notification par compte pour une modification de série.
 
     Chaque compte concerné par au moins une occurrence modifiée est prévenu une fois, par
-    e-mail si l’une d’elles le justifie ; la notification ouvre la première occurrence.
+    e-mail si l’une d’elles le justifie ; la notification ouvre la première occurrence, dont
+    l’e-mail montre l’avant et l’après (`before` : état d’avant de chaque occurrence).
     """
     if not events:
         return
@@ -473,7 +569,21 @@ def series_changed(db: Session, events: list[Event], actor_id: str | None) -> No
     for event in events:
         for user_id, send in changed_recipients(db, event, actor_id).items():
             recipients[user_id] = recipients.get(user_id, False) or send
-    first = events[0]
+    first, last = events[0], events[-1]
+    span = (
+        f"La modification s’applique à {len(events)} occurrences, du "
+        f"{first.starts_at.astimezone(PARIS):%d/%m/%Y} au {last.starts_at.astimezone(PARIS):%d/%m/%Y}. "
+        "Détail sur la première :"
+        if len(events) > 1
+        else "La modification s’applique à une occurrence :"
+    )
+    previous = (before or {}).get(first.id)
+    detail = (
+        event_changes(db, previous, state(first), author(db, actor_id))
+        if previous
+        else event_card(db, state(first))
+    )
+    blocks = [Block(span, text_html(span)), detail]
     for user_id, send in recipients.items():
         notify(
             db,
@@ -483,4 +593,5 @@ def series_changed(db: Session, events: list[Event], actor_id: str | None) -> No
             f"La série d’événements {first.title} a été modifiée",
             first.id,
             send,
+            blocks=blocks,
         )

@@ -45,6 +45,7 @@ from app.services.events import (
     revision,
     snapshot,
 )
+from app.services.mails import event_card, state
 from app.services.notifications import (
     admins,
     decision_message,
@@ -302,6 +303,8 @@ def remove(
                 f"deleted-by-coach:{target.id}",
                 "event_deleted",
                 f"Événement supprimé par {actor.first_name} : {target.title} du {day}",
+                link="/app/planning",
+                blocks=[event_card(db, state(target))],
             )
         delete_event(db, target, actor)
     db.flush()
@@ -326,6 +329,8 @@ def update_series(series_id: str, body: SeriesChange, db: DB, actor: Actor) -> l
         )
     )
     result: list[Event] = []
+    # État d’avant de chaque occurrence, que l’e-mail compare à la modification.
+    before = {event.id: snapshot(event) for event in values}
     baselines = {
         field: getattr(first, field).astimezone(PARIS) for field in ("starts_at", "ends_at")
     }
@@ -360,7 +365,7 @@ def update_series(series_id: str, body: SeriesChange, db: DB, actor: Actor) -> l
             )
         )
     # Une notification pour la série, au lieu d’une par occurrence.
-    series_changed(db, result, actor.id)
+    series_changed(db, result, actor.id, before)
     db.flush()
     conflicts = []
     for event in result:

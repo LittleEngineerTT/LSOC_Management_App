@@ -236,6 +236,7 @@ def apply_official(
                     "Conflit avec le calendrier FFVB",
                     f"Une valeur locale de {event.title} diffère de la FFVB. Consultez le conflit dans l’application.",
                     "ffvb_conflict",
+                    link="/app/administration?tab=ffvb",
                 )
             continue
         if key in state.protected:
@@ -276,7 +277,7 @@ def apply_official(
             origin="human" if actor else "ffvb",
         )
         if not initial:
-            event_changed(db, event, actor.id if actor else None)
+            event_changed(db, event, actor.id if actor else None, before)
         if event.occupancy_unknown:
             admins(
                 db,

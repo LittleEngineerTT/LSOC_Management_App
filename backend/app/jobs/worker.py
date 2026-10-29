@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 from email.message import EmailMessage
 from types import FrameType
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -17,6 +18,7 @@ from app.core.security import cipher, now
 from app.persistence.database import SessionFactory
 from app.persistence.models import AuthToken, EmailJob, FFVBSource, LoginSession, RateBucket, User
 from app.services.ffvb import results_due, sync_source
+from app.services.mails import Block, button, heading, item_link, join, page, rule, text_html
 from app.services.notifications import EMAIL_SUBJECTS
 
 logger = logging.getLogger(__name__)
@@ -35,26 +37,35 @@ def message_domain() -> str:
     return urlsplit(settings.frontend_url).hostname or "lsoc.local"
 
 
-def compose(batch: list[EmailJob]) -> tuple[str, str]:
-    """Objet et corps d’un envoi : le message tel quel, ou un récapitulatif de la catégorie."""
+def content(payload: dict[str, Any]) -> Block:
+    # Les e-mails mis en file avant le HTML n’ont que leur texte.
+    return Block(payload["body"], payload.get("html") or text_html(payload["body"]))
+
+
+def compose(batch: list[EmailJob]) -> tuple[str, str, str]:
+    """Objet, texte et HTML d’un envoi : le message tel quel, ou chaque message de la
+    catégorie à la suite, chacun avec le lien vers son écran."""
     payloads = [json.loads(cipher().decrypt(item.encrypted_payload.encode())) for item in batch]
     if len(payloads) == 1:
-        return payloads[0]["subject"], payloads[0]["body"]
+        payload = payloads[0]
+        subject = payload["subject"]
+        body = join([heading(subject), content(payload), button(payload.get("link") or "/app")])
+        return subject, *page(subject, body)
     template = EMAIL_SUBJECTS.get(batch[0].category or "", "{n} nouvelles notifications")
     subject = template.format(n=len(payloads))
-    lines = [f"• {payload['subject']}" for payload in payloads[:EMAIL_LISTED]]
-    if len(payloads) > EMAIL_LISTED:
-        lines.append(f"… et {len(payloads) - EMAIL_LISTED} autres")
-    body = "\n".join(
-        [
-            f"{subject}.",
-            "",
-            *lines,
-            "",
-            f"Le détail est dans vos notifications : {settings.frontend_url}/app",
+    blocks = [heading(subject)]
+    for index, payload in enumerate(payloads[:EMAIL_LISTED]):
+        blocks += [
+            *([rule()] if index else []),
+            heading(payload["subject"], 2),
+            content(payload),
+            *([item_link(payload["link"])] if payload.get("link") else []),
         ]
-    )
-    return subject, body
+    if len(payloads) > EMAIL_LISTED:
+        more = f"… et {len(payloads) - EMAIL_LISTED} autres, dans vos notifications."
+        blocks.append(Block(more, text_html(more)))
+    blocks += [rule(), button("/app")]
+    return subject, *page(subject, join(blocks))
 
 
 def process_emails(limit: int = 100) -> int:
@@ -110,13 +121,14 @@ def process_emails(limit: int = 100) -> int:
                     db.delete(item)
                 continue
             try:
-                subject, body = compose(batch)
+                subject, body, html = compose(batch)
                 message = EmailMessage()
                 message["From"] = settings.smtp_from
                 message["To"] = user.email
                 message["Subject"] = subject
                 message["Message-ID"] = f"<{job.id}@{message_domain()}>"
                 message.set_content(body)
+                message.add_alternative(html, subtype="html")
                 smtp_class = smtplib.SMTP_SSL if settings.smtp_ssl else smtplib.SMTP
                 with smtp_class(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
                     if settings.smtp_starttls:

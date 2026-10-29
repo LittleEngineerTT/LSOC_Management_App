@@ -34,7 +34,9 @@ def test_smtp_delivery_and_no_duplicate(monkeypatch) -> None:
             email(db,user,'delivery-test','A test subject','A test body')
         assert process_emails()==1
         assert len(inbox.messages)==1
-        assert b'A test body' in inbox.messages[0]
+        message=message_from_bytes(inbox.messages[0],policy=policy.default)
+        assert 'A test body' in message.get_body(('plain',)).get_content()
+        assert 'A test body' in message.get_body(('html',)).get_content()
         assert process_emails()==0
         with SessionFactory() as db:
             job=db.scalar(select(EmailJob))
@@ -102,8 +104,11 @@ def test_notification_emails_wait_then_group_by_category(monkeypatch) -> None:
         assert len(inbox.messages)==1
         message=message_from_bytes(inbox.messages[0],policy=policy.default)
         assert message['Subject']=='2 événements ont une capacité dépassée'
-        body=message.get_content()
-        assert 'Capacité dépassée : Match A' in body and 'Capacité dépassée : Match B' in body
+        # Texte et HTML : chaque message de la catégorie y est détaillé.
+        body=message.get_body(('plain',)).get_content()
+        html=message.get_body(('html',)).get_content()
+        for content in (body,html):
+            assert 'Capacité dépassée : Match A' in content and 'Corps B' in content
         with SessionFactory() as db:
             jobs={job.dedupe_key:job for job in db.scalars(select(EmailJob))}
             assert jobs['capacity:1'].sent_at and jobs['capacity:2'].sent_at

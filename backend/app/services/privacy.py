@@ -79,6 +79,7 @@ def reset_licenses(db: Session, at: datetime | None = None) -> bool:
             f"Nouvelle saison {season} : renouvelez votre licence",
             body="Les licences sont à refaire chaque saison. Votre numéro et votre compte sont "
             "conservés.",
+            link="/app/profil",
         )
     return True
 
