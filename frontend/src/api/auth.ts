@@ -1,9 +1,13 @@
+/** Rôles d’un compte ; président(e) et vice-président(e) sont des titres, sans droit. */
+export const ROLES = ['member', 'coach', 'admin', 'president', 'vice_president'] as const;
+export type Role = (typeof ROLES)[number];
+
 export interface Account {
   id: string;
   username: string | null;
   first_name: string;
   category: string;
-  roles: ('member' | 'coach' | 'admin')[];
+  roles: Role[];
   active: boolean;
   email: string | null;
   messaging_allowed: boolean;
@@ -111,7 +115,7 @@ function parseAccount(value: unknown): Account {
     typeof value.active !== 'boolean' ||
     !('roles' in value) ||
     !Array.isArray(value.roles) ||
-    !value.roles.every((role: unknown) => role === 'member' || role === 'coach' || role === 'admin')
+    !value.roles.every((role: unknown) => (ROLES as readonly unknown[]).includes(role))
   ) {
     throw new ApiError('La réponse du serveur est invalide. Réessayez.', 0);
   }

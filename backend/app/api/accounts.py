@@ -59,6 +59,25 @@ def protect_last_admin(db: DB, user: User, next_roles: list[str]) -> None:
             raise HTTPException(409, "Le dernier administrateur actif doit avoir un remplaçant")
 
 
+# Titres du bureau, sans droit particulier, tenus chacun par une seule personne.
+TITLES = {"president": "La présidence", "vice_president": "La vice-présidence"}
+
+
+def protect_titles(db: DB, user_id: str | None, next_roles: list[str]) -> None:
+    """Refuse un titre du bureau déjà tenu par un autre compte."""
+    db.execute(text("SELECT pg_advisory_xact_lock(781010)"))
+    for role in TITLES.keys() & set(next_roles):
+        holder = next(
+            (value for value in db.scalars(select(User)) if role in value.roles and value.id != user_id),
+            None,
+        )
+        if holder is not None:
+            raise HTTPException(
+                409,
+                f"{TITLES[role]} est déjà attribuée à {holder.first_name} : retirez-lui ce rôle d’abord",
+            )
+
+
 def invitation(db: DB, user: User) -> InvitationView:
     from app.api.auth import lock_auth
 
@@ -95,6 +114,7 @@ def users(
 def create_user(body: UserInput, db: DB, actor: Admin) -> InvitationView:
     if not body.last_name:
         raise HTTPException(422, "Le nom de famille est requis")
+    protect_titles(db, None, list(body.roles))
     user = User(**body.model_dump(exclude={"last_name"}), last_initial=initial(body.last_name))
     db.add(user)
     db.flush()
@@ -112,6 +132,7 @@ def user_detail(user_id: str, db: DB, actor: Admin) -> User:
 def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
     user = get(db, User, user_id)
     protect_last_admin(db, user, list(body.roles))
+    protect_titles(db, user.id, list(body.roles))
     from app.services.events import lock_planning
 
     lock_planning(db)

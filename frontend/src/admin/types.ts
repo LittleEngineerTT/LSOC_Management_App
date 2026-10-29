@@ -1,4 +1,6 @@
-export type Role = 'member' | 'coach' | 'admin';
+import type { Role } from '../api/auth';
+
+export type { Role };
 export interface User {
   /** Numéro de licence, ou identifiant temporaire « initiale-prénom-section ». */
   id: string;

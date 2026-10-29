@@ -7986,7 +7986,9 @@
               "enum": [
                 "member",
                 "coach",
-                "admin"
+                "admin",
+                "president",
+                "vice_president"
               ]
             },
             "type": "array",

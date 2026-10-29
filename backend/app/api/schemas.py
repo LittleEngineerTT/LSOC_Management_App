@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-Role = Literal["member", "coach", "admin"]
+Role = Literal["member", "coach", "admin", "president", "vice_president"]
 Category = Literal["M18", "M21", "adult", "M15", "M13", "M11", "M9"]
 
 
@@ -297,6 +297,16 @@ class EventView(View):
     registration_limit: int | None
     registration_count: int
     team_ids: list[str] = Field(default_factory=list)
+
+
+StaffFunction = Literal["president", "vice_president", "coach"]
+
+
+class StaffView(View):
+    """Membre du bureau ou entraîneur, présenté sans compte : prénom et fonctions seulement."""
+
+    first_name: str
+    functions: list[StaffFunction]
 
 
 class PublicTeamView(SectionView):

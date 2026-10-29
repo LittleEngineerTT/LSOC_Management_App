@@ -95,3 +95,18 @@ it('relance un e-mail non livré sur action explicite', async () => {
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/admin/email-jobs/job-1/retry', expect.objectContaining({ method: 'POST' })));
   expect(await screen.findByRole('status')).toHaveTextContent('relancé');
 });
+
+it('affiche les titres du bureau accordés au sexe du compte', async () => {
+  // Le compte connecté est lui-même président : sa session reste valide.
+  const president = { ...admin, roles: ['admin', 'president'], sex: 'F' };
+  users = [president, { ...invited, roles: ['member', 'vice_president'] }];
+  fetchMock.mockImplementation(async (input) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    if (path.endsWith('/auth/me')) return reply(president);
+    if (path.endsWith('/users')) return reply(users);
+    return reply([]);
+  });
+  open();
+  expect(await screen.findByText(/Administrateur, Présidente/)).toBeInTheDocument();
+  expect(screen.getByText(/Adhérent, Vice-président\(e\)/)).toBeInTheDocument();
+});

@@ -23,7 +23,17 @@ const roleNames: Record<Role, string> = {
   member: 'Adhérent',
   coach: 'Coach',
   admin: 'Administrateur',
+  president: 'Président(e)',
+  vice_president: 'Vice-président(e)',
 };
+// Titres du bureau accordés au sexe du compte, quand il est renseigné.
+const titles: Partial<Record<Role, Record<string, string>>> = {
+  president: { M: 'Président', F: 'Présidente' },
+  vice_president: { M: 'Vice-président', F: 'Vice-présidente' },
+};
+function roleName(role: Role, sex: string | null | undefined): string {
+  return (sex && titles[role]?.[sex]) || roleNames[role];
+}
 const sexes = [
   { value: 'M', label: 'M' },
   { value: 'F', label: 'F' },
@@ -92,7 +102,7 @@ export function UsersPanel() {
       label: 'Rôles',
       type: 'choices',
       options: Object.entries(roleNames).map(([value, label]) => ({ value, label })),
-      hint: 'Les rôles se cumulent. Les adhérents doivent être M18 ou plus. Retirer un rôle supprime les rattachements correspondants.',
+      hint: 'Les rôles se cumulent. Les adhérents doivent être M18 ou plus. Retirer un rôle supprime les rattachements correspondants. Président(e) et vice-président(e) sont des titres, sans droit particulier, tenus chacun par une seule personne.',
     },
     {
       name: 'messaging_allowed',
@@ -305,7 +315,7 @@ export function UsersPanel() {
                 <p>
                   {user.category === 'adult' ? 'Sénior' : user.category}
                   {user.sex && ` · ${user.sex}`} ·{' '}
-                  {user.roles.map((role) => roleNames[role]).join(', ')}
+                  {user.roles.map((role) => roleName(role, user.sex)).join(', ')}
                 </p>
                 <Badge tone={user.active ? 'good' : 'warning'}>
                   {user.active ? 'Actif' : 'À activer'}
