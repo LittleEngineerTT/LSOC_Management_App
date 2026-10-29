@@ -4,6 +4,37 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et la numérotation
 [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [0.2.0] - 2026-10-29
+
+### Ajouté
+
+- **Notre club en onglets** : « Infos du club », « Nos équipes » et « Inscriptions ». « Nos
+  équipes » reprend la présentation des sections et des équipes ; les liens existants vers une
+  section ou une équipe y mènent toujours.
+- **Infos du club, Dirigeants** : trombinoscope du président ou de la présidente, du
+  vice-président ou de la vice-présidente et des entraîneurs, avec le prénom et toutes les
+  fonctions de chacun. Sans photo, un emplacement vide l’annonce. Visible aussi des invités, qui
+  n’en voient que le prénom et les fonctions.
+- **Inscriptions** : inscription en ligne sur myFFvolley, cotisations par catégorie et
+  modalités de paiement.
+- **Rôles Président(e) et Vice-président(e)** : titres sans droit particulier, tenus chacun par
+  une seule personne. L’administration les accorde au sexe du compte.
+- **E-mails** : un bouton ouvre l’application sur l’écran où l’e-mail se traite (événement,
+  demande à examiner, message…), après connexion s’il le faut.
+
+### Modifié
+
+- **E-mails** : mise en page aux couleurs du club, en HTML avec une version texte. Tout e-mail
+  lié à un événement en donne la fiche : date, horaire, lieu, type, équipes, référents.
+- **E-mails de modification** : l’événement avant et après, les informations changées
+  surlignées, avec l’auteur de la modification. Une modification de série donne le nombre
+  d’occurrences concernées et le détail de la première.
+- **E-mails groupés** : chaque notification y est détaillée, avec son propre lien, au lieu d’une
+  liste de titres.
+- **Demandes** : l’application Inscriptions s’appelle désormais Demandes.
+- **Notre club** : SM1 s’entraîne le mercredi au gymnase Ambroise Paré et le vendredi à la salle
+  polyvalente Henri Dunant.
+
 ## [0.1.2] - 2026-10-23
 
 ### Ajouté
@@ -94,6 +125,7 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 
 Première version en production.
 
+[0.2.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.0.3...v0.1.0
