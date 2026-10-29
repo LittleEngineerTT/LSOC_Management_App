@@ -207,7 +207,7 @@ def dossiers(
 
 @router.get("/dossiers/me", response_model=DossierView | None)
 def mine(db: DB, actor: Actor) -> DossierView | None:
-    """Dossier ouvert du joueur ; sans dossier, l’application Inscriptions lui reste fermée."""
+    """Dossier ouvert du joueur ; sans dossier, l’application Demandes lui reste fermée."""
     value = db.scalar(
         select(Dossier).where(Dossier.user_id == actor.id, Dossier.closed_at.is_(None))
     )

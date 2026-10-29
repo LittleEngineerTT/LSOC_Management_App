@@ -359,13 +359,13 @@ it('le coach référent supprime son événement ; un simple adhérent ne voit p
 
 const license = (user_id: string, first_name: string, status: string, team_id: string) => ({ user_id, first_name, username: user_id, number: status === 'active' ? `L-${user_id}` : null, status, coach_status: 'none', updated_at: null, teams: [{ team_id, kind: 'player' }], coach: false, missing: status !== 'active' });
 
-it('l’onglet Inscriptions montre d’abord les joueurs non inscrits, par équipe, section et étape', async () => {
+it('l’onglet Demandes montre d’abord les joueurs non inscrits, par équipe, section et étape', async () => {
   account = admin;
   routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
   routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] }, { id: 't2', name: 'Régionale', section_id: 's2', referent_ids: [] }];
   routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1'), license('u2', 'Bao', 'payment_pending', 't2'), license('u3', 'Chloé', 'active', 't1'), { ...license('u4', 'Dominique', 'none', 't1'), teams: [{ team_id: 't1', kind: 'coach' }] }];
   open('/app/inscriptions');
-  expect(await screen.findByRole('heading', { name: 'Inscriptions' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Demandes' })).toBeInTheDocument();
   const loisir = await screen.findByRole('region', { name: 'Loisir 1' });
   expect(within(loisir).getByText('Andréa')).toBeInTheDocument();
   expect(within(loisir).getByText('Pas de licence · étape 1/4')).toBeInTheDocument();
@@ -385,10 +385,10 @@ it('l’onglet Inscriptions montre d’abord les joueurs non inscrits, par équi
   expect(screen.getByRole('region', { name: 'Compétition' })).toHaveTextContent('Bao · Régionale');
 });
 
-it('un adhérent sans rôle coach n’accède pas à l’onglet Inscriptions', async () => {
+it('un adhérent sans rôle coach n’accède pas à l’onglet Demandes', async () => {
   open('/app/inscriptions');
   expect(await screen.findByRole('heading', { name: 'Accueil' })).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'Inscriptions' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Demandes' })).not.toBeInTheDocument();
 });
 
 const dossier = { id: 'd1', user_id: 'u1', first_name: 'Andréa', opened_by: 'a1', note: 'Avant la reprise', payment_requested: true, payment_validated_at: null, created_at: at('10:00'), closed_at: null, documents: [{ id: 'doc-med', kind: 'medical_certificate', label: '', status: 'submitted', file_name: 'certificat.pdf', uploaded_at: at('11:00'), decision: '', has_file: true }, { id: 'doc-id', kind: 'identity', label: '', status: 'requested', file_name: null, uploaded_at: null, decision: '', has_file: false }] };
@@ -447,7 +447,7 @@ it('un joueur avec un dossier en cours accède à l’application et dépose une
   routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille', documents: [{ ...dossier.documents[1] }, { id: 'doc-qr', kind: 'reduction_proof', label: '', status: 'rejected', file_name: 'qr.png', uploaded_at: at('11:00'), decision: 'Code expiré', has_file: true }] };
   mutation = () => reply(routes['/dossiers/me']);
   open('/app');
-  await userEvent.click(await screen.findByRole('link', { name: 'Inscriptions 2 pièces à déposer' }));
+  await userEvent.click(await screen.findByRole('link', { name: 'Demandes 2 pièces à déposer' }));
   expect(await screen.findByRole('heading', { name: 'Mon inscription' })).toBeInTheDocument();
   // Le titre de la page précède le chargement du dossier : on attend son contenu.
   expect(await screen.findByRole('heading', { name: 'Étapes terminées : 0/3' })).toBeInTheDocument();
@@ -545,11 +545,11 @@ it('une demande de pièces en attente se suit sur la ligne du joueur et l’admi
   expect(mutations).toEqual([{ path: '/requests/r1/decision', method: 'POST', body: { accept: true, reason: '' } }]);
 });
 
-it('l’application Inscriptions apparaît chez le joueur avec le nombre de pièces à déposer', async () => {
+it('l’application Demandes apparaît chez le joueur avec le nombre de pièces à déposer', async () => {
   routes['/unread'] = { messages: 0, notifications: 1, threads: [] };
   routes['/dossiers/me'] = { ...dossier, user_id: 'm1', first_name: 'Camille' };
   open('/app');
-  const link = await screen.findByRole('link', { name: /Inscriptions/ });
+  const link = await screen.findByRole('link', { name: /Demandes/ });
   expect(within(link).getByLabelText('1 pièce à déposer')).toBeInTheDocument();
 });
 
@@ -604,7 +604,7 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
 it('Notre club passe d’une section à l’autre par les onglets et ouvre les équipes d’une section', async () => {
   routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Séniors masculins' }, { id: 's3', name: 'Séniors féminins' }, { id: 's4', name: 'Jeunes' }];
   routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }, { id: 't2', name: 'M18 F1', section_id: 's4', referent_ids: [] }];
-  open('/app/notre-club');
+  open('/app/notre-club?onglet=equipes');
   const tabs = await screen.findByRole('navigation', { name: 'Sections du club' });
   // Les sections écrites dans clubPages.ts, dans leur ordre, puis celle créée sans présentation ;
   // une équipe présentée rejoint sa section plutôt que d’avoir son onglet.
@@ -631,8 +631,7 @@ it('Notre club passe d’une section à l’autre par les onglets et ouvre les �
   await userEvent.click(within(within(seniors).getByRole('region', { name: 'Nos équipes' })).getByRole('link', { name: /SM1/ }));
   const sm1 = await screen.findByRole('article', { name: /SM1/ });
   const sm1Schedule = within(sm1).getByRole('heading', { name: 'Entraînements' }).parentElement!;
-  expect(sm1Schedule).toHaveTextContent('Mercredi : 19 h 30 – 22 h 30Vendredi : 20 h 30 – 22 h 30');
-  expect(sm1Schedule).toHaveTextContent('Au gymnase Henri Dunant, Colombes.');
+  expect(sm1Schedule).toHaveTextContent('Mercredi : 19 h 30 – 22 h 30, au gymnase Ambroise ParéVendredi : 20 h 30 – 22 h 30, à la salle polyvalente Henri Dunant');
   await userEvent.click(within(tabs).getByRole('link', { name: 'Jeunes' }));
   await userEvent.click(within(await screen.findByRole('region', { name: 'Nos équipes' })).getByRole('link', { name: /M18 F1/ }));
   const m18 = await screen.findByRole('article', { name: /M18 F1/ });

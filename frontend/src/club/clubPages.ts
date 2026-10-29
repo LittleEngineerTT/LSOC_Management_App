@@ -141,7 +141,7 @@ export const clubPages: ClubPage[] = [
       {
         title: 'Entraînements',
         content:
-          'Mercredi : 19 h 30 – 22 h 30\nVendredi : 20 h 30 – 22 h 30\n\nAu gymnase Henri Dunant, Colombes.',
+          'Mercredi : 19 h 30 – 22 h 30, au gymnase Ambroise Paré\nVendredi : 20 h 30 – 22 h 30, à la salle polyvalente Henri Dunant\n\nÀ Colombes.',
       },
     ],
   },

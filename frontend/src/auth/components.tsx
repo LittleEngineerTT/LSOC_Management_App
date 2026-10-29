@@ -28,6 +28,7 @@ const paths = {
   users:
     'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M2 21v-2c0-3 3-5 7-5s7 2 7 5v2 M16 3.5a4 4 0 0 1 0 7 M18 14c2.5.6 4 2.3 4 5v2',
   clipboard: 'M9 3h6v4H9z M7 5H5v16h14V5h-2 M8 12h8 M8 16h5',
+  camera: 'M3 8h4l2-3h6l2 3h4v12H3z M15.5 13.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0',
 };
 export function Icon({ name, className = '' }: { name: keyof typeof paths; className?: string }) {
   return (

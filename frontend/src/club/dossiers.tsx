@@ -387,7 +387,7 @@ export function DossierCard({
           )}
           <p>
             Seul l’état des pièces est conservé. {dossier.first_name} n’aura plus accès à
-            l’application Inscriptions.
+            l’application Demandes.
           </p>
         </Confirm>
       )}
@@ -395,7 +395,7 @@ export function DossierCard({
   );
 }
 
-/** Application Inscriptions d’un joueur : son dossier en cours et le dépôt des pièces. */
+/** Application Demandes d’un joueur : son dossier en cours et le dépôt des pièces. */
 export function MyDossier({ embedded = false }: { embedded?: boolean }) {
   const { api } = useClub();
   const loader = useCallback(

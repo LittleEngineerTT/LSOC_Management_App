@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Section, Team } from '../admin/types';
-import { Badge, Empty, PanelHeading } from '../admin/ui';
+import { Badge, Empty } from '../admin/ui';
 import { Icon } from '../auth/components';
 import { clubPages, type ClubPage } from './clubPages';
 import { useClub } from './context';
@@ -120,13 +120,13 @@ function Paragraphs({ content }: { content: string }) {
   );
 }
 
-/** Application « Notre club » : présentation des sections et équipes du club, écrite dans
- * clubPages.ts ou, à défaut, « en cours de rédaction ».
+/** Onglet « Nos équipes » de Notre club : présentation des sections et équipes du club,
+ * écrite dans clubPages.ts ou, à défaut, « en cours de rédaction ».
  *
  * Les sections sont des onglets en haut ; leurs équipes s’affichent en cartes sous la
  * présentation, et une page d’équipe garde sa section active avec un fil d’Ariane.
  */
-export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
+export function ClubTeamsTab({ pages = clubPages }: { pages?: ClubPage[] }) {
   const [search] = useSearchParams();
   const { entries, sectionPage, teamsOf } = useClubPages(pages);
   const selected =
@@ -140,10 +140,6 @@ export function OurClubPage({ pages = clubPages }: { pages?: ClubPage[] }) {
   const teams = home?.page.type === 'section' && home.section ? teamsOf(home.section) : [];
   return (
     <>
-      <PanelHeading
-        title="Notre club"
-        description="Nos sections et nos équipes, présentées par le club."
-      />
       {!selected || !home ? (
         <Empty>Aucune présentation pour le moment.</Empty>
       ) : (

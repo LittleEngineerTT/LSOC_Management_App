@@ -40,7 +40,7 @@ const filters: {
 ];
 type Grouping = 'team' | 'section' | 'none';
 
-/** Application Inscriptions : suivi des joueurs pour l’encadrement, son dossier pour un joueur. */
+/** Application Demandes : suivi des joueurs pour l’encadrement, son dossier pour un joueur. */
 export function InscriptionsPage() {
   const { api, account } = useClub();
   const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
@@ -169,7 +169,7 @@ function PlayersTracking() {
   return (
     <>
       <PanelHeading
-        title="Inscriptions"
+        title="Demandes"
         description={
           admin
             ? 'Suivi de l’inscription de chaque joueur, de « Pas de licence » à « Active ». Un joueur est inscrit quand sa licence joueur est active.'

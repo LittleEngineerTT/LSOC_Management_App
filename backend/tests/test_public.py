@@ -89,3 +89,23 @@ def test_coach_request_with_several_coached_teams_applies_to_every_occurrence(ad
     series = admin.get(f"/api/v1/events/{accepted['event_id']}").json()['series_id']
     occurrences = admin.get('/api/v1/events', params={'series_id': series}).json()
     assert len(occurrences) == 3 and all(e['team_ids'] == [first, second] for e in occurrences)
+
+
+def test_guest_reads_board_and_coaches_without_identifiers(admin: TestClient) -> None:
+    def create(first: str, roles: list[str]) -> None:
+        body = {'first_name': first, 'last_name': 'Durand', 'category': 'adult', 'roles': roles}
+        assert admin.post('/api/v1/users', json=body).status_code == 201
+    create('Zoé', ['coach'])
+    create('Bruno', ['member', 'coach', 'vice_president'])
+    create('Yann', ['member', 'president'])
+    create('Alice', ['coach'])
+    create('Membre', ['member'])
+    staff = TestClient(app).get('/api/v1/public/staff')
+    assert staff.status_code == 200, staff.text
+    # Bureau d’abord, puis les entraîneurs par prénom ; chaque fonction de la personne est listée.
+    assert staff.json() == [
+        {'first_name': 'Yann', 'functions': ['president']},
+        {'first_name': 'Bruno', 'functions': ['vice_president', 'coach']},
+        {'first_name': 'Alice', 'functions': ['coach']},
+        {'first_name': 'Zoé', 'functions': ['coach']},
+    ]

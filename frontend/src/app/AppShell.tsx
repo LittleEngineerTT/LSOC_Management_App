@@ -27,7 +27,7 @@ const clubSections = [
   'Mon planning',
   'Mes sections',
   'Notre club',
-  'Inscriptions',
+  'Demandes',
 ];
 
 const applications = [
@@ -36,7 +36,7 @@ const applications = [
   { path: '/app/notre-club', title: 'Notre club', icon: 'users' },
   { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
-  { path: '/app/inscriptions', title: 'Inscriptions', icon: 'clipboard' },
+  { path: '/app/inscriptions', title: 'Demandes', icon: 'clipboard' },
   { path: '/app/administration', title: 'Administration', icon: 'shield' },
 ] as const;
 // Application réservée aux administrateurs et aux coachs.
@@ -124,7 +124,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
         ? ['question non lue', 'questions non lues']
         : ['réponse non lue', 'réponses non lues'],
     },
-    Inscriptions: {
+    Demandes: {
       count: dossier.pending,
       label: ['pièce à déposer', 'pièces à déposer'],
     },
@@ -342,12 +342,12 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Mon planning' && <MyPlanningPage />}
       {section === 'Mes sections' && <MySectionsPage />}
       {section === 'Notre club' && <OurClubPage />}
-      {section === 'Inscriptions' && <InscriptionsPage />}
+      {section === 'Demandes' && <InscriptionsPage />}
     </>
   );
 }
 
-/** Dossier d’inscription en cours : il ouvre l’application Inscriptions au joueur. */
+/** Dossier d’inscription en cours : il ouvre l’application Demandes au joueur. */
 /** Dossier d’inscription en cours du compte et nombre de pièces qu’il lui reste à déposer. */
 function useOpenDossier(
   account: Account | null,

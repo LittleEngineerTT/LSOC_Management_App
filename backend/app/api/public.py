@@ -1,12 +1,20 @@
-"""Lecture sans compte (mode invité) : uniquement les matchs FFVB et leurs résultats, déjà publics."""
+"""Lecture sans compte (mode invité) : matchs FFVB et leurs résultats, déjà publics, et le
+prénom et les fonctions du bureau et des entraîneurs, présentés dans Notre club."""
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AwareDatetime
 from sqlalchemy import select
 
 from app.api.common import DB
-from app.api.schemas import PublicEventView, PublicTeamView, SectionView, SourceResultsView
-from app.persistence.models import Event, Gymnasium, Section, Team
+from app.api.schemas import (
+    PublicEventView,
+    PublicTeamView,
+    SectionView,
+    SourceResultsView,
+    StaffFunction,
+    StaffView,
+)
+from app.persistence.models import Event, Gymnasium, Section, Team, User
 from app.services.ffvb import recent_results
 
 router = APIRouter(prefix="/public", tags=["Invités"])
@@ -56,6 +64,22 @@ def teams(db: DB) -> list[Team]:
 def gyms(db: DB) -> list[Gymnasium]:
     """Noms des gymnasiums seulement, pour situer les matchs ; la capacité reste interne."""
     return list(db.scalars(select(Gymnasium).order_by(Gymnasium.name)))
+
+
+# Fonctions présentées dans « Infos du club », dans l’ordre d’affichage.
+FUNCTIONS: tuple[StaffFunction, ...] = ("president", "vice_president", "coach")
+
+
+@router.get("/staff", response_model=list[StaffView])
+def staff(db: DB) -> list[StaffView]:
+    """Bureau puis entraîneurs, par prénom : ni identifiant (numéro de licence) ni nom."""
+    people = [
+        StaffView(first_name=user.first_name, functions=functions)
+        for user in db.scalars(select(User).order_by(User.first_name, User.id))
+        if (functions := [function for function in FUNCTIONS if function in user.roles])
+    ]
+    # Tri stable : président, vice-président, puis entraîneurs, chacun par prénom.
+    return sorted(people, key=lambda person: FUNCTIONS.index(person.functions[0]))
 
 
 @router.get("/ffvb/results", response_model=list[SourceResultsView])
