@@ -216,14 +216,15 @@ def event_card(db: Session, data: dict[str, Any]) -> Block:
         ),
     )
     text = "\n".join(
-        [f"{title}{' (annulé)' if cancelled else ''}", *(f"  {key} : {value}" for key, value in rows)]
+        [
+            f"{title}{' (annulé)' if cancelled else ''}",
+            *(f"  {key} : {value}" for key, value in rows),
+        ]
     )
     return Block(text, html)
 
 
-def event_changes(
-    db: Session, before: dict[str, Any], after: dict[str, Any], author: str
-) -> Block:
+def event_changes(db: Session, before: dict[str, Any], after: dict[str, Any], author: str) -> Block:
     """L’événement avant et après une modification, les informations changées en évidence."""
     old, new = facts(db, before), facts(db, after)
     # Un horaire devient « créneau réservé » quand un coup d’envoi apparaît : les deux restent.
@@ -271,8 +272,7 @@ def event_changes(
             )
     html = (
         f'<p style="margin:0 0 12px;{FONT}font-size:15px;line-height:1.5;color:{NAVY};">'
-        f"{escape(intro)}</p>"
-        + frame(title_html(title, badges), head + "".join(rows))
+        f"{escape(intro)}</p>" + frame(title_html(title, badges), head + "".join(rows))
     )
     text = "\n".join(
         [

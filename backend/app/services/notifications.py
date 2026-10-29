@@ -191,7 +191,9 @@ def write(db: Session, user: User, item: Pending) -> None:
     )
     if item.send_email:
         content = details(db, item)
-        email(db, user, item.key, item.title, content.text, item.kind, content.html, target(db, item))
+        email(
+            db, user, item.key, item.title, content.text, item.kind, content.html, target(db, item)
+        )
 
 
 def target(db: Session, item: Pending) -> str | None:

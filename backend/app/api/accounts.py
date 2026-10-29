@@ -68,7 +68,11 @@ def protect_titles(db: DB, user_id: str | None, next_roles: list[str]) -> None:
     db.execute(text("SELECT pg_advisory_xact_lock(781010)"))
     for role in TITLES.keys() & set(next_roles):
         holder = next(
-            (value for value in db.scalars(select(User)) if role in value.roles and value.id != user_id),
+            (
+                value
+                for value in db.scalars(select(User))
+                if role in value.roles and value.id != user_id
+            ),
             None,
         )
         if holder is not None:
