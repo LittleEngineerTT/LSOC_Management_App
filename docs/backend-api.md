@@ -149,8 +149,9 @@ Chaque personne a un seul numéro, commun à ses deux licences : `status` (joueu
 | `DELETE /me/photo` | Le coach connecté retire sa photo |
 | `PUT /users/{id}/photo` | Un administrateur dépose la photo d’un coach (à la création du compte…) |
 | `DELETE /users/{id}/photo` | Un administrateur retire la photo d’un coach |
+| `GET /photos/{nom}` | Photo d’un entraîneur, publique, sur le domaine du site |
 
-Facultative, la photo est réservée aux comptes ayant le rôle coach (409 sinon). Le corps est l’image brute, `Content-Type` `image/jpeg`, `image/png` ou `image/webp`, 5 Mo au plus (413) ; un contenu qui ne correspond pas au type annoncé est refusé (415). Elle est stockée sur le S3 public sous `photos/` et un nom aléatoire de 64 caractères ; la précédente est effacée après la validation. Sans stockage configuré : 503. `photo_url` (nul sans photo) figure dans les comptes (`/auth/me`, `/users`) et `photo` dans `GET /public/staff` pour les entraîneurs. Retirer le rôle coach ou supprimer le compte efface la photo (migration 0032).
+Facultative, la photo est réservée aux comptes ayant le rôle coach (409 sinon). Le corps est l’image brute, `Content-Type` `image/jpeg`, `image/png` ou `image/webp`, 5 Mo au plus (413) ; un contenu qui ne correspond pas au type annoncé est refusé (415). Elle est stockée sur le S3 sous `photos/` et un nom aléatoire de 64 caractères hexadécimaux, puis servie par `GET /photos/{nom}` (type reconnu à la signature, cache permanent, 404 pour tout autre nom) : le navigateur la charge depuis le domaine du site, comme les photos d’équipe, la CSP n’autorisant que `img-src 'self'`. La précédente est effacée après la validation. Sans stockage configuré : 503. `photo_url` (`/api/v1/photos/…`, nul sans photo) figure dans les comptes (`/auth/me`, `/users`) et `photo` dans `GET /public/staff` pour les entraîneurs. Retirer le rôle coach ou supprimer le compte efface la photo (migration 0032).
 
 ## Séances ouvertes et inscriptions
 

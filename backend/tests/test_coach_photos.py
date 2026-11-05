@@ -32,6 +32,10 @@ def bucket(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, tuple[bytes, s
         if request.method == 'DELETE':
             objects.pop(key, None)
             return httpx.Response(204)
+        if request.method == 'GET':
+            if key not in objects:
+                return httpx.Response(404, text='<Error><Code>NoSuchKey</Code></Error>')
+            return httpx.Response(200, content=objects[key][0], headers={'content-type': objects[key][1]})
         return httpx.Response(405)
 
     monkeypatch.setattr(s3, 'transport', httpx.MockTransport(handle))
@@ -58,7 +62,12 @@ def test_coach_adds_replaces_and_removes_their_photo_shown_in_our_club(admin: Te
     [key] = bucket
     assert key.startswith('photos/') and len(key) == len('photos/') + 64
     assert bucket[key] == (JPEG, 'image/jpeg')
-    assert url == f'https://{HOST}/{key}'
+    assert url == f"/api/v1/photos/{key.removeprefix('photos/')}"
+    # Servie par l’API, sur le domaine du site : la CSP bloque les images d’un autre domaine.
+    served = TestClient(app).get(url)
+    assert served.status_code == 200 and served.content == JPEG
+    assert served.headers['content-type'] == 'image/jpeg'
+    assert 'immutable' in served.headers['cache-control']
     assert coach.get('/api/v1/auth/me').json()['photo_url'] == url
     assert staff_photo('coach1') == url
     # Remplacée : l’ancienne quitte le stockage.
@@ -108,3 +117,17 @@ def test_photo_requires_a_configured_storage(admin: TestClient, monkeypatch: pyt
     monkeypatch.setattr(settings, 's3_bucket', '')
     add_user('coach1', ['coach'])
     assert put(login('coach1'), '/me/photo', JPEG, 'image/jpeg').status_code == 503
+
+
+def test_only_photos_are_served_and_a_removed_photo_is_gone(admin: TestClient, bucket: dict[str, tuple[bytes, str]]) -> None:
+    add_user('coach1', ['coach'])
+    url = put(login('coach1'), '/me/photo', PNG, 'image/png').json()['photo_url']
+    public = TestClient(app)
+    assert public.get(url).headers['content-type'] == 'image/png'
+    # Aucun autre objet du bucket (licences, dossiers) n’est lisible par cette route.
+    bucket['licenses/' + 'a' * 64] = (b'%PDF-1.7', 'application/pdf')
+    assert public.get('/api/v1/photos/..%2Flicenses%2F' + 'a' * 64).status_code == 404
+    assert public.get('/api/v1/photos/' + 'A' * 64).status_code == 404
+    assert public.get('/api/v1/photos/' + 'b' * 64).status_code == 404
+    login('coach1').delete('/api/v1/me/photo')
+    assert public.get(url).status_code == 404

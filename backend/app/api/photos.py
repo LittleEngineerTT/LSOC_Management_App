@@ -1,10 +1,12 @@
 """Photos des entraîneurs, présentées dans « Notre club » : déposées par le coach depuis son
-profil ou par un administrateur, stockées sur le S3 public sous un nom aléatoire."""
+profil ou par un administrateur, stockées sur le S3 sous un nom aléatoire et servies par l’API,
+sur le domaine du site comme les photos d’équipe."""
 
+import re
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 
 from app.api.common import DB, Actor, Admin, get
@@ -60,6 +62,10 @@ PHOTO_BODY = {
         },
     }
 }
+
+
+# Nom d’une photo servie : 64 caractères hexadécimaux, jamais un autre objet du bucket.
+NAME = re.compile(r"[0-9a-f]{64}")
 
 
 def lock_photos(db: DB) -> None:
@@ -132,3 +138,27 @@ def upload_for(
 @router.delete("/users/{user_id}/photo", response_model=UserView)
 def delete_for(user_id: str, actor: Admin, tasks: BackgroundTasks, db: DB) -> User:
     return remove(db, get(db, User, user_id), tasks)
+
+
+@router.get("/photos/{name}", response_class=Response)
+def read(name: str) -> Response:
+    """Photo d’un entraîneur, publique : son nom aléatoire ne se devine pas. Chaque dépôt prend
+    un nouveau nom, d’où le cache permanent."""
+    if not NAME.fullmatch(name) or not s3.configured():
+        raise HTTPException(404, "Photo introuvable")
+    try:
+        body = s3.get(f"photos/{name}")
+    except s3.StorageError as error:
+        raise HTTPException(404, "Photo introuvable") from error
+    content_type = next((kind for kind, matches in SIGNATURES.items() if matches(body)), None)
+    if content_type is None:
+        raise HTTPException(404, "Photo introuvable")
+    return Response(
+        body,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
