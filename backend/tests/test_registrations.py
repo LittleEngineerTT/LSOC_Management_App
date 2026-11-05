@@ -199,11 +199,11 @@ def test_reserved_places_open_positions_of_a_section_beside_the_classic_opening(
     women = admin.post('/api/v1/sections', json={'name': 'Seniors F'}).json()['id']
     setter, libero, hitter = position(admin), position(admin, 'Libéro'), position(admin, 'Attaquant')
     team = admin.post('/api/v1/teams', json={'name': 'SF1', 'section_id': women}).json()['id']
-    for user, usual in (('f1', libero), ('f2', hitter), ('f3', setter)):
+    for user, usual in (('sf01', libero), ('sf02', hitter), ('sf03', setter)):
         add_user(user)
         assert admin.post(f'/api/v1/users/{user}/assignments', json={'team_id': team, 'kind': 'player', 'position_id': usual}).status_code == 201
-    add_user('m1')
-    member_of(admin, 'm1', section)
+    add_user('sm01')
+    member_of(admin, 'sm01', section)
     quotas = [{'section_id': women, 'position_ids': [setter, libero], 'limit': 1}, {'section_id': women, 'position_ids': [hitter], 'limit': 2}]
     body = payload(section, gym, start=START, end=END) | {'registration_section_ids': [section], 'registration_limit': 1, 'registration_quotas': quotas}
     created = admin.post('/api/v1/events', json=body)
@@ -212,34 +212,34 @@ def test_reserved_places_open_positions_of_a_section_beside_the_classic_opening(
     assert [(q['position_ids'], q['limit']) for q in stored] == [([setter, libero], 1), ([hitter], 2)]
     reserved = stored[0]['id']
     assert reserved and stored[1]['id'] != reserved
-    f1 = login('f1')
-    summary = f1.get(f'/api/v1/events/{event}/registrations').json()
+    sf01 = login('sf01')
+    summary = sf01.get(f'/api/v1/events/{event}/registrations').json()
     assert (summary['open'], summary['eligible'], summary['allowed_position_ids']) == (True, True, [setter, libero, hitter])
     assert [q['count'] for q in summary['quotas']] == [0, 0]
     # Hors des postes réservés à sa section, un membre de Seniors F ne s’inscrit pas.
-    add_user('f4')
-    assert admin.post('/api/v1/users/f4/assignments', json={'team_id': team, 'kind': 'player'}).status_code == 201
+    add_user('sf04')
+    assert admin.post('/api/v1/users/sf04/assignments', json={'team_id': team, 'kind': 'player'}).status_code == 201
     other = position(admin, 'Central')
-    assert ask(login('f4'), event, other).status_code == 403
+    assert ask(login('sf04'), event, other).status_code == 403
     # Libéro, son poste en équipe : pas d’alerte.
-    registered(admin, f1, event, 'f1', libero)
+    registered(admin, sf01, event, 'sf01', libero)
     # Passeur : les places réservées à ce poste sont complètes.
-    f2 = login('f2')
-    assert ask(f2, event, setter).status_code == 409
-    request = ask(f2, event, hitter, 'Prêt')
+    sf02 = login('sf02')
+    assert ask(sf02, event, setter).status_code == 409
+    request = ask(sf02, event, hitter, 'Prêt')
     assert request.status_code == 201
-    assert login('f3').get(f'/api/v1/events/{event}/registrations').json()['quotas'][0]['count'] == 1
+    assert login('sf03').get(f'/api/v1/events/{event}/registrations').json()['quotas'][0]['count'] == 1
     # Poste différent de celui en équipe : alerte jointe à la demande.
-    f3 = login('f3')
-    assert ask(f3, event, hitter).status_code == 201
-    alert = next(n for n in admin.get('/api/v1/notifications').json() if n['title'].startswith('Demande d’inscription de f3'))
+    sf03 = login('sf03')
+    assert ask(sf03, event, hitter).status_code == 201
+    alert = next(n for n in admin.get('/api/v1/notifications').json() if n['title'].startswith('Demande d’inscription de sf03'))
     assert alert['body'] == 'Poste : Attaquant\nAttention : poste habituel en équipe : Passeur'
     participants = {p['user_id']: p for p in admin.get(f'/api/v1/events/{event}/registrations').json()['participants']}
-    assert (participants['f1']['quota_id'], participants['f1']['position_warning']) == (reserved, False)
-    assert (participants['f3']['position_warning'], participants['f3']['team_position_ids']) == (True, [setter])
-    assert participants['f2']['quota_id'] == stored[1]['id']
+    assert (participants['sf01']['quota_id'], participants['sf01']['position_warning']) == (reserved, False)
+    assert (participants['sf03']['position_warning'], participants['sf03']['team_position_ids']) == (True, [setter])
+    assert participants['sf02']['quota_id'] == stored[1]['id']
     # L’ouverture classique garde sa propre limite.
-    registered(admin, login('m1'), event, 'm1', setter)
+    registered(admin, login('sm01'), event, 'sm01', setter)
     summary = admin.get(f'/api/v1/events/{event}/registrations').json()
     assert (summary['count'], summary['limit']) == (2, 1)
     assert admin.get(f'/api/v1/events/{event}').json()['registration_count'] == 2
