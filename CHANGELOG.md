@@ -4,6 +4,26 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et la numérotation
 [Semantic Versioning](https://semver.org/lang/fr/).
 
+## [Non publié]
+
+### Ajouté
+
+- **Notre club, Résultats des équipes** : le classement FFVB de chaque équipe dotée d’une source,
+  groupé par section, avec les points, les matchs joués, gagnés et perdus et la répartition des
+  scores (3-0, 3-1, 3-2, 2-3, 1-3, 0-3). On passe d’une équipe à l’autre dans chaque section ;
+  l’équipe du club est mise en avant. Le classement est relevé à chaque synchronisation de la
+  source, une fois par jour et le soir des matchs. Sous le classement, les matchs de l’équipe :
+  à venir avec la date, l’heure et le lieu, puis joués avec le score, le détail des sets et la
+  victoire ou la défaite. Visible aussi des invités.
+
+### Corrigé
+
+- **FFVB, poules à nombre impair d’équipes** : la journée où l’équipe du club est exempte
+  (adversaire « xxxxx », sans date) faisait rejeter toute la page ; plus aucun match de la
+  source n’était importé. Elle est désormais ignorée.
+- **FFVB, choix de l’équipe d’une source** : une équipe sans set perdu (coefficient « MAX »)
+  n’est plus proposée sous le nom « MAX ».
+
 ## [0.2.0] - 2026-10-29
 
 ### Ajouté
