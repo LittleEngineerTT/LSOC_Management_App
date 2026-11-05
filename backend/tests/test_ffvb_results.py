@@ -80,11 +80,13 @@ def test_worker_checks_results_on_match_days_whatever_the_source_interval(admin:
     from app.persistence.models import FFVBSource
 
     source, _, _ = configure(admin)
-    sync(source, PLAYED)
-    # BRC007 se joue le lundi 2 novembre 2026 : relevé à 23 h 59.
-    clock = {'at': utc('2026-11-02T23:58:00+01:00')}
+    # Horloge figée dès l’import : le test ne dépend pas du jour où il est lancé.
+    clock = {'at': utc('2026-10-21T12:00:00+02:00')}
     for module in (worker, ffvb_service):
         monkeypatch.setattr(module, 'now', lambda: clock['at'])
+    sync(source, PLAYED)
+    # BRC007 se joue le lundi 2 novembre 2026 : relevé à 23 h 59.
+    clock['at'] = utc('2026-11-02T23:58:00+01:00')
     original_client = httpx.Client
     monkeypatch.setattr(httpx, 'Client', lambda: original_client(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=PLAYED))))
     with SessionFactory.begin() as db:

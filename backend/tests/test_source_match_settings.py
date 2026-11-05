@@ -1,7 +1,9 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app.services import ffvb as ffvb_service
 from test_ffvb import configure, match_event, sync
 
 BODY = {'season': '2026/2027', 'entity': 'PTIDF92', 'pool': 'BRC', 'team_number': '6', 'team_name': 'LSO COLOMBES', 'club_code': '0926620'}
@@ -26,7 +28,9 @@ def test_imports_use_source_settings_or_club_defaults(admin: TestClient) -> None
     assert event.starts_at == event.kickoff_at - timedelta(minutes=30)
 
 
-def test_changing_source_settings_updates_upcoming_matches_except_manual_values(admin: TestClient) -> None:
+def test_changing_source_settings_updates_upcoming_matches_except_manual_values(admin: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Avant BRC007 (2 novembre 2026) : ses matchs restent à venir quel que soit le jour du test.
+    monkeypatch.setattr(ffvb_service, 'now', lambda: datetime(2026, 10, 21, 12, tzinfo=UTC))
     source, _, gym = configure(admin)
     sync(source)
     edited = match_event('BRC007')
