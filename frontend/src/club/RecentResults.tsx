@@ -49,8 +49,8 @@ function ResultRow({ source, match }: Played) {
   const won = home ? match.home_sets > match.away_sets : match.away_sets > match.home_sets;
   return (
     <li className="club-result">
+      <strong className="club-result-team">{source.team_name}</strong>
       <span className="club-result-date">{dayLabel(parisDay(match.kickoff_at))}</span>
-      <span className="admin-hint">{source.team_name}</span>
       <span className="club-result-teams">
         <span className={home ? 'club-result-club' : undefined}>{match.home_team}</span>{' '}
         <strong aria-label={`${match.home_sets} sets à ${match.away_sets}`}>

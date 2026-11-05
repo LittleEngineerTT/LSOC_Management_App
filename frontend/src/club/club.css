@@ -577,6 +577,14 @@
   align-items: center;
   gap: 4px 10px;
 }
+/* Équipe du club en tête de chaque résultat, bien lisible. */
+.club-result-team {
+  flex-basis: 100%;
+  color: #1f4e79;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
 .club-result-date {
   min-width: 9em;
   color: #617282;

@@ -595,6 +595,8 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   expect(within(recent[1]!).getByText('Défaite')).toBeInTheDocument();
   expect(within(recent[1]!).getByText('Sets : 23:21 · 21:8 · 18:21 · 21:9 · points 83 – 59')).toBeInTheDocument();
   expect(within(recent[0]!).getByText('Victoire')).toBeInTheDocument();
+  // L’équipe du club en tête de chaque résultat.
+  expect(recent.map((item) => item.firstElementChild?.textContent)).toEqual(['Régionale', 'Loisir 1']);
   // Carte d’une section : tous ses résultats passés.
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
   expect(within(results).getByRole('heading', { name: /Compétition/ })).toBeInTheDocument();
