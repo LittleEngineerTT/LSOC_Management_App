@@ -4,6 +4,7 @@ sur le domaine du site comme les photos d’équipe."""
 
 import re
 import secrets
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
@@ -18,7 +19,7 @@ router = APIRouter(tags=["Photos"])
 
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 # Formats acceptés, reconnus à leur signature et non au seul type annoncé.
-SIGNATURES = {
+SIGNATURES: dict[str, Callable[[bytes], bool]] = {
     "image/jpeg": lambda body: body.startswith(b"\xff\xd8\xff"),
     "image/png": lambda body: body.startswith(b"\x89PNG\r\n\x1a\n"),
     "image/webp": lambda body: body[:4] == b"RIFF" and body[8:12] == b"WEBP",
