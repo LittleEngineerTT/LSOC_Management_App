@@ -4,7 +4,7 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et la numérotation
 [Semantic Versioning](https://semver.org/lang/fr/).
 
-## [Non publié]
+## [0.4.0] - 2026-11-05
 
 ### Ajouté
 
@@ -19,10 +19,14 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
   administrateur à la création d’un compte coach. Stockées sur le S3, elles sont présentées dans
   les dirigeants de Notre club, invités compris. Retirer le rôle coach ou supprimer le compte
   efface la photo.
+- **Accueil, résultats des matchs** : un bouton « Voir le tableau » dans chaque carte mène
+  directement au tableau de Notre club, sur la section ou l’équipe concernée.
 
 ### Modifié
 
 - **Planning, Mes demandes d’événements** : seules les 5 dernières demandes sont affichées.
+- **Accueil, résultats des matchs** : le nom de l’équipe du club s’affiche en tête de chaque
+  résultat, en gras et en plus grand.
 - **Accueil** : l’encart « Informations du club » devient « Quoi de neuf ? », qui présente
   simplement les nouveautés de la version, adhérents comme invités.
 
@@ -155,6 +159,7 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 
 Première version en production.
 
+[0.4.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LittleEngineerTT/LSOC_Management_App/compare/v0.1.0...v0.1.1

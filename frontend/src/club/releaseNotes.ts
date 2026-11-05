@@ -17,7 +17,7 @@ export interface Release {
 // À chaque version, ne reprenez du CHANGELOG que les nouveautés majeures et les correctifs
 // visibles, reformulés simplement ; les détails restent dans le CHANGELOG.
 export const release: Release = {
-  version: '0.3.0',
+  version: '0.4.0',
   previous: '0.2.0',
   notes: [
     {
