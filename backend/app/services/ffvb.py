@@ -1,4 +1,6 @@
+import logging
 from collections.abc import Iterable
+from dataclasses import asdict
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -9,10 +11,24 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get
-from app.api.schemas import FFVBResultView, SourceResultsView
+from app.api.schemas import (
+    FFVBResultView,
+    MatchScoreView,
+    SourceResultsView,
+    SourceStandingsView,
+    StandingView,
+    TeamMatchView,
+)
 from app.core.config import settings
 from app.core.security import now
-from app.integrations.ffvb import Match, Result, fetch, normalize, parse_calendar
+from app.integrations.ffvb import (
+    Match,
+    Result,
+    fetch,
+    normalize,
+    parse_calendar,
+    parse_standings,
+)
 from app.persistence.models import (
     ClubSettings,
     Event,
@@ -42,6 +58,8 @@ from app.services.notifications import (
     ffvb_added,
     grouping,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def defaults(db: Session) -> ClubSettings:
@@ -308,6 +326,65 @@ def record_result(db: Session, source: FFVBSource, match: Match, result: Result)
     value.recorded_at = now()
 
 
+def record_calendar(db: Session, source: FFVBSource, matches: list[Match]) -> None:
+    """Remplace le calendrier de l’équipe par celui de la page FFVB.
+
+    Un match joué n’a plus de lieu sur la FFVB : il garde celui du relevé précédent, sinon
+    celui de son import.
+    """
+    known = {
+        state.match_code: str(state.official.get("location") or "")
+        for state in db.scalars(
+            select(FFVBMatchState).where(
+                FFVBMatchState.season == source.season,
+                FFVBMatchState.entity == source.entity,
+                FFVBMatchState.match_code.in_([match.code for match in matches]),
+            )
+        )
+    }
+    known |= {
+        str(item["match_code"]): str(item["location"])
+        for item in source.calendar or []
+        if item.get("location")
+    }
+    source.calendar = [
+        {
+            "match_code": match.code,
+            "kickoff_at": match.kickoff_at.isoformat(),
+            "home_team": match.home_team,
+            "away_team": match.away_team,
+            "location": match.location or known.get(match.code) or None,
+            "score": {
+                "home_sets": match.result.home_sets,
+                "away_sets": match.result.away_sets,
+                "set_scores": list(match.result.sets),
+                "points": match.result.points,
+            }
+            if match.result
+            else None,
+        }
+        for match in sorted(matches, key=lambda item: (item.kickoff_at, item.code))
+    ]
+
+
+def record_standings(source: FFVBSource, html: bytes) -> None:
+    """Remplace le classement de la source par celui de la page FFVB.
+
+    Un classement absent ou illisible garde le précédent sans bloquer la synchronisation du
+    calendrier.
+    """
+    try:
+        title, standings = parse_standings(html, source.pool)
+    except ValueError:
+        logger.warning("Classement FFVB illisible, source %s ; précédent conservé", source.id)
+        return
+    if not standings:
+        return
+    source.standings = [asdict(row) for row in standings]
+    source.standings_title = title[:200] if title else None
+    source.standings_at = now()
+
+
 def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     fetch_started = now()
     identity = (source.team_id, source.season, source.entity, source.pool, source.team_name)
@@ -446,6 +523,8 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                         link="/app/administration?tab=ffvb&vue=matches",
                     )
                 state.missing = True
+    record_calendar(db, source, matches)
+    record_standings(source, html)
     source.last_success_at = now()
     source.last_error = None
     return True
@@ -545,6 +624,85 @@ def recent_results(db: Session, days: int, limit: int) -> list[SourceResultsView
                 section_id=section.id,
                 section_name=section.name,
                 results=[FFVBResultView.model_validate(item) for item in played],
+            )
+        )
+    return result
+
+
+def team_matches(db: Session, source: FFVBSource) -> list[TeamMatchView]:
+    """Matchs d’une source, à venir et joués, du plus ancien au plus récent.
+
+    Calendrier relevé à la dernière synchronisation ; avant le premier relevé, les matchs
+    importés donnent date, équipes et lieu ; les résultats y ajoutent le score, et
+    un match joué avant le premier import vient de son seul résultat, sans lieu. Un match
+    retiré du calendrier FFVB n’est pas repris.
+    """
+    if source.calendar is not None:
+        return [TeamMatchView.model_validate(item) for item in source.calendar]
+    scores = {
+        item.match_code: item
+        for item in db.scalars(select(FFVBResult).where(FFVBResult.source_id == source.id))
+    }
+    matches: dict[str, TeamMatchView] = {}
+    withdrawn: set[str] = set()
+    for state in db.scalars(select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)):
+        official = state.official
+        if state.missing or not official.get("kickoff_at"):
+            withdrawn.add(state.match_code)
+            continue
+        played = scores.get(state.match_code)
+        matches[state.match_code] = TeamMatchView(
+            match_code=state.match_code,
+            kickoff_at=datetime.fromisoformat(str(official["kickoff_at"])),
+            home_team=str(official.get("home_team", "")),
+            away_team=str(official.get("away_team", "")),
+            location=str(official.get("location") or "") or None,
+            score=MatchScoreView.model_validate(played) if played else None,
+        )
+    for code, played in scores.items():
+        if code not in matches and code not in withdrawn:
+            matches[code] = TeamMatchView(
+                match_code=code,
+                kickoff_at=played.kickoff_at,
+                home_team=played.home_team,
+                away_team=played.away_team,
+                location=None,
+                score=MatchScoreView.model_validate(played),
+            )
+    return sorted(matches.values(), key=lambda item: (item.kickoff_at, item.match_code))
+
+
+def team_standings(db: Session) -> list[SourceStandingsView]:
+    """Classement et matchs de chaque équipe dotée d’une source FFVB, pour sa saison la plus
+    récente.
+
+    Données publiées par la FFVB : lisibles par les adhérents comme par les invités.
+    """
+    seen: set[str] = set()
+    result: list[SourceStandingsView] = []
+    for source, team, section in db.execute(
+        select(FFVBSource, Team, Section)
+        .join(Team, Team.id == FFVBSource.team_id)
+        .join(Section, Section.id == Team.section_id)
+        .order_by(Section.name, Team.name, FFVBSource.season.desc())
+    ).tuples():
+        if team.id in seen:
+            continue
+        seen.add(team.id)
+        result.append(
+            SourceStandingsView(
+                source_id=source.id,
+                season=source.season,
+                pool=source.pool,
+                title=source.standings_title,
+                club_team=source.team_name,
+                team_id=team.id,
+                team_name=team.name,
+                section_id=section.id,
+                section_name=section.name,
+                updated_at=source.standings_at,
+                rows=[StandingView.model_validate(row) for row in source.standings or []],
+                matches=team_matches(db, source),
             )
         )
     return result

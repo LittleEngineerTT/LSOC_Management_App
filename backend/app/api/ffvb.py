@@ -17,6 +17,7 @@ from app.api.schemas import (
     SourceCandidate,
     SourcePreview,
     SourceResultsView,
+    SourceStandingsView,
     SourceURLInput,
 )
 from app.core.security import now
@@ -42,6 +43,7 @@ from app.services.ffvb import (
     remap_venues,
     resolve,
     sync_source,
+    team_standings,
 )
 from app.services.notifications import active_referents
 
@@ -106,6 +108,12 @@ def results(
 ) -> list[SourceResultsView]:
     """Résultats récents de chaque source FFVB, du plus récent au plus ancien."""
     return recent_results(db, days, limit)
+
+
+@router.get("/standings", response_model=list[SourceStandingsView])
+def standings(db: DB, actor: Actor) -> list[SourceStandingsView]:
+    """Classement de la poule et matchs de chaque équipe dotée d’une source FFVB."""
+    return team_standings(db)
 
 
 @router.get("/sources", response_model=list[FFVBSourceView])

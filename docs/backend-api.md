@@ -206,6 +206,8 @@ Chaque source peut porter ses propres `courts` (terrains réservés), `before_mi
 
 `POST /ffvb/sources/preview` accepte l’URL d’une poule ou d’une équipe, par exemple `…/vbspo_calendrier.php?saison=2026%2F2027&codent=LIIDF&poule=2MC&calend=COMPLET&equipe=9&x=6&y=9`. Avec `equipe`, seule cette équipe est proposée ; les autres paramètres sont ignorés. Les codes de match peuvent comporter une phase en lettres (`2MCA001`). Pour un match déjà joué, la FFVB affiche le score à la place du lieu : un match connu garde son lieu, un match joué jamais importé n’est pas créé.
 
+Classements : chaque synchronisation d’une source relève aussi le classement de sa poule (points, matchs joués, gagnés, perdus, forfaits et répartition 3-0, 3-1, 3-2, 2-3, 1-3, 0-3). Une page sans classement lisible garde le précédent sans bloquer l’import du calendrier. `GET /ffvb/standings` (adhérents) et `GET /public/ffvb/standings` (invités) renvoient, pour chaque équipe dotée d’une source, la saison la plus récente : `title` (intitulé FFVB de la compétition), `club_team`, l’équipe et sa section, `updated_at` (nul tant que le classement n’a jamais été lu), `rows` et `matches` : le calendrier de l’équipe relevé sur la page FFVB à la dernière synchronisation, du plus ancien au plus récent, avec date, équipes, `location` et `score` (sets, détail des sets et points ; nul pour un match à venir). Il ne dépend pas de l’import des matchs dans le planning : un match désactivé y reste. Un match joué garde le lieu relevé auparavant ; joué avant le premier relevé, il n’a que son score.
+
 Association locale : `POST /ffvb/gym-mappings` avec `{"official_name":"GYMNASE AMBROISE PARE","gymnasium_id":"gymnasium-id"}`. Les autres sources restent configurables via l’API.
 
 | Routes | Usage |

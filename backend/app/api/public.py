@@ -11,11 +11,12 @@ from app.api.schemas import (
     PublicTeamView,
     SectionView,
     SourceResultsView,
+    SourceStandingsView,
     StaffFunction,
     StaffView,
 )
 from app.persistence.models import Event, Gymnasium, Section, Team, User
-from app.services.ffvb import recent_results
+from app.services.ffvb import recent_results, team_standings
 
 router = APIRouter(prefix="/public", tags=["Invités"])
 
@@ -90,3 +91,9 @@ def results(
 ) -> list[SourceResultsView]:
     """Résultats récents des sources FFVB, publiés par la fédération."""
     return recent_results(db, days, limit)
+
+
+@router.get("/ffvb/standings", response_model=list[SourceStandingsView])
+def standings(db: DB) -> list[SourceStandingsView]:
+    """Classement de la poule et matchs de chaque équipe du club, publiés par la fédération."""
+    return team_standings(db)

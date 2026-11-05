@@ -107,3 +107,79 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
     if not found_calendar:
         raise ValueError("Calendrier FFVB introuvable")
     return matches
+
+
+# Colonnes du classement FFVB retenues, par intitulé d’en-tête : points, matchs joués, gagnés,
+# perdus, forfaits et répartition des scores.
+STANDING_COLUMNS = {
+    "Points": "points",
+    "Jou.": "played",
+    "Gag.": "won",
+    "Per.": "lost",
+    "F.": "forfeits",
+    "3-0": "wins_3_0",
+    "3-1": "wins_3_1",
+    "3-2": "wins_3_2",
+    "2-3": "losses_2_3",
+    "1-3": "losses_1_3",
+    "0-3": "losses_0_3",
+}
+
+
+@dataclass(frozen=True)
+class Standing:
+    """Ligne du classement d’une poule ; une case vide de la FFVB vaut 0."""
+
+    rank: int
+    team: str
+    points: int
+    played: int
+    won: int
+    lost: int
+    forfeits: int
+    wins_3_0: int
+    wins_3_1: int
+    wins_3_2: int
+    losses_2_3: int
+    losses_1_3: int
+    losses_0_3: int
+
+
+def parse_standings(html: bytes, pool: str) -> tuple[str | None, list[Standing]]:
+    """Intitulé de la compétition et classement de la poule, tels que publiés par la FFVB.
+
+    Sans tableau de classement, la liste est vide ; une ligne illisible lève `ValueError`.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    title = next(
+        (
+            text
+            for cell in soup.find_all("td", class_="titreblanc")
+            if (text := cell.get_text(" ", strip=True)).startswith(f"{pool} ")
+        ),
+        None,
+    )
+    header: dict[str, int] | None = None
+    standings: list[Standing] = []
+    for row in soup.find_all("tr"):
+        # Cases directes seulement : la ligne qui contient tout le tableau est ainsi ignorée.
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all("td", recursive=False)]
+        if header is None:
+            if set(STANDING_COLUMNS) <= set(cells):
+                header = {label: index for index, label in enumerate(cells)}
+            continue
+        if not cells or re.fullmatch(r"\d+\.", cells[0]) is None:
+            if standings:
+                break
+            continue
+        values: dict[str, int] = {}
+        for label, key in STANDING_COLUMNS.items():
+            index = header[label]
+            value = cells[index] if index < len(cells) else ""
+            if value and not value.isdigit():
+                raise ValueError("Classement FFVB inexploitable")
+            values[key] = int(value or 0)
+        if len(cells) < 2 or not cells[1]:
+            raise ValueError("Classement FFVB inexploitable")
+        standings.append(Standing(rank=int(cells[0][:-1]), team=cells[1], **values))
+    return title, standings

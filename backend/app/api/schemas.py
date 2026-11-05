@@ -720,6 +720,64 @@ class SourceResultsView(View):
     results: list[FFVBResultView]
 
 
+class StandingView(View):
+    rank: int
+    team: str
+    points: int
+    played: int
+    won: int
+    lost: int
+    forfeits: int
+    wins_3_0: int
+    wins_3_1: int
+    wins_3_2: int
+    losses_2_3: int
+    losses_1_3: int
+    losses_0_3: int
+
+
+class MatchScoreView(View):
+    home_sets: int
+    away_sets: int
+    # Détail des sets, points de l’équipe à domicile en premier : « 25:21 ».
+    set_scores: list[str]
+    points: str
+
+
+class TeamMatchView(View):
+    """Match d’une équipe du club : à venir, ou joué avec son score."""
+
+    match_code: str
+    kickoff_at: datetime
+    home_team: str
+    away_team: str
+    # Lieu FFVB ; nul pour un match joué avant le premier import, la FFVB n’affichant plus que
+    # le score.
+    location: str | None
+    score: MatchScoreView | None
+
+
+class SourceStandingsView(View):
+    """Classement de la poule d’une équipe du club, pour sa saison la plus récente."""
+
+    source_id: str
+    season: str
+    pool: str
+    # Intitulé FFVB : « 2FC - CHAMPIONNAT REGIONAL 2 SENIOR FEMININ : POULE C ».
+    title: str | None
+    # Nom de l’équipe du club sur la FFVB, pour la repérer dans le classement.
+    club_team: str
+    team_id: str
+    team_name: str
+    section_id: str
+    section_name: str
+    # Dernier relevé ; nul tant que le classement n’a jamais été lu.
+    updated_at: datetime | None
+    rows: list[StandingView]
+    # Matchs de l’équipe sur la saison, du plus ancien au plus récent.
+    matches: list[TeamMatchView]
+
+
 class FFVBSourceInput(Input):
     team_id: str
     season: str = Field(pattern=r"^\d{4}/\d{4}$")

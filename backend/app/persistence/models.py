@@ -557,6 +557,14 @@ class FFVBSource(Identity, Base):
     # Dernier relevé des résultats d’un jour de match, à 23 h 59.
     results_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(200))
+    # Classement de la poule (lignes de `Standing`), intitulé de la compétition et date du
+    # dernier relevé ; nul tant qu’aucune synchronisation ne l’a lu.
+    standings: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    standings_title: Mapped[str | None] = mapped_column(String(200))
+    standings_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Calendrier de l’équipe tel que publié par la FFVB (lignes de `TeamMatchView`), relevé à
+    # chaque synchronisation, indépendamment de l’import des matchs dans le planning.
+    calendar: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     # Réglages des matchs de la source ; nul = configuration par défaut du club.
     before_minutes: Mapped[int | None] = mapped_column(Integer)
     after_minutes: Mapped[int | None] = mapped_column(Integer)
