@@ -14,6 +14,9 @@ const statuses: Record<string, { label: string; tone: string }> = {
   withdrawn: { label: 'Retirée', tone: '' },
 };
 
+// Demandes affichées : les plus récentes seulement.
+const SHOWN = 5;
+
 export function CoachEventRequests({ revision = 0 }: { revision?: number }) {
   const { api, account, teams } = useClub();
   const link = useEventLink();
@@ -29,14 +32,16 @@ export function CoachEventRequests({ revision = 0 }: { revision?: number }) {
   const mine = (result.data ?? [])
     .filter((item) => item.actor_id === account.id)
     .slice()
-    .reverse();
+    .reverse()
+    .slice(0, SHOWN);
   if (result.loaded && !result.error && !mine.length && !account.roles.includes('coach'))
     return null;
   return (
     <section className="admin-card" aria-labelledby={headingId}>
       <h3 id={headingId}>Mes demandes d’événements</h3>
       <p className="admin-hint">
-        Les demandes en attente ne réservent aucun créneau dans le planning.
+        Les {SHOWN} dernières demandes. Celles en attente ne réservent aucun créneau dans le
+        planning.
       </p>
       <button className="admin-button" onClick={result.reload}>
         Actualiser mes demandes

@@ -16,6 +16,10 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
   à venir avec la date, l’heure et le lieu, puis joués avec le score, le détail des sets et la
   victoire ou la défaite. Visible aussi des invités.
 
+### Modifié
+
+- **Planning, Mes demandes d’événements** : seules les 5 dernières demandes sont affichées.
+
 ### Corrigé
 
 - **FFVB, poules à nombre impair d’équipes** : la journée où l’équipe du club est exempte

@@ -225,6 +225,19 @@ it('conserve le suivi des demandes acceptées et refusées avec motif et lien ve
   );
 });
 
+it('n’affiche que les 5 dernières demandes, la plus récente d’abord', async () => {
+  // L’API les renvoie de la plus ancienne à la plus récente.
+  routes['/event-requests'] = Array.from({ length: 7 }, (_, index) => ({
+    ...pending,
+    id: `r${index + 1}`,
+    proposal: { ...proposal, title: `Demande ${index + 1}` },
+  }));
+  open();
+  const requests = await screen.findByRole('region', { name: 'Mes demandes d’événements' });
+  await within(requests).findByText('Demande 7');
+  expect(within(requests).getAllByRole('listitem').map((item) => item.querySelector('strong')?.textContent)).toEqual(['Demande 7', 'Demande 6', 'Demande 5', 'Demande 4', 'Demande 3']);
+});
+
 it('permet à un auteur dont le rôle coach a été retiré de suivre la décision sans déposer de nouvelle demande', async () => {
   account = { ...coach, roles: ['member'] };
   routes['/event-requests'] = [{ ...pending, status: 'rejected', decision: 'Rattachement retiré' }];
