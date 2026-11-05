@@ -620,6 +620,11 @@
 .club-carousel-dot.active {
   background: #617282;
 }
+/* « Voir le tableau » : sous l’encart, à sa largeur, même dans une carte à la une. */
+.club-results > .admin-button {
+  align-self: flex-start;
+  margin-top: 12px;
+}
 .club-results-card h4 {
   margin: 0 0 8px;
 }

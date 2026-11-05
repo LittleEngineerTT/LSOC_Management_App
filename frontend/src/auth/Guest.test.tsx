@@ -51,6 +51,7 @@ it('arrive en invité : accueil sans notifications, menu réduit et API publique
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
   expect(within(results).getByRole('heading', { name: /Seniors/ })).toBeInTheDocument();
   expect(within(results).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
+  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats');
   const menu = screen.getByRole('navigation', { name: 'Applications' });
   expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning', 'Notre club']);
   expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();

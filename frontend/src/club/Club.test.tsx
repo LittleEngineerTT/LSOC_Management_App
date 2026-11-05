@@ -598,6 +598,8 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   expect(within(results).getByRole('heading', { name: /Compétition/ })).toBeInTheDocument();
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
   expect(within(results).getByRole('heading', { name: /Loisir/ })).toBeInTheDocument();
+  // Lien direct vers le tableau des résultats de Notre club.
+  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats');
   expect(within(results).getAllByRole('listitem').map((item) => item.textContent)).toEqual([expect.stringContaining('MEUDON'), expect.stringContaining('RUEIL 2')]);
 });
 

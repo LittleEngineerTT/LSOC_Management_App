@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useLoad } from '../admin/data';
 import { Badge, LoadState } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
@@ -99,7 +100,8 @@ function ResultsCard({
   );
 }
 
-/** Résultats FFVB : toutes les sections sur deux semaines, puis une carte par section. */
+/** Résultats FFVB : toutes les sections sur deux semaines, puis une carte par section, et un
+ * lien vers le tableau des résultats de Notre club. */
 export function RecentResults() {
   const { api, guest } = useClub();
   const loader = useCallback(
@@ -150,6 +152,10 @@ export function RecentResults() {
       {result.loaded && !result.error && (
         <Carousel label="Résultats par section" slides={cards} pausable={false} />
       )}
+      {/* Classements et matchs de chaque équipe, dans Notre club. */}
+      <Link className="admin-button" to="/app/notre-club?onglet=resultats">
+        Voir le tableau
+      </Link>
     </section>
   );
 }
