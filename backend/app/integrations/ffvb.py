@@ -77,6 +77,10 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
         home, away = values[3], values[5]
         if normalize(team_name) not in {normalize(home), normalize(away)}:
             continue
+        # Poule à nombre impair d’équipes : l’équipe exempte d’une journée affronte « xxxxx »,
+        # sans date ni horaire. Ce n’est pas un match.
+        if any(re.fullmatch(r"x+", team, re.IGNORECASE) for team in (home, away)):
+            continue
         try:
             date_format = "%d/%m/%Y" if len(values[1].split("/")[-1]) == 4 else "%d/%m/%y"
             kickoff = datetime.strptime(

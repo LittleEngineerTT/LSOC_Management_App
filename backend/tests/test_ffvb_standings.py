@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import update
 from test_ffvb import HTML, configure, sync
 
-from app.integrations.ffvb import Standing, parse_standings
+from app.integrations.ffvb import Standing, parse_calendar, parse_standings
+from app.integrations.ffvb_source import club_candidates
 from app.persistence.database import SessionFactory
 from app.persistence.models import FFVBMatchState, FFVBSource
 
@@ -103,3 +104,18 @@ def test_calendar_follows_the_ffvb_page_and_keeps_the_venue_of_played_matches(ad
     assert len(item['matches']) == 18
     assert [match['score'] is None for match in item['matches']].count(True) == 17
 
+
+def test_odd_pool_skips_the_bye_and_reads_every_match() -> None:
+    # Treize équipes : LSO COLOMBES 2 est exempte de 1MA063 (adversaire « xxxxx », sans date).
+    html = FIXTURES.joinpath('ffvb-ptidf92-1ma.html').read_bytes()
+    matches = parse_calendar(html, '2026/2027', 'PTIDF92', '1MA', 'LSO COLOMBES 2')
+    assert len(matches) == 12
+    assert '1MA063' not in {match.code for match in matches}
+    upcoming = [match for match in matches if match.result is None]
+    assert (upcoming[0].code, upcoming[0].location) == ('1MA023', 'GYMNASE AMBROISE PARE')
+    _, rows = parse_standings(html, '1MA')
+    assert rows[1] == Standing(2, 'LSO COLOMBES 2', 7, 3, 2, 1, 0, 2, 0, 0, 1, 0, 0)
+    assert len(rows) == 13
+    # Garches n’a perdu aucun set : « MAX » en coefficient, pas en nom d’équipe.
+    assert club_candidates(html, '2026/2027', 'PTIDF92', '1MA', '0928528', None) == [('12', 'GARCHES VAUCRESSON VOLLEY-BALL')]
+    assert club_candidates(html, '2026/2027', 'PTIDF92', '1MA', '0926620', '10') == [('10', 'LSO COLOMBES 2')]
