@@ -7,7 +7,7 @@ import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { dayLabel, dayStart, horizonEnd, parisDay, rangeQuery, timeRange, today } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarView } from './CalendarView';
-import { ClubInfos } from './ClubInfos';
+import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
 import {
@@ -94,7 +94,7 @@ export function GuestHome() {
         <p>Vous visitez l’espace club en tant qu’invité.</p>
       </div>
       <div className="club-highlights">
-        <ClubInfos />
+        <ReleaseNotes />
         <section className="admin-card">
           <h3>Prochains matchs FFVB</h3>
           <LoadState result={result} />

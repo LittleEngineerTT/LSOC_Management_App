@@ -11,7 +11,7 @@ import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
 import { useUnread } from '../app/unread';
-import { ClubInfos } from './ClubInfos';
+import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 
 export function HomePage() {
@@ -30,9 +30,9 @@ export function HomePage() {
         <p>Voici ce qui vous attend au club.</p>
       </div>
       {admin && <AdminSummary />}
-      {/* À la une : informations du club et derniers résultats, côte à côte. */}
+      {/* À la une : nouveautés de la version et derniers résultats, côte à côte. */}
       <div className="club-highlights">
-        <ClubInfos />
+        <ReleaseNotes />
         <RecentResults />
       </div>
       <div className="club-home">

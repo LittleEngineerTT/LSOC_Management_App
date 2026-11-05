@@ -644,34 +644,16 @@
   display: flex;
   flex-direction: column;
 }
-/* Informations du club : image, texte tronqué au besoin et « Voir plus ». */
-.club-info {
-  display: grid;
-  grid-template-columns: minmax(0, 160px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
+/* Accueil, « Quoi de neuf ? » : nouveautés puis correctifs de la version. */
+.club-release-group h4 {
+  margin: 12px 0 6px;
 }
-.club-info-image {
-  width: 100%;
-  height: auto;
-  border-radius: 6px;
+.club-release-list {
+  margin: 0;
+  padding-left: 20px;
 }
-.club-info-body h4 {
-  margin: 0 0 6px;
-}
-.club-info-text {
-  margin: 0 0 8px;
-}
-.club-info-text.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-@media (max-width: 520px) {
-  .club-info {
-    grid-template-columns: 1fr;
-  }
+.club-release-list li + li {
+  margin-top: 6px;
 }
 /* Notre club : page choisie (image, puis blocs titrés). */
 .club-page-image {

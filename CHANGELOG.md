@@ -23,6 +23,8 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
 ### Modifié
 
 - **Planning, Mes demandes d’événements** : seules les 5 dernières demandes sont affichées.
+- **Accueil** : l’encart « Informations du club » devient « Quoi de neuf ? », qui présente
+  simplement les nouveautés de la version, adhérents comme invités.
 
 ### Corrigé
 
