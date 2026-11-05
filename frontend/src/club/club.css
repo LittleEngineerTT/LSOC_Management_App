@@ -737,15 +737,20 @@
   gap: 6px;
   margin-bottom: 14px;
 }
-.club-page-team-switch a {
+.club-page-team-switch a,
+.club-page-team-switch button {
   padding: 4px 12px;
   border: 1px solid #c7d2d8;
   border-radius: 999px;
+  background: #fff;
   color: #354d60;
+  font: inherit;
   text-decoration: none;
   font-size: 14px;
+  cursor: pointer;
 }
-.club-page-team-switch a.active {
+.club-page-team-switch a.active,
+.club-page-team-switch button.active {
   border-color: #1f4e79;
   background: #1f4e79;
   color: #fff;
@@ -1001,4 +1006,72 @@ a.club-team-card:focus-visible {
 .club-staff-list figcaption span {
   color: #617282;
   font-size: 14px;
+}
+/* Résultats des équipes : une carte par section, le classement de l’équipe choisie. */
+.club-standings-section + .club-standings-section {
+  margin-top: 16px;
+}
+.club-standings-section h3 {
+  margin: 0 0 12px;
+}
+.club-standings-section h4 {
+  margin: 0 0 4px;
+}
+/* Le tableau défile seul sur un téléphone, sans élargir la page. */
+.club-standings-scroll {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+.club-standings {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.club-standings th,
+.club-standings td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e3e8ed;
+  text-align: center;
+  white-space: nowrap;
+}
+.club-standings thead th {
+  color: #617282;
+  font-weight: 600;
+  border-bottom-color: #c7d2d8;
+}
+.club-standings abbr {
+  text-decoration: none;
+}
+.club-standings th[scope='row'],
+.club-standings thead th:nth-child(2) {
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+  min-width: 12em;
+}
+/* Victoires et défaites séparées par un filet. */
+.club-standings th:nth-child(7),
+.club-standings td:nth-child(7),
+.club-standings th:nth-child(10),
+.club-standings td:nth-child(10) {
+  border-left: 1px solid #e3e8ed;
+}
+.club-standings td:nth-child(3) {
+  font-weight: 600;
+}
+.club-standings-own {
+  background: #eaf1f8;
+}
+.club-standings-own th[scope='row'] {
+  font-weight: 600;
+  color: #1f4e79;
+}
+/* Matchs de l’équipe, sous son classement. */
+.club-team-matches {
+  margin-top: 18px;
+}
+.club-team-matches h5 {
+  margin: 0 0 8px;
+  font-size: 15px;
 }

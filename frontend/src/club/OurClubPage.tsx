@@ -2,12 +2,14 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { PanelHeading } from '../admin/ui';
 import { ClubInfoTab } from './ClubInfoTab';
 import { ClubRegistrationTab } from './ClubRegistrationTab';
+import { ClubStandingsTab } from './ClubStandingsTab';
 import { ClubTeamsTab } from './ClubTeamsTab';
 import type { ClubPage } from './clubPages';
 
 const tabs = [
   { id: 'infos', title: 'Infos du club' },
   { id: 'equipes', title: 'Nos équipes' },
+  { id: 'resultats', title: 'Résultats des équipes' },
   { id: 'inscriptions', title: 'Inscriptions' },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
@@ -20,8 +22,8 @@ function currentTab(search: URLSearchParams): Tab {
   return search.has('page') ? 'equipes' : tabs[0].id;
 }
 
-/** Application « Notre club » : infos du club, présentation des équipes et inscriptions, chacune
- * dans son onglet (`?onglet=`).
+/** Application « Notre club » : infos du club, présentation des équipes, leurs classements FFVB
+ * et inscriptions, chacun dans son onglet (`?onglet=`).
  */
 export function OurClubPage({ pages }: { pages?: ClubPage[] }) {
   const [search] = useSearchParams();
@@ -47,6 +49,7 @@ export function OurClubPage({ pages }: { pages?: ClubPage[] }) {
       <div key={tab}>
         {tab === 'infos' && <ClubInfoTab />}
         {tab === 'equipes' && <ClubTeamsTab pages={pages} />}
+        {tab === 'resultats' && <ClubStandingsTab />}
         {tab === 'inscriptions' && <ClubRegistrationTab />}
       </div>
     </>

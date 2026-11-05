@@ -12,13 +12,18 @@ const club = vi.hoisted(() => {
     sections: [] as { id: string; name: string }[],
     teams: [] as { id: string; name: string; section_id: string; referent_ids: string[] }[],
     staff: [] as unknown[],
-    api: { list: (path: string) => Promise.resolve(path === '/public/staff' ? value.staff : []) },
+    standings: [] as unknown[],
+    api: {
+      list: (path: string) =>
+        Promise.resolve(path === '/public/staff' ? value.staff : path === '/ffvb/standings' ? value.standings : []),
+    },
   };
   return value;
 });
 vi.mock('./context', () => ({ useClub: () => club }));
 beforeEach(() => {
   club.staff = [];
+  club.standings = [];
   club.sections = [{ id: 's1', name: 'Séniors' }];
   club.teams = [
     { id: 't1', name: 'Senior Féminin 1', section_id: 's1', referent_ids: [] },
@@ -85,10 +90,10 @@ it('indique l’absence de présentation quand le club n’a ni page ni section'
   expect(screen.getByText('Aucune présentation pour le moment.')).toBeInTheDocument();
 });
 
-it('range Notre club en trois onglets, Infos du club d’abord', async () => {
+it('range Notre club en quatre onglets, Infos du club d’abord', async () => {
   render(<MemoryRouter><OurClubPage pages={pages} /></MemoryRouter>);
   const tabs = screen.getByRole('navigation', { name: 'Notre club' });
-  expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Infos du club', 'Nos équipes', 'Inscriptions']);
+  expect(within(tabs).getAllByRole('link').map((link) => link.textContent)).toEqual(['Infos du club', 'Nos équipes', 'Résultats des équipes', 'Inscriptions']);
   expect(within(tabs).getByRole('link', { name: 'Infos du club' })).toHaveAttribute('aria-current', 'page');
   expect(await screen.findByText('Aucune personne à présenter pour le moment.')).toBeInTheDocument();
   await userEvent.click(within(tabs).getByRole('link', { name: 'Nos équipes' }));
@@ -131,4 +136,82 @@ it('présente le bureau et les entraîneurs avec toutes leurs fonctions, une pho
   expect(people.map((person) => person.querySelector('figcaption')?.textContent)).toEqual(['YannPrésident(e)', 'BrunoVice-président(e)Entraineur(e)', 'AliceEntraineur(e)']);
   expect(within(people[0]!).getByRole('img', { name: 'Pas encore de photo de Yann' })).toBeInTheDocument();
   expect(within(people[2]!).getByRole('img', { name: 'Alice' })).toHaveAttribute('src', '/notre-club/alice.jpg');
+});
+
+const row = (rank: number, team: string, points: number, played: number, won: number, scores: number[]) => ({
+  rank, team, points, played, won, lost: played - won, forfeits: 0,
+  wins_3_0: scores[0], wins_3_1: scores[1], wins_3_2: scores[2], losses_2_3: scores[3], losses_1_3: scores[4], losses_0_3: scores[5],
+});
+const standings = (team_id: string, team_name: string, section_id: string, section_name: string, club_team: string, rows: unknown[], matches: unknown[] = []) => ({
+  source_id: `src-${team_id}`, season: '2026/2027', pool: '2FC', title: '2FC - CHAMPIONNAT REGIONAL 2 SENIOR FEMININ : POULE C',
+  club_team, team_id, team_name, section_id, section_name, updated_at: rows.length ? '2026-11-05T05:00:00Z' : null, rows, matches,
+});
+
+it('présente le classement de chaque équipe, groupé par section, et passe d’une équipe à l’autre', async () => {
+  club.standings = [
+    standings('t1', 'Senior Féminin 1', 's1', 'Séniors', 'LSO COLOMBES', [
+      row(1, 'UGS DRAVEIL JUVISY ATHIS MONTGERON VB - DJAM VB', 9, 3, 3, [2, 1, 0, 0, 0, 0]),
+      row(5, 'LSO COLOMBES', 5, 3, 2, [0, 1, 1, 0, 1, 0]),
+    ]),
+    standings('t2', 'Senior Féminin 2', 's1', 'Séniors', 'LSO COLOMBES 2', [row(1, 'LSO COLOMBES 2', 3, 1, 1, [1, 0, 0, 0, 0, 0])]),
+    standings('t5', 'M18 F', 's2', 'Jeunes', 'LSO COLOMBES', []),
+  ];
+  render(<MemoryRouter initialEntries={['/?onglet=resultats']}><OurClubPage pages={pages} /></MemoryRouter>);
+  const seniors = await screen.findByRole('region', { name: 'Séniors' });
+  const jeunes = screen.getByRole('region', { name: 'Jeunes' });
+  // Sections dans l’ordre alphabétique.
+  expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Jeunes', 'Séniors']);
+  const switcher = within(seniors).getByRole('navigation', { name: 'Équipes Séniors' });
+  expect(within(switcher).getByRole('button', { name: 'Senior Féminin 1' })).toHaveAttribute('aria-pressed', 'true');
+  const table = within(seniors).getByRole('table', { name: 'Classement Senior Féminin 1' });
+  expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['#', 'Équipe', 'Pts', 'J', 'G', 'P', '3-0', '3-1', '3-2', '2-3', '1-3', '0-3']);
+  const [, , own] = within(table).getAllByRole('row');
+  expect(own).toHaveAttribute('aria-current', 'true');
+  expect(within(own!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['5', '5', '3', '2', '1', '–', '1', '1', '–', '1', '–']);
+  expect(seniors).toHaveTextContent('saison 2026/2027 · mis à jour le');
+  await userEvent.click(within(switcher).getByRole('button', { name: 'Senior Féminin 2' }));
+  expect(within(seniors).getByRole('table', { name: 'Classement Senior Féminin 2' })).toBeInTheDocument();
+  // Une seule équipe : pas de choix ; pas encore relevé : annoncé.
+  expect(within(jeunes).queryByRole('navigation')).not.toBeInTheDocument();
+  expect(jeunes).toHaveTextContent('Classement pas encore disponible.');
+});
+
+it('ouvre le classement de l’équipe de l’adresse et annonce l’absence de source', async () => {
+  club.standings = [
+    standings('t1', 'Senior Féminin 1', 's1', 'Séniors', 'LSO COLOMBES', [row(1, 'LSO COLOMBES', 3, 1, 1, [1, 0, 0, 0, 0, 0])]),
+    standings('t2', 'Senior Féminin 2', 's1', 'Séniors', 'LSO COLOMBES 2', [row(1, 'LSO COLOMBES 2', 3, 1, 1, [1, 0, 0, 0, 0, 0])]),
+  ];
+  const { unmount } = render(<MemoryRouter initialEntries={['/?onglet=resultats&equipe=t2']}><OurClubPage pages={pages} /></MemoryRouter>);
+  expect(await screen.findByRole('table', { name: 'Classement Senior Féminin 2' })).toBeInTheDocument();
+  unmount();
+  club.standings = [];
+  render(<MemoryRouter initialEntries={['/?onglet=resultats']}><OurClubPage pages={pages} /></MemoryRouter>);
+  expect(await screen.findByText('Aucune équipe n’a encore de classement FFVB.')).toBeInTheDocument();
+});
+
+it('liste sous le classement les matchs à venir puis les matchs joués, avec heure, lieu et score', async () => {
+  club.standings = [
+    standings('t1', 'Senior Féminin 1', 's1', 'Séniors', 'LSO COLOMBES', [row(5, 'LSO COLOMBES', 5, 3, 2, [0, 1, 1, 0, 1, 0])], [
+      { match_code: '2FCA002', kickoff_at: '2026-10-03T18:30:00Z', home_team: 'AS ELAN CHEVILLY-LARUE', away_team: 'LSO COLOMBES', location: null, score: { home_sets: 1, away_sets: 3, set_scores: ['25:18', '19:25', '23:25', '23:25'], points: '90-93' } },
+      { match_code: '2FCA011', kickoff_at: '2026-10-24T18:30:00Z', home_team: 'UGS DRAVEIL JUVISY ATHIS MONTGERON VB - DJAM VB', away_team: 'LSO COLOMBES', location: 'GYMNASE JEAN MOULIN', score: { home_sets: 3, away_sets: 1, set_scores: ['25:21', '25:14', '18:25', '25:9'], points: '93-69' } },
+      { match_code: '2FCA020', kickoff_at: '2026-11-08T14:00:00Z', home_team: 'BUSSY VOLLEY', away_team: 'LSO COLOMBES', location: 'COMPLEXE SPORTIF HERZOG', score: null },
+      { match_code: '2FCA022', kickoff_at: '2026-11-21T20:00:00Z', home_team: 'LSO COLOMBES', away_team: 'VESINET SAINT-GERMAIN CROISSY VOLLEY 2', location: 'GYMNASE AMBROISE PARÉ', score: null },
+    ]),
+  ];
+  render(<MemoryRouter initialEntries={['/?onglet=resultats']}><OurClubPage pages={pages} /></MemoryRouter>);
+  const upcoming = await screen.findByRole('region', { name: 'Matchs à venir' });
+  const [next, later] = within(upcoming).getAllByRole('listitem');
+  expect(next).toHaveTextContent('15:00');
+  expect(next).toHaveTextContent('BUSSY VOLLEY / LSO COLOMBES');
+  expect(next).toHaveTextContent('Extérieur');
+  expect(next).toHaveTextContent('Lieu : COMPLEXE SPORTIF HERZOG');
+  expect(later).toHaveTextContent('Domicile');
+  const played = within(screen.getByRole('region', { name: 'Matchs joués' })).getAllByRole('listitem');
+  // Le plus récent d’abord.
+  expect(played[0]).toHaveTextContent('3 – 1');
+  expect(played[0]).toHaveTextContent('Défaite');
+  expect(played[0]).toHaveTextContent('Samedi 24 octobre · 20:30');
+  expect(played[0]).toHaveTextContent('Lieu : GYMNASE JEAN MOULIN · Sets : 25:21 · 25:14 · 18:25 · 25:9 · points 93 – 69');
+  expect(played[1]).toHaveTextContent('Victoire');
+  expect(played[1]).not.toHaveTextContent('Lieu');
 });
