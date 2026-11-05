@@ -8,7 +8,6 @@ comptes ; les compteurs eux-mêmes se relisent par `GET /unread`, avec les droit
 """
 
 import json
-from typing import Any
 
 from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
@@ -21,8 +20,11 @@ BATCH = 100
 PENDING = "live_signal"
 
 
-def _pending(session: Session) -> dict[str, Any]:
-    return session.info.setdefault(PENDING, {"users": set(), "threads": set()})
+def _pending(session: Session) -> dict[str, set[str]]:
+    pending: dict[str, set[str]] = session.info.setdefault(
+        PENDING, {"users": set(), "threads": set()}
+    )
+    return pending
 
 
 @event.listens_for(Session, "after_flush")
