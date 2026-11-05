@@ -271,9 +271,7 @@ def validate_event(
         event.section_ids = sections
     # Sans section organisatrice, l’événement n’existe que par ses inscriptions libres.
     if not event.section_ids and not (
-        event.registration_section_ids
-        or event.registration_team_ids
-        or event.registration_quotas
+        event.registration_section_ids or event.registration_team_ids or event.registration_quotas
     ):
         raise HTTPException(
             422,
