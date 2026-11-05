@@ -5,10 +5,11 @@ import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
 import { dateLabel } from '../admin/time';
 import { Badge, Empty, EntityForm, LoadState, Notice, str } from '../admin/ui';
+import { useLiveReload } from '../app/unread';
 import { useClub } from './context';
 import { pieceName, type DocumentKind } from './dossiers';
 
-type RequestKind = 'event_change' | 'slot' | 'document' | 'other';
+type RequestKind = 'event_change' | 'slot' | 'document' | 'other' | 'registration';
 type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 export interface StaffRequest {
   id: string;
@@ -28,6 +29,8 @@ export interface StaffRequest {
   documents: { kind: DocumentKind; label: string }[];
   /** Écran où la demande se traite. */
   link: string;
+  /** Demande d’inscription : poste demandé différent du poste en équipe. */
+  position_warning?: boolean;
 }
 
 export const requestKinds: Record<RequestKind, string> = {
@@ -35,6 +38,7 @@ export const requestKinds: Record<RequestKind, string> = {
   slot: 'Demande de créneau',
   document: 'Demande de pièces',
   other: 'Autre',
+  registration: 'Demande d’inscription',
 };
 const requestStatuses: Record<RequestStatus, { label: string; tone: string }> = {
   pending: { label: 'À traiter', tone: 'warning' },
@@ -42,8 +46,17 @@ const requestStatuses: Record<RequestStatus, { label: string; tone: string }> = 
   rejected: { label: 'Refusée', tone: 'danger' },
   withdrawn: { label: 'Retirée', tone: '' },
 };
-// Créneaux et modifications se décident dans l’écran de validation de l’administration.
-const decidedHere: RequestKind[] = ['document', 'other'];
+// Créneaux et modifications se décident dans l’écran de validation de l’administration ;
+// une inscription se décide ici comme sur l’événement, par la même route.
+const decidedHere: RequestKind[] = ['document', 'other', 'registration'];
+// Seules les demandes libres ou de pièces se retirent ici, par leur auteur.
+const withdrawnHere: RequestKind[] = ['document', 'other'];
+/** Route de décision : celle de l’événement pour une inscription. */
+function decisionPath(item: StaffRequest) {
+  return item.kind === 'registration'
+    ? `/events/${item.event_id}/registrations/${item.actor_id}/decision`
+    : `/requests/${item.id}/decision`;
+}
 
 /** Demande libre aux administrateurs, liée à un événement ou non. */
 export function RequestForm({
@@ -102,6 +115,7 @@ export function RequestsList() {
     [api, status],
   );
   const result = useLoad(loader);
+  useLiveReload(result.refresh);
   const items = result.data ?? [];
   function done(message: string) {
     setCreating(false);
@@ -114,8 +128,8 @@ export function RequestsList() {
       <h3>Demandes</h3>
       <p className="admin-hint">
         {admin
-          ? 'Toutes les demandes des coachs et des référents. Les créneaux et modifications se valident dans l’administration.'
-          : 'Vos demandes aux administrateurs et leur suivi.'}
+          ? 'Toutes les demandes des coachs, des référents et des joueurs. Les créneaux et modifications se valident dans l’administration ; une inscription se décide ici ou sur l’événement.'
+          : 'Vos demandes aux administrateurs et leur suivi, et les demandes d’inscription aux événements dont vous êtes référent : à décider ici ou sur l’événement.'}
       </p>
       <div className="admin-toolbar">
         <label>
@@ -164,17 +178,26 @@ export function RequestsList() {
               <Badge tone={requestStatuses[item.status].tone}>
                 {requestStatuses[item.status].label}
               </Badge>
+              {item.position_warning && <Badge tone="warning">Autre poste qu’en équipe</Badge>}
               <Link className="admin-button" to={item.link}>
-                {item.thread_id ? 'Conversation' : admin ? 'Traiter' : 'Voir'}
+                {item.thread_id
+                  ? 'Conversation'
+                  : item.kind === 'registration'
+                    ? 'Événement'
+                    : admin
+                      ? 'Traiter'
+                      : 'Voir'}
               </Link>
-              {admin && item.status === 'pending' && decidedHere.includes(item.kind) && (
-                <button type="button" className="admin-button" onClick={() => setDeciding(item)}>
-                  Décider
-                </button>
-              )}
+              {(admin || item.kind === 'registration') &&
+                item.status === 'pending' &&
+                decidedHere.includes(item.kind) && (
+                  <button type="button" className="admin-button" onClick={() => setDeciding(item)}>
+                    Décider
+                  </button>
+                )}
               {!admin &&
                 item.status === 'pending' &&
-                decidedHere.includes(item.kind) &&
+                withdrawnHere.includes(item.kind) &&
                 item.actor_id === account.id && (
                   <button
                     type="button"
@@ -219,7 +242,10 @@ export function RequestsList() {
                   },
                   {
                     name: 'reason',
-                    label: 'Message au demandeur (facultatif)',
+                    label:
+                      item.kind === 'registration'
+                        ? 'Message au joueur (facultatif)'
+                        : 'Message au demandeur (facultatif)',
                     type: 'textarea',
                     maxLength: 2000,
                   },
@@ -229,12 +255,16 @@ export function RequestsList() {
                 onCancel={() => setDeciding(null)}
                 onSave={async (values, signal) => {
                   await api.request(
-                    `/requests/${item.id}/decision`,
+                    decisionPath(item),
                     'POST',
                     { accept: str(values, 'accept') === 'yes', reason: str(values, 'reason') },
                     signal,
                   );
-                  done('Décision enregistrée ; elle est écrite dans la conversation.');
+                  done(
+                    item.kind === 'registration'
+                      ? 'Décision enregistrée ; le joueur est notifié.'
+                      : 'Décision enregistrée ; elle est écrite dans la conversation.',
+                  );
                 }}
               />
             )}

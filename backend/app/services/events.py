@@ -20,11 +20,13 @@ from app.persistence.models import (
     FFVBMatchState,
     FFVBSource,
     Gymnasium,
+    Position,
     QuestionThread,
     Registration,
     Section,
     Team,
     User,
+    uid,
 )
 from app.services.notifications import admins, event_changed, event_deleted, event_unavailable
 
@@ -187,7 +189,74 @@ def check_referents(db: Session, identifiers: list[str], previous: list[str] | N
             )
 
 
-def validate_event(db: Session, event: Event, previous_referents: list[str] | None = None) -> None:
+def accepted_registrations(db: Session, event_id: str, quota_id: str | None) -> int:
+    """Inscrits acceptés sur des places réservées, ou sur l’ouverture classique (None)."""
+    slot = (
+        Registration.quota_id.is_(None) if quota_id is None else Registration.quota_id == quota_id
+    )
+    return (
+        db.scalar(
+            select(func.count(Registration.id)).where(
+                Registration.event_id == event_id, Registration.status == "accepted", slot
+            )
+        )
+        or 0
+    )
+
+
+def validate_quotas(db: Session, event: Event, previous: list[dict[str, Any]]) -> None:
+    """Places réservées : sections et postes existants ; les places conservées gardent leur
+    identifiant, les autres en reçoivent un. Des places retirées ou réduites ne laissent aucun
+    inscrit sans place."""
+    known = {quota["id"]: quota for quota in previous if quota.get("id")}
+    quotas: list[dict[str, Any]] = []
+    for quota in event.registration_quotas:
+        get(db, Section, quota["section_id"])
+        positions = list(quota["position_ids"])
+        if len(set(positions)) != len(positions):
+            raise HTTPException(422, "Poste en double dans des places réservées")
+        for identifier in positions:
+            get(db, Position, identifier)
+        identifier = quota.get("id")
+        # Un identifiant inconnu (autre occurrence d’une série…) vaut de nouvelles places.
+        if identifier not in known or any(identifier == item["id"] for item in quotas):
+            identifier = uid()
+        quotas.append(
+            {
+                "id": identifier,
+                "section_id": quota["section_id"],
+                "position_ids": positions,
+                "limit": int(quota["limit"]),
+            }
+        )
+    if quotas != event.registration_quotas:
+        event.registration_quotas = quotas
+    kept = {quota["id"]: quota for quota in quotas}
+    for identifier in known.keys() - kept.keys():
+        waiting = db.scalar(
+            select(func.count(Registration.id)).where(
+                Registration.event_id == event.id,
+                Registration.quota_id == identifier,
+                Registration.status != "rejected",
+            )
+        )
+        if waiting:
+            raise HTTPException(
+                422, "Des places réservées retirées ont encore des inscrits ou des demandes"
+            )
+    for identifier, quota in kept.items():
+        if accepted_registrations(db, event.id, identifier) > quota["limit"]:
+            raise HTTPException(
+                422, "Des places réservées ne peuvent pas être moins nombreuses que leurs inscrits"
+            )
+
+
+def validate_event(
+    db: Session,
+    event: Event,
+    previous_referents: list[str] | None = None,
+    previous_quotas: list[dict[str, Any]] | None = None,
+) -> None:
     if event.ends_at <= event.starts_at:
         raise HTTPException(422, "La fin doit suivre le début")
     if len(set(event.team_ids)) != len(event.team_ids):
@@ -202,7 +271,9 @@ def validate_event(db: Session, event: Event, previous_referents: list[str] | No
         event.section_ids = sections
     # Sans section organisatrice, l’événement n’existe que par ses inscriptions libres.
     if not event.section_ids and not (
-        event.registration_section_ids or event.registration_team_ids
+        event.registration_section_ids
+        or event.registration_team_ids
+        or event.registration_quotas
     ):
         raise HTTPException(
             422,
@@ -230,13 +301,10 @@ def validate_event(db: Session, event: Event, previous_referents: list[str] | No
     ) and event.registration_limit is None:
         raise HTTPException(422, "Une séance ouverte exige une limite d’inscrits")
     if event.registration_limit is not None:
-        registered = db.scalar(
-            select(func.count(Registration.id)).where(
-                Registration.event_id == event.id, Registration.status == "accepted"
-            )
-        )
-        if (registered or 0) > event.registration_limit:
+        # Les places réservées ont leur propre compte.
+        if accepted_registrations(db, event.id, None) > event.registration_limit:
             raise HTTPException(422, "La limite ne peut pas être inférieure au nombre d’inscrits")
+    validate_quotas(db, event, previous_quotas or [])
 
 
 def snapshot(event: Event) -> dict[str, Any]:
@@ -431,6 +499,7 @@ def permission(
             "registration_section_ids",
             "registration_team_ids",
             "registration_limit",
+            "registration_quotas",
         }:
             raise HTTPException(403, "Champ réservé aux administrateurs")
     official_fields = {"gymnasium_id", "location", "kickoff_at", "starts_at", "ends_at"}
@@ -502,7 +571,12 @@ def change_event(
     event.version += 1
     if event.series_id and exception:
         event.exception = True
-    validate_event(db, event, list(before.get("referent_ids") or []))
+    validate_event(
+        db,
+        event,
+        list(before.get("referent_ids") or []),
+        list(before.get("registration_quotas") or []),
+    )
     db.flush()
     forced = False if defer_capacity else check_capacity(db, event, actor, force)
     revision(db, event, actor, before, "update", forced)

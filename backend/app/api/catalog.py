@@ -43,7 +43,9 @@ def delete_section(identifier: str, db: DB, actor: Admin) -> None:
 
     lock_planning(db)
     if any(
-        identifier in e.section_ids or identifier in e.registration_section_ids
+        identifier in e.section_ids
+        or identifier in e.registration_section_ids
+        or any(quota["section_id"] == identifier for quota in e.registration_quotas)
         for e in db.scalars(select(Event))
     ):
         raise HTTPException(409, "Section utilisée par des événements")
@@ -169,4 +171,14 @@ def update_position(identifier: str, body: NameInput, db: DB, actor: Admin) -> P
 @router.delete("/positions/{identifier}", status_code=204)
 def delete_position(identifier: str, db: DB, actor: Admin) -> None:
     """Supprime un poste ; les joueurs qui l’occupaient n’ont plus de poste."""
+    from app.persistence.models import Event
+    from app.services.events import lock_planning
+
+    lock_planning(db)
+    if any(
+        identifier in quota["position_ids"]
+        for e in db.scalars(select(Event))
+        for quota in e.registration_quotas
+    ):
+        raise HTTPException(409, "Poste utilisé par des places réservées d’événements")
     db.delete(get(db, Position, identifier))

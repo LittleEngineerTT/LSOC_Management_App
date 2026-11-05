@@ -36,10 +36,22 @@ export function useTeamNames() {
     ids.map((id) => teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée');
 }
 export function registrationOpen(
-  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids'>,
+  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids' | 'registration_quotas'>,
 ) {
   return (
-    event.registration_section_ids.length > 0 || (event.registration_team_ids?.length ?? 0) > 0
+    event.registration_section_ids.length > 0 ||
+    (event.registration_team_ids?.length ?? 0) > 0 ||
+    (event.registration_quotas?.length ?? 0) > 0
+  );
+}
+
+/** Places au total : limite de l’ouverture classique et places réservées. */
+export function registrationCapacity(
+  event: Pick<Event, 'registration_limit' | 'registration_quotas'>,
+) {
+  return (
+    (event.registration_limit ?? 0) +
+    (event.registration_quotas ?? []).reduce((total, quota) => total + quota.limit, 0)
   );
 }
 
@@ -57,7 +69,7 @@ export function useEventLink() {
 }
 
 function atLimit(event: Event) {
-  return event.registration_limit !== null && event.registration_count >= event.registration_limit;
+  return event.registration_count >= registrationCapacity(event);
 }
 
 export function EventRow({ event }: { event: Event }) {
@@ -89,7 +101,7 @@ export function EventRow({ event }: { event: Event }) {
           {registrationOpen(event) && (
             <Badge tone={atLimit(event) ? 'warning' : 'good'}>
               {atLimit(event) ? 'Complet' : 'Ouvert'} · {event.registration_count}/
-              {event.registration_limit}
+              {registrationCapacity(event)}
             </Badge>
           )}
         </span>

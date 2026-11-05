@@ -1069,3 +1069,36 @@ a.club-team-card:focus-visible {
   margin: 0 0 8px;
   font-size: 15px;
 }
+/* Places réservées d’un événement : une ligne par lot, postes cochés en dessous. */
+.club-quota {
+  border-top: 1px solid #e0e8ee;
+  padding: 10px 0;
+}
+.club-quota-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.admin-choice-group .club-quota-head label {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 0;
+  font-size: 13px;
+}
+.club-quota-head input {
+  width: 6em;
+}
+.club-quota-head select {
+  min-width: 10em;
+  max-width: 100%;
+}
+.club-quota-positions {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 18px;
+}
+.club-registrations .club-quota-list {
+  margin: 0 0 12px;
+}

@@ -301,6 +301,8 @@ class Registration(Identity, Base):
     decision: Mapped[str] = mapped_column(Text, default="", server_default="")
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # Places réservées occupées (`Event.registration_quotas`) ; nulle : ouverture classique.
+    quota_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class Event(Identity, Base):
@@ -344,6 +346,12 @@ class Event(Identity, Base):
     # Équipes organisatrices : leurs sections sont toujours concernées par l’événement.
     team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     registration_limit: Mapped[int | None] = mapped_column(Integer)
+    # Places réservées, en plus de l’ouverture classique et de sa limite : chacune ouvre
+    # `limit` places aux membres d’une section qui s’inscrivent à l’un de ses postes.
+    # [{"id", "section_id", "position_ids", "limit"}]
+    registration_quotas: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, server_default="[]"
+    )
     registration_count: Mapped[int] = column_property(
         select(func.count(Registration.id))
         .where(Registration.event_id == id, Registration.status == "accepted")

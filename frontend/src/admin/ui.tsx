@@ -21,7 +21,10 @@ export interface FormField {
     | 'datetime-fr'
     | 'date'
     | 'time'
-    | 'textarea';
+    | 'textarea'
+    | 'custom';
+  /** Champ `custom` : contenu rendu tel quel, dont l’état est géré par l’appelant. */
+  render?: (values: FormValues) => ReactNode;
   options?: Option[];
   required?: boolean;
   min?: number | string;
@@ -242,6 +245,7 @@ export function EntityForm({
             setValues((previous) =>
               followers(fields, previous, { ...previous, [field.name]: next }, field.name),
             );
+          if (field.type === 'custom') return <div key={field.name}>{field.render?.(values)}</div>;
           if (field.type === 'groups')
             return (
               <GroupChoices

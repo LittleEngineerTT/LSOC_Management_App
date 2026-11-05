@@ -17,6 +17,7 @@ import { timeRange } from './calendar';
 import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
 import { sectionGroups, useClub } from './context';
 import { kindLabels } from './events';
+import { QuotaEditor, parseQuotas, quotaDrafts, sameQuotas, type QuotaDraft } from './QuotaEditor';
 
 type Scope = 'event' | 'following';
 interface CapacityProblem {
@@ -51,7 +52,8 @@ export function EventEditor({
   onDone: (message: string, event?: Event) => void;
   onCancel: () => void;
 }) {
-  const { api, admin, account, sections, teams, gymnasiums, users } = useClub();
+  const { api, admin, account, sections, teams, gymnasiums, users, positions } = useClub();
+  const [quotas, setQuotas] = useState<QuotaDraft[]>(() => quotaDrafts(event?.registration_quotas));
   const [capacity, setCapacity] = useState<CapacityProblem | null>(null);
   const [force, setForce] = useState(false);
   const [acknowledge, setAcknowledge] = useState(false);
@@ -194,6 +196,19 @@ export function EventEditor({
             max: 1000,
             hint: 'Obligatoire pour une séance ouverte ; les inscriptions s’arrêtent une fois la limite atteinte.',
           },
+          {
+            name: 'registration_quotas',
+            label: 'Places réservées',
+            type: 'custom' as const,
+            render: () => (
+              <QuotaEditor
+                value={quotas}
+                onChange={setQuotas}
+                sections={sections}
+                positions={positions}
+              />
+            ),
+          },
         ]
       : []),
     ...(event ? [{ name: 'cancelled', label: 'Événement annulé', type: 'checkbox' as const }] : []),
@@ -290,6 +305,9 @@ export function EventEditor({
         result.registration_team_ids = choices(values, 'registration_team_ids');
       const limit = registrationLimit(values);
       if (limit !== original.registration_limit) result.registration_limit = limit;
+      const reserved = parseQuotas(quotas);
+      if (!sameQuotas(reserved, original.registration_quotas ?? []))
+        result.registration_quotas = reserved;
     }
     if (checked(values, 'cancelled') !== original.cancelled)
       result.cancelled = checked(values, 'cancelled');
@@ -298,9 +316,11 @@ export function EventEditor({
   }
 
   async function save(values: FormValues, signal: AbortSignal) {
-    const open = openToRegistrations(values);
-    if (admin && open && registrationLimit(values) === null)
+    const classic = openToRegistrations(values);
+    if (admin && classic && registrationLimit(values) === null)
       throw new Error('Indiquez le nombre maximal d’inscrits pour une séance ouverte.');
+    if (admin) parseQuotas(quotas);
+    const open = classic || (admin && quotas.length > 0);
     if (admin && !choices(values, 'referent_ids').length)
       throw new Error('Choisissez au moins un référent.');
     // Seul l’administrateur choisit les organisateurs ; les autres ne les modifient pas.
@@ -340,6 +360,7 @@ export function EventEditor({
           registration_section_ids: choices(values, 'registration_section_ids'),
           registration_team_ids: choices(values, 'registration_team_ids'),
           registration_limit: registrationLimit(values),
+          registration_quotas: parseQuotas(quotas),
         };
         if (when.recurrence) {
           const created = await api.request<Event[]>(

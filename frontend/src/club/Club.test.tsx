@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
@@ -644,4 +644,122 @@ it('Notre club passe d’une section à l’autre par les onglets et ouvre les �
   const m18 = await screen.findByRole('article', { name: /M18 F1/ });
   expect(within(m18).getByRole('img', { name: 'Photo : M18 F1' })).toHaveAttribute('src', '/notre-club/m18f1_team_photo.jpeg');
   expect(within(m18).getByRole('heading', { name: 'Entraînements' }).parentElement).toHaveTextContent('Mardi : 19 h 30 – 21 h 15Vendredi : 19 h – 20 h 45');
+});
+
+it('un administrateur réserve des places à des postes d’une section, en plusieurs lignes', async () => {
+  account = admin;
+  routes['/positions'] = [{ id: 'p1', name: 'Libéro' }, { id: 'p2', name: 'Passeur' }, { id: 'p3', name: 'Attaquant' }];
+  mutation = () => reply(training, 201);
+  open('/app/planning');
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Séance passeurs');
+  await userEvent.click(within(screen.getByRole('group', { name: 'Sections et équipes organisatrices' })).getByLabelText('Loisir'));
+  await userEvent.click(screen.getByRole('button', { name: 'Ajouter des places réservées' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  expect(await screen.findByText(/Choisissez la section des places réservées/)).toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText('Section des places réservées'), 's1');
+  const first = screen.getByRole('group', { name: 'Postes des places réservées' });
+  await userEvent.click(within(first).getByLabelText('Passeur'));
+  await userEvent.click(within(first).getByLabelText('Libéro'));
+  await userEvent.clear(screen.getByLabelText('Nombre de places réservées'));
+  await userEvent.type(screen.getByLabelText('Nombre de places réservées'), '2');
+  // Une seconde ligne se cumule à la première.
+  await userEvent.click(screen.getByRole('button', { name: 'Ajouter des places réservées' }));
+  await userEvent.selectOptions(screen.getByLabelText('Section des places réservées 2'), 's1');
+  await userEvent.click(within(screen.getByRole('group', { name: 'Postes des places réservées 2' })).getByLabelText('Attaquant'));
+  await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  // Sans ouverture classique, aucune limite globale n’est exigée.
+  expect(mutations[0]).toMatchObject({ path: '/events', body: { registration_section_ids: [], registration_limit: null, registration_quotas: [{ section_id: 's1', position_ids: ['p2', 'p1'], limit: 2 }, { section_id: 's1', position_ids: ['p3'], limit: 1 }] } });
+});
+
+it('un joueur ne voit que les postes réservés à sa section et est averti d’un poste inhabituel', async () => {
+  const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const quota = { id: 'q1', section_id: 's1', position_ids: ['p1', 'p3'], limit: 2 };
+  routes['/positions'] = [{ id: 'p1', name: 'Libéro' }, { id: 'p2', name: 'Passeur' }, { id: 'p3', name: 'Attaquant' }];
+  routes['/users/m1/assignments'] = [{ id: 'as1', user_id: 'm1', team_id: 't1', kind: 'player', position_id: 'p2' }];
+  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance réservée', referent_ids: ['a1'], starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_quotas: [quota], registration_count: 1 };
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: null, count: 1, pending: 0, registered: false, status: null, decision: '', eligible: true, quotas: [{ ...quota, count: 1 }], allowed_position_ids: ['p1', 'p3'], participants: null };
+  mutation = () => reply({}, 201);
+  open('/app/planning?event=e2');
+  const dialog = await screen.findByRole('dialog', { name: 'Séance réservée' });
+  expect(await within(dialog).findByText('1 inscrit sur 2')).toBeInTheDocument();
+  expect(within(dialog).getByRole('list', { name: 'Places réservées' })).toHaveTextContent('2 places réservées · Loisir · Libéro ou Attaquant · 1/2');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Demander l’inscription' }));
+  const select = within(dialog).getByLabelText(/Poste pour lequel vous voulez vous entraîner/);
+  // Son poste en équipe (Passeur) n’est pas réservé : rien n’est présélectionné.
+  expect(select).toHaveValue('');
+  expect(within(select).queryByRole('option', { name: 'Passeur' })).not.toBeInTheDocument();
+  await userEvent.selectOptions(select, 'p1');
+  expect(within(dialog).getByText(/diffère de votre poste en équipe \(Passeur\) : le coach en sera averti/)).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Envoyer la demande' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/events/e2/registration', method: 'POST', body: { position_id: 'p1', message: '' } }]));
+});
+
+it('le coach voit qu’une demande vise un autre poste que celui du joueur en équipe', async () => {
+  account = admin;
+  const later = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  routes['/positions'] = [{ id: 'p1', name: 'Libéro' }, { id: 'p2', name: 'Passeur' }];
+  routes['/events/e2'] = { ...training, id: 'e2', title: 'Séance réservée', referent_ids: ['a1'], starts_at: later, ends_at: new Date(Date.parse(later) + 7_200_000).toISOString(), registration_quotas: [{ id: 'q1', section_id: 's1', position_ids: ['p1'], limit: 2 }] };
+  routes['/events/e2/registrations'] = { event_id: 'e2', open: true, limit: null, count: 0, pending: 1, registered: false, status: null, decision: '', eligible: false, quotas: [{ id: 'q1', section_id: 's1', position_ids: ['p1'], limit: 2, count: 0 }], participants: [{ user_id: 'm1', first_name: 'Morgan', created_at: later, status: 'pending', position_id: 'p1', message: '', quota_id: 'q1', team_position_ids: ['p2'], position_warning: true }] };
+  open('/app/planning?event=e2');
+  const dialog = await screen.findByRole('dialog', { name: 'Séance réservée' });
+  expect(await within(dialog).findByText('Poste habituel : Passeur')).toBeInTheDocument();
+  expect(within(dialog).getByText('Place réservée')).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Traiter' }));
+  expect(within(dialog).getByText(/Morgan demande un poste différent de son poste en équipe \(Passeur\)/)).toBeInTheDocument();
+});
+
+it('le coach référent décide d’une demande d’inscription depuis la messagerie, comme sur l’événement', async () => {
+  account = { ...member, id: 'c1', first_name: 'Coach', roles: ['member', 'coach'] };
+  routes['/users/c1/assignments'] = [];
+  const registration = { id: 'reg1', kind: 'registration', title: 'Inscription : Séance ouverte du 15/10/2099', description: 'Poste : Passeur. Poste habituel en équipe : Libéro.', event_id: 'e2', actor_id: 'm1', actor_name: 'Morgan', status: 'pending', decision: '', decider_name: null, decided_at: null, created_at: at('10:00'), thread_id: null, player_id: null, documents: [], link: '/app/planning?event=e2', position_warning: true };
+  routes['/requests'] = [registration];
+  mutation = () => reply({}, 200);
+  open('/app/messagerie?vue=demandes');
+  const list = await screen.findByRole('region', { name: 'Demandes' });
+  expect(await within(list).findByText('Demande d’inscription')).toBeInTheDocument();
+  expect(within(list).getByText('Autre poste qu’en équipe')).toBeInTheDocument();
+  expect(within(list).getByRole('link', { name: 'Événement' })).toHaveAttribute('href', '/app/planning?event=e2');
+  expect(within(list).queryByRole('button', { name: 'Retirer' })).not.toBeInTheDocument();
+  await userEvent.click(within(list).getByRole('button', { name: 'Décider' }));
+  await userEvent.selectOptions(within(list).getByLabelText('Décision'), 'no');
+  await userEvent.type(within(list).getByLabelText('Message au joueur (facultatif)'), 'Complet côté passeurs');
+  await userEvent.click(within(list).getByRole('button', { name: 'Enregistrer la décision' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/events/e2/registrations/m1/decision', method: 'POST', body: { accept: false, reason: 'Complet côté passeurs' } }]));
+  expect(await within(list).findByText('Décision enregistrée ; le joueur est notifié.')).toBeInTheDocument();
+});
+
+it('un signal du serveur met aussitôt à jour la pastille et la liste des notifications', async () => {
+  class FakeSource {
+    static last: FakeSource | undefined;
+    readonly listeners = new Map<string, () => void>();
+    onopen: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    closed = false;
+    constructor(readonly url: string) { FakeSource.last = this; }
+    addEventListener(name: string, listener: () => void) { this.listeners.set(name, listener); }
+    close() { this.closed = true; }
+    emit(name: string) { this.listeners.get(name)?.(); }
+  }
+  vi.stubGlobal('EventSource', FakeSource);
+  let notifications = 0;
+  routes['/notifications'] = [];
+  Object.defineProperty(routes, '/unread', { enumerable: true, get: () => ({ messages: 0, notifications, threads: [] }) });
+  open('/app');
+  const menu = await screen.findByRole('navigation', { name: 'Applications' });
+  const card = (await screen.findByRole('heading', { name: /Notifications/ })).closest('section')!;
+  expect(await within(card).findByText('Aucune nouvelle notification.')).toBeInTheDocument();
+  await waitFor(() => expect(FakeSource.last?.url).toBe('/api/v1/live'));
+  const source = FakeSource.last!;
+  // Premier signal d’une connexion : simple rattrapage des compteurs.
+  act(() => { source.onopen?.(); source.emit('unread'); });
+  notifications = 1;
+  routes['/notifications'] = [{ id: 'n1', kind: 'registration_request', title: 'Demande d’inscription de Morgan', event_id: 'e1', read_at: null, created_at: at('10:00') }];
+  act(() => source.emit('unread'));
+  expect(await within(menu).findByLabelText('1 notification non lue')).toBeInTheDocument();
+  expect(await within(card).findByText('Demande d’inscription de Morgan')).toBeInTheDocument();
+  // Session terminée côté serveur : le flux se ferme.
+  act(() => source.emit('session'));
+  expect(source.closed).toBe(true);
 });

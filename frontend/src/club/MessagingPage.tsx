@@ -8,7 +8,7 @@ import type { Event } from '../admin/types';
 import { Confirm, Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
-import { useUnread } from '../app/unread';
+import { useLiveReload, useUnread } from '../app/unread';
 import { RequestsList } from './StaffRequests';
 
 interface Conversation extends Thread {
@@ -92,6 +92,7 @@ function Conversations() {
     [api],
   );
   const result = useLoad(loader);
+  useLiveReload(result.refresh);
   const conversations = result.data ?? [];
   const selected = conversations.find((item) => item.id === search.get('thread'));
   return (
@@ -200,6 +201,7 @@ function ThreadView({
     [api, conversation.id],
   );
   const result = useLoad(loader);
+  useLiveReload(result.refresh);
   const request = useRequest();
   const [body, setBody] = useState('');
   const end = useRef<HTMLDivElement>(null);

@@ -3,6 +3,8 @@
 Les demandes de modification (ChangeRequest) et de créneau (CoachEventRequest) gardent leur
 circuit de validation ; les demandes de pièces et les demandes libres (StaffRequest) se
 décident ici. Chaque demande libre ou de pièces a sa conversation dans la messagerie.
+Les demandes d’inscription (Registration) y figurent aussi, pour l’administration et les
+référents de l’événement : elles se décident ici ou depuis l’événement, par la même route.
 """
 
 from typing import Literal
@@ -13,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.dossiers import check_scope, piece, request_documents
+from app.api.registrations import day, team_positions, unusual
 from app.api.schemas import (
     RequestDecisionInput,
     RequestedDocument,
@@ -24,8 +27,10 @@ from app.persistence.models import (
     ChangeRequest,
     CoachEventRequest,
     Event,
+    Position,
     QuestionMessage,
     QuestionThread,
+    Registration,
     StaffRequest,
     User,
 )
@@ -103,6 +108,57 @@ def slot_view(value: CoachEventRequest) -> RequestView:
     )
 
 
+def registration_views(db: Session, actor: User, status: Status) -> list[RequestView]:
+    """Demandes d’inscription : toutes pour un administrateur, celles des événements dont le
+    compte est référent sinon. Une demande retirée n’existe plus."""
+    if status == "withdrawn":
+        return []
+    query = (
+        select(Registration, Event, User)
+        .join(Event, Event.id == Registration.event_id)
+        .join(User, User.id == Registration.user_id)
+    )
+    if status:
+        query = query.where(Registration.status == status)
+    rows = [
+        row
+        for row in db.execute(query).tuples()
+        if "admin" in actor.roles or actor.id in row[1].referent_ids
+    ]
+    usual = team_positions(db, [user.id for _, _, user in rows])
+    names = {key: name for key, name in db.execute(select(Position.id, Position.name))}
+    result: list[RequestView] = []
+    for value, event, user in rows:
+        warning = unusual(value.position_id, usual.get(user.id, []))
+        lines = [f"Poste : {names.get(value.position_id or '', 'poste supprimé')}."]
+        if warning:
+            habit = ", ".join(sorted(names.get(item, "") for item in usual.get(user.id, [])))
+            lines.append(f"Poste habituel en équipe : {habit}.")
+        if value.message:
+            lines.append(f"« {value.message} »")
+        result.append(
+            RequestView.model_validate(
+                {
+                    "id": value.id,
+                    "kind": "registration",
+                    "title": f"Inscription : {event.title} du {day(event)}",
+                    "description": " ".join(lines),
+                    "event_id": event.id,
+                    "actor_id": user.id,
+                    "actor_name": user.first_name,
+                    "status": value.status,
+                    "decision": value.decision,
+                    "decider_name": None,
+                    "decided_at": value.decided_at,
+                    "created_at": value.created_at,
+                    "link": f"/app/planning?event={event.id}",
+                    "position_warning": warning,
+                }
+            )
+        )
+    return result
+
+
 def require_staff(actor: User) -> None:
     if not {"admin", "coach"} & set(actor.roles):
         raise HTTPException(403, "Demandes réservées aux coachs et aux administrateurs")
@@ -146,6 +202,7 @@ def requests(db: DB, actor: Actor, status: Status = "") -> list[RequestView]:
     result = [staff_view(value) for value in db.scalars(staff)]
     result += [change_view(value, title) for value, title in db.execute(changes).tuples()]
     result += [slot_view(value) for value in db.scalars(slots)]
+    result += registration_views(db, actor, status)
     return sorted(result, key=lambda item: item.created_at, reverse=True)
 
 

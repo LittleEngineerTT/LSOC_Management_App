@@ -192,3 +192,108 @@ def test_concurrent_acceptances_never_exceed_limit(admin: TestClient) -> None:
         codes = list(pool.map(accept, users))
     assert sorted(codes) == [200, 200, 200, 409, 409, 409]
     assert admin.get(f'/api/v1/events/{event}/registrations').json()['count'] == 3
+
+
+def test_reserved_places_open_positions_of_a_section_beside_the_classic_opening(admin: TestClient) -> None:
+    section, gym = setup_planning(admin)
+    women = admin.post('/api/v1/sections', json={'name': 'Seniors F'}).json()['id']
+    setter, libero, hitter = position(admin), position(admin, 'Libéro'), position(admin, 'Attaquant')
+    team = admin.post('/api/v1/teams', json={'name': 'SF1', 'section_id': women}).json()['id']
+    for user, usual in (('f1', libero), ('f2', hitter), ('f3', setter)):
+        add_user(user)
+        assert admin.post(f'/api/v1/users/{user}/assignments', json={'team_id': team, 'kind': 'player', 'position_id': usual}).status_code == 201
+    add_user('m1')
+    member_of(admin, 'm1', section)
+    quotas = [{'section_id': women, 'position_ids': [setter, libero], 'limit': 1}, {'section_id': women, 'position_ids': [hitter], 'limit': 2}]
+    body = payload(section, gym, start=START, end=END) | {'registration_section_ids': [section], 'registration_limit': 1, 'registration_quotas': quotas}
+    created = admin.post('/api/v1/events', json=body)
+    assert created.status_code == 201, created.text
+    event, stored = created.json()['id'], created.json()['registration_quotas']
+    assert [(q['position_ids'], q['limit']) for q in stored] == [([setter, libero], 1), ([hitter], 2)]
+    reserved = stored[0]['id']
+    assert reserved and stored[1]['id'] != reserved
+    f1 = login('f1')
+    summary = f1.get(f'/api/v1/events/{event}/registrations').json()
+    assert (summary['open'], summary['eligible'], summary['allowed_position_ids']) == (True, True, [setter, libero, hitter])
+    assert [q['count'] for q in summary['quotas']] == [0, 0]
+    # Hors des postes réservés à sa section, un membre de Seniors F ne s’inscrit pas.
+    add_user('f4')
+    assert admin.post('/api/v1/users/f4/assignments', json={'team_id': team, 'kind': 'player'}).status_code == 201
+    other = position(admin, 'Central')
+    assert ask(login('f4'), event, other).status_code == 403
+    # Libéro, son poste en équipe : pas d’alerte.
+    registered(admin, f1, event, 'f1', libero)
+    # Passeur : les places réservées à ce poste sont complètes.
+    f2 = login('f2')
+    assert ask(f2, event, setter).status_code == 409
+    request = ask(f2, event, hitter, 'Prêt')
+    assert request.status_code == 201
+    assert login('f3').get(f'/api/v1/events/{event}/registrations').json()['quotas'][0]['count'] == 1
+    # Poste différent de celui en équipe : alerte jointe à la demande.
+    f3 = login('f3')
+    assert ask(f3, event, hitter).status_code == 201
+    alert = next(n for n in admin.get('/api/v1/notifications').json() if n['title'].startswith('Demande d’inscription de f3'))
+    assert alert['body'] == 'Poste : Attaquant\nAttention : poste habituel en équipe : Passeur'
+    participants = {p['user_id']: p for p in admin.get(f'/api/v1/events/{event}/registrations').json()['participants']}
+    assert (participants['f1']['quota_id'], participants['f1']['position_warning']) == (reserved, False)
+    assert (participants['f3']['position_warning'], participants['f3']['team_position_ids']) == (True, [setter])
+    assert participants['f2']['quota_id'] == stored[1]['id']
+    # L’ouverture classique garde sa propre limite.
+    registered(admin, login('m1'), event, 'm1', setter)
+    summary = admin.get(f'/api/v1/events/{event}/registrations').json()
+    assert (summary['count'], summary['limit']) == (2, 1)
+    assert admin.get(f'/api/v1/events/{event}').json()['registration_count'] == 2
+    # Des places occupées ne disparaissent ni ne diminuent sous leurs inscrits.
+    version = admin.get(f'/api/v1/events/{event}').json()['version']
+    removed = admin.patch(f'/api/v1/events/{event}', json={'base_version': version, 'changes': {'registration_quotas': [stored[1]]}})
+    assert removed.status_code == 422
+    kept = [stored[0], {**stored[1], 'limit': 3}, {'section_id': section, 'position_ids': [hitter], 'limit': 1}]
+    changed = admin.patch(f'/api/v1/events/{event}', json={'base_version': version, 'changes': {'registration_quotas': kept}})
+    assert changed.status_code == 200, changed.text
+    after = changed.json()['registration_quotas']
+    assert [q['id'] for q in after[:2]] == [reserved, stored[1]['id']] and after[2]['id'] not in (reserved, stored[1]['id'])
+    # Un poste ou une section utilisés par des places réservées ne se suppriment pas.
+    assert admin.delete(f'/api/v1/positions/{libero}').status_code == 409
+    assert admin.delete(f'/api/v1/sections/{women}').status_code == 409
+
+
+def test_only_admins_set_reserved_places_and_they_open_an_event_without_organizer(admin: TestClient) -> None:
+    section, gym = setup_planning(admin)
+    setter = position(admin)
+    body = payload(section, gym, start=START, end=END) | {'section_ids': [], 'registration_quotas': [{'section_id': section, 'position_ids': [setter], 'limit': 2}]}
+    created = admin.post('/api/v1/events', json=body)
+    assert created.status_code == 201, created.text
+    assert admin.post('/api/v1/events', json=body | {'registration_quotas': [{'section_id': section, 'position_ids': [setter, setter], 'limit': 2}]}).status_code == 422
+    assert admin.post('/api/v1/events', json=body | {'registration_quotas': [{'section_id': section, 'position_ids': ['inconnu'], 'limit': 2}]}).status_code == 404
+    add_user('coach1', ['member', 'coach'])
+    event = created.json()['id']
+    assert admin.patch(f'/api/v1/events/{event}', json={'base_version': 1, 'changes': {'referent_ids': ['coach1'], 'direct_edit': True}}).status_code == 200
+    change = {'base_version': 2, 'changes': {'registration_quotas': []}}
+    assert login('coach1').patch(f'/api/v1/events/{event}', json=change).status_code == 403
+
+
+def test_registration_requests_are_listed_in_requests_for_admins_and_event_referents(admin: TestClient) -> None:
+    section, gym = setup_planning(admin)
+    setter, libero = position(admin), position(admin, 'Libéro')
+    team = admin.post('/api/v1/teams', json={'name': 'Équipe', 'section_id': section}).json()['id']
+    add_user()
+    assert admin.post('/api/v1/users/member/assignments', json={'team_id': team, 'kind': 'player', 'position_id': libero}).status_code == 201
+    add_user('coach1', ['member', 'coach'])
+    add_user('coach2', ['member', 'coach'])
+    body = payload(section, gym, start=START, end=END, referent='coach1') | {'registration_section_ids': [section], 'registration_limit': 2}
+    event = admin.post('/api/v1/events', json=body).json()['id']
+    assert ask(login(), event, setter, 'Je veux essayer').status_code == 201
+    [item] = [r for r in admin.get('/api/v1/requests?status=pending').json() if r['kind'] == 'registration']
+    assert (item['actor_id'], item['actor_name'], item['event_id'], item['position_warning']) == ('member', 'member', event, True)
+    assert item['title'] == 'Inscription : Entraînement du 15/10/2099'
+    assert item['description'] == 'Poste : Passeur. Poste habituel en équipe : Libéro. « Je veux essayer »'
+    assert item['link'] == f'/app/planning?event={event}'
+    # Le référent de l’événement la voit ; un autre coach non.
+    referent = login('coach1')
+    assert [r['id'] for r in referent.get('/api/v1/requests').json()] == [item['id']]
+    assert [r['kind'] for r in login('coach2').get('/api/v1/requests').json()] == []
+    # Décidée depuis la liste (même route que l’événement), elle quitte « À traiter ».
+    assert decide(referent, event, 'member', True).status_code == 200
+    assert referent.get('/api/v1/requests?status=pending').json() == []
+    assert [r['status'] for r in referent.get('/api/v1/requests?status=accepted').json()] == ['accepted']
+    assert referent.get('/api/v1/requests?status=withdrawn').json() == []

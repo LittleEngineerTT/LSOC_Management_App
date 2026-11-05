@@ -198,6 +198,23 @@ class Interval(Input):
         return self
 
 
+class RegistrationQuota(Input):
+    """Places réservées : `limit` membres de la section, inscrits à l’un des postes."""
+
+    # Places existantes : leur identifiant ; nouvelles : vide, attribué à l’enregistrement.
+    id: str | None = Field(default=None, max_length=36)
+    section_id: str = Field(min_length=1, max_length=36)
+    position_ids: list[str] = Field(min_length=1, max_length=20)
+    limit: int = Field(gt=0, le=1000)
+
+
+class RegistrationQuotaView(View):
+    id: str
+    section_id: str
+    position_ids: list[str]
+    limit: int
+
+
 class BlockInput(Interval):
     gymnasium_id: str
     title: str = Field(min_length=1, max_length=200)
@@ -229,6 +246,7 @@ class EventInput(Interval):
     registration_section_ids: list[str] = Field(default_factory=list)
     registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None = Field(default=None, gt=0, le=1000)
+    registration_quotas: list[RegistrationQuota] = Field(default_factory=list, max_length=20)
 
 
 class EventPatch(Input):
@@ -251,6 +269,7 @@ class EventPatch(Input):
     registration_section_ids: list[str] | None = None
     registration_team_ids: list[str] | None = Field(default_factory=list)
     registration_limit: int | None = Field(default=None, gt=0, le=1000)
+    registration_quotas: list[RegistrationQuota] | None = Field(default=None, max_length=20)
 
     @model_validator(mode="after")
     def no_nulls(self) -> "EventPatch":
@@ -297,6 +316,7 @@ class EventView(View):
     registration_section_ids: list[str]
     registration_team_ids: list[str] = Field(default_factory=list)
     registration_limit: int | None
+    registration_quotas: list[RegistrationQuotaView] = Field(default_factory=list)
     registration_count: int
     team_ids: list[str] = Field(default_factory=list)
 
@@ -426,7 +446,7 @@ class CoachEventRequestView(View):
     event_id: str | None
 
 
-RequestKind = Literal["event_change", "slot", "document", "other"]
+RequestKind = Literal["event_change", "slot", "document", "other", "registration"]
 
 
 class RequestedDocument(Input):
@@ -471,6 +491,8 @@ class RequestView(View):
     documents: list[dict[str, str]] = Field(default_factory=list)
     # Écran où la demande se traite (créneau et modification ont leur écran de validation).
     link: str
+    # Demande d’inscription : poste demandé différent de celui du joueur en équipe.
+    position_warning: bool = False
 
 
 class RevisionView(View):
@@ -561,6 +583,16 @@ class ParticipantView(View):
     status: RegistrationStatus
     position_id: str | None
     message: str
+    # Places réservées occupées ; nulle : ouverture classique.
+    quota_id: str | None = None
+    # Postes du joueur dans ses équipes ; alerte si le poste demandé n’en fait pas partie.
+    team_position_ids: list[str] = Field(default_factory=list)
+    position_warning: bool = False
+
+
+class QuotaSummary(RegistrationQuotaView):
+    # Inscrits acceptés sur ces places.
+    count: int
 
 
 class RegistrationSummary(View):
@@ -575,6 +607,10 @@ class RegistrationSummary(View):
     status: RegistrationStatus | None
     decision: str
     eligible: bool
+    # Places réservées et leurs inscrits ; `count` les inclut, `limit` ne vaut que hors réserve.
+    quotas: list[QuotaSummary] = Field(default_factory=list)
+    # Postes que le compte connecté peut demander ; nul : tous (ouverture classique).
+    allowed_position_ids: list[str] | None = None
     # Demandes en attente et inscrits, réservés aux administrateurs et au référent.
     participants: list[ParticipantView] | None
 

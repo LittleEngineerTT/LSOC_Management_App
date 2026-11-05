@@ -33,7 +33,7 @@ def get[T](db: Session, model: type[T], identifier: str) -> T:
 # Le délai d’inactivité n’est repoussé qu’une fois par heure, pour éviter une écriture par requête.
 SESSION_REFRESH = timedelta(hours=1)
 # Rafraîchissements automatiques de l’interface : ils ne comptent pas comme une activité.
-PASSIVE_PATHS = ("/api/v1/unread",)
+PASSIVE_PATHS = ("/api/v1/unread", "/api/v1/live")
 
 
 def session_lifetime() -> timedelta:

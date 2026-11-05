@@ -43,6 +43,8 @@ export function useLoad<T>(loader: (signal: AbortSignal) => Promise<T>) {
     setResult((previous) => ({ data: previous.data, loaded: false }));
     setVersion((value) => value + 1);
   }, []);
+  // Relecture discrète (signal du serveur) : les données restent affichées, sans « Chargement ».
+  const refresh = useCallback(() => setVersion((value) => value + 1), []);
   useEffect(() => {
     const controller = new AbortController();
     loader(controller.signal)
@@ -59,7 +61,7 @@ export function useLoad<T>(loader: (signal: AbortSignal) => Promise<T>) {
       });
     return () => controller.abort();
   }, [loader, version]);
-  return { ...result, reload };
+  return { ...result, reload, refresh };
 }
 
 export function useResource<T>(path: string, paginated = false) {

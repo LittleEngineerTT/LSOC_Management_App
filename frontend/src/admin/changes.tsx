@@ -28,6 +28,7 @@ export const fieldLabels: Record<string, string> = {
   registration_section_ids: 'Ouvert aux sections',
   registration_team_ids: 'Ouvert aux équipes',
   registration_limit: 'Limite d’inscrits',
+  registration_quotas: 'Places réservées',
 };
 export function Changes({ values }: { values: Record<string, unknown> }) {
   const { catalog } = useAdmin();
@@ -51,6 +52,22 @@ export function Changes({ values }: { values: Record<string, unknown> }) {
       );
     if (key === 'gymnasium_id')
       return catalog.gymnasiums.find((gym) => gym.id === value)?.name ?? String(value);
+    if (key === 'registration_quotas' && Array.isArray(value))
+      return (
+        (value as { section_id: string; position_ids: string[]; limit: number }[])
+          .map((quota) => {
+            const positions = quota.position_ids
+              .map(
+                (id) => catalog.positions.find((item) => item.id === id)?.name ?? 'poste supprimé',
+              )
+              .join(' ou ');
+            const section =
+              catalog.sections.find((item) => item.id === quota.section_id)?.name ??
+              'section supprimée';
+            return `${quota.limit} ${positions} (${section})`;
+          })
+          .join(' ; ') || 'Aucune'
+      );
     if (key === 'registration_team_ids' && Array.isArray(value))
       return value
         .map((id) => catalog.teams.find((team) => team.id === id)?.name ?? 'Équipe supprimée')

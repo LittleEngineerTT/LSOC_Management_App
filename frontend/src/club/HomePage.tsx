@@ -10,7 +10,7 @@ import { useClub, type Notification } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
-import { useUnread } from '../app/unread';
+import { useLiveReload, useUnread } from '../app/unread';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 
@@ -82,6 +82,7 @@ function Notifications() {
     [api],
   );
   const result = useLoad(loader);
+  useLiveReload(result.refresh);
   const request = useRequest();
   const [read, setRead] = useState<Set<string>>(new Set());
   const link = useEventLink();

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import EventView
 from app.core.config import settings
-from app.persistence.models import Event, Gymnasium, Section, Team, User
+from app.persistence.models import Event, Gymnasium, Position, Section, Team, User
 
 PARIS = ZoneInfo("Europe/Paris")
 DAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
@@ -129,6 +129,21 @@ def person(user: User) -> str:
     return f"{user.first_name} {user.last_initial}." if user.last_initial else user.first_name
 
 
+def reserved(db: Session, quotas: list[dict[str, Any]]) -> list[str]:
+    """« 2 Libéro ou Passeur (Seniors F) » pour chaque lot de places réservées."""
+    result: list[str] = []
+    for quota in quotas:
+        section = db.get(Section, quota["section_id"])
+        positions = sorted(
+            position.name
+            for position in (db.get(Position, item) for item in quota["position_ids"])
+            if position
+        )
+        place = section.name if section else "section supprimée"
+        result.append(f"{quota['limit']} {' ou '.join(positions)} ({place})")
+    return result
+
+
 def facts(db: Session, data: dict[str, Any]) -> dict[str, str]:
     """Informations lisibles d’un instantané d’événement, dans l’ordre d’affichage.
 
@@ -161,6 +176,7 @@ def facts(db: Session, data: dict[str, Any]) -> dict[str, str]:
     result["Référents"] = ", ".join(person(user) for user in referents if user)
     result["Terrains"] = str(data.get("courts") or "") if gym else ""
     result["Places"] = f"{limit} places" if limit else ""
+    result["Places réservées"] = " ; ".join(reserved(db, data.get("registration_quotas") or []))
     result["Description"] = str(data.get("description") or "").strip()
     return result
 

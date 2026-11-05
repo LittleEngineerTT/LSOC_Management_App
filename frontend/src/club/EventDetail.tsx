@@ -21,7 +21,14 @@ import { dayLabel, parisDay, timeRange } from './calendar';
 import { PersonName, PersonNames, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
 import { RequestForm } from './StaffRequests';
-import { kindLabels, registrationOpen, usePlace, useSectionNames, useTeamNames } from './events';
+import {
+  kindLabels,
+  registrationCapacity,
+  registrationOpen,
+  usePlace,
+  useSectionNames,
+  useTeamNames,
+} from './events';
 
 // Champs que l’API accepte de restaurer depuis l’historique.
 const restorable = [
@@ -358,18 +365,19 @@ const requestLabels: Record<RegistrationStatus, { label: string; tone: string }>
 
 /** Poste du joueur, de préférence dans une équipe ouverte à l’inscription. */
 function defaultPosition(
-  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids'>,
+  event: Pick<Event, 'registration_section_ids' | 'registration_team_ids' | 'registration_quotas'>,
   assignments: Assignment[],
   teams: Pick<Team, 'id' | 'section_id'>[],
 ): string {
   const players = assignments.filter((item) => item.kind === 'player' && item.position_id);
-  const open = players.find(
-    (item) =>
+  const open = players.find((item) => {
+    const section = teams.find((team) => team.id === item.team_id)?.section_id ?? '';
+    return (
       event.registration_team_ids?.includes(item.team_id) ||
-      event.registration_section_ids.includes(
-        teams.find((team) => team.id === item.team_id)?.section_id ?? '',
-      ),
-  );
+      event.registration_section_ids.includes(section) ||
+      event.registration_quotas?.some((quota) => quota.section_id === section)
+    );
+  });
   return (open ?? players[0])?.position_id ?? '';
 }
 
@@ -394,12 +402,25 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
   const [removing, setRemoving] = useState<{ user_id: string; first_name: string } | null>(null);
   const summary = result.data;
   const started = Date.parse(event.starts_at) <= Date.now();
-  const full = !!summary && summary.limit !== null && summary.count >= summary.limit;
+  const quotas = summary?.quotas ?? [];
+  const capacity = registrationCapacity({
+    registration_limit: summary?.limit ?? null,
+    registration_quotas: quotas,
+  });
+  const full = !!summary && capacity > 0 && summary.count >= capacity;
+  // Postes proposés : tous, ou ceux des places réservées à la section du joueur.
+  const allowed = summary?.allowed_position_ids ?? null;
+  const offered = allowed ? positions.filter((item) => allowed.includes(item.id)) : positions;
+  // Postes du joueur en équipe : un autre poste demandé est signalé au coach.
+  const usual = assignments
+    .filter((item) => item.kind === 'player' && item.position_id)
+    .map((item) => item.position_id as string);
   // Les anciennes réponses n’ont que `registered`.
   const status = summary?.status ?? (summary?.registered ? 'accepted' : null);
   const canAsk = !!summary?.open && summary.eligible && !event.cancelled && !started;
   const positionName = (id: string | null) =>
     positions.find((position) => position.id === id)?.name ?? 'poste supprimé';
+  const positionNames = (ids: string[]) => ids.map(positionName).join(' ou ');
   function refresh() {
     result.reload();
     onChanged();
@@ -429,12 +450,24 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
               : 'Séance fermée aux nouvelles inscriptions.'}{' '}
             <strong>
               {summary.count} inscrit{summary.count > 1 ? 's' : ''}
-              {summary.limit !== null && ` sur ${summary.limit}`}
+              {capacity > 0 && ` sur ${capacity}`}
             </strong>
             {full && ' · complet'}
             {(summary.pending ?? 0) > 0 &&
               ` · ${summary.pending} demande${summary.pending > 1 ? 's' : ''} en attente`}
           </p>
+          {quotas.length > 0 && (
+            <ul className="club-plain-list club-quota-list" aria-label="Places réservées">
+              {quotas.map((quota) => (
+                <li key={quota.id}>
+                  {quota.limit} place{quota.limit > 1 ? 's' : ''} réservée
+                  {quota.limit > 1 ? 's' : ''} · {sectionNames([quota.section_id]).join('')} ·{' '}
+                  {positionNames(quota.position_ids)} · {quota.count}/{quota.limit}
+                  {quota.count >= quota.limit && ' · complet'}
+                </li>
+              ))}
+            </ul>
+          )}
           {status ? (
             <div className="admin-actions club-detail-actions">
               <Badge tone={requestLabels[status].tone}>{requestLabels[status].label}</Badge>
@@ -514,10 +547,13 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
                   label: 'Poste pour lequel vous voulez vous entraîner',
                   type: 'select',
                   required: true,
-                  options: positions.map((position) => ({
+                  options: offered.map((position) => ({
                     value: position.id,
                     label: position.name,
                   })),
+                  hint: allowed
+                    ? 'Seuls les postes des places réservées à votre section sont proposés.'
+                    : undefined,
                 },
                 {
                   name: 'message',
@@ -528,7 +564,10 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
                 },
               ]}
               initial={{
-                position_id: defaultPosition(event, assignments, teams),
+                position_id: ((chosen) =>
+                  offered.some((item) => item.id === chosen) ? chosen : '')(
+                  defaultPosition(event, assignments, teams),
+                ),
                 message: '',
               }}
               submit={status === 'pending' ? 'Modifier la demande' : 'Envoyer la demande'}
@@ -543,7 +582,18 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
                 setAsking(false);
                 refresh();
               }}
-            />
+            >
+              {(values) =>
+                usual.length > 0 &&
+                str(values, 'position_id') &&
+                !usual.includes(str(values, 'position_id')) && (
+                  <p className="admin-hint club-wide" role="status">
+                    Ce poste diffère de votre poste en équipe ({positionNames([...new Set(usual)])})
+                    : le coach en sera averti.
+                  </p>
+                )
+              }
+            </EntityForm>
           )}
           {summary.participants &&
             (summary.participants.length ? (
@@ -558,6 +608,12 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
                         : ` · inscrit le ${dateLabel(participant.created_at)}`}
                     </span>
                     {participant.status === 'pending' && <Badge tone="warning">En attente</Badge>}
+                    {participant.position_warning && (
+                      <Badge tone="warning">
+                        Poste habituel : {positionNames(participant.team_position_ids ?? [])}
+                      </Badge>
+                    )}
+                    {participant.quota_id && <Badge>Place réservée</Badge>}
                     <span className="admin-actions">
                       {participant.status === 'pending' && (
                         <button
@@ -623,6 +679,12 @@ function Registrations({ event, onChanged }: { event: Event; onChanged: () => vo
                 refresh();
               }}
             >
+              {deciding.position_warning && (
+                <p className="club-wide" role="status">
+                  Attention : {deciding.first_name} demande un poste différent de son poste en
+                  équipe ({positionNames(deciding.team_position_ids ?? [])}).
+                </p>
+              )}
               {deciding.message && <p className="club-wide">Message : {deciding.message}</p>}
             </EntityForm>
           )}

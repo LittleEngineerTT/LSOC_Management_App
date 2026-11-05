@@ -44,7 +44,8 @@ export function useMyEvents() {
       if (registered.has(event.id)) reasons.push('registered');
       else if (
         event.registration_section_ids.some((id) => sectionIds.has(id)) ||
-        event.registration_team_ids?.some((id) => teamIds.has(id))
+        event.registration_team_ids?.some((id) => teamIds.has(id)) ||
+        event.registration_quotas?.some((quota) => sectionIds.has(quota.section_id))
       )
         reasons.push('open');
       if (isFollowed(follows, event)) reasons.push('followed');

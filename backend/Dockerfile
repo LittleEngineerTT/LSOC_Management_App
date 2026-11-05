@@ -14,4 +14,6 @@ USER 10001
 EXPOSE 8000
 # Derrière un proxy, définir FORWARDED_ALLOW_IPS pour que l'adresse du client (limitation des
 # tentatives de connexion) soit lue dans X-Forwarded-For plutôt que celle du proxy.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+# Les flux temps réel (/api/v1/live) restent ouverts : à l’arrêt, uvicorn les coupe après 5 s
+# au lieu d’attendre leur fin ; les navigateurs se reconnectent seuls.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--timeout-graceful-shutdown", "5"]

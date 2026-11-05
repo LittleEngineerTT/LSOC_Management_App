@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -21,38 +22,118 @@ export interface Unread {
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;
+  /** Nombre de signaux reçus du serveur depuis l’ouverture : les listes s’y rechargent. */
+  live: number;
 }
 const empty: Unread = { messages: 0, notifications: 0, threads: [] };
-const UnreadContext = createContext<UnreadContextValue>({ ...empty, refresh: () => undefined });
+const UnreadContext = createContext<UnreadContextValue>({
+  ...empty,
+  refresh: () => undefined,
+  live: 0,
+});
 export const useUnread = () => useContext(UnreadContext);
 
-const REFRESH_MS = 60_000;
+/** Flux d’événements du serveur (Server-Sent Events), sur le même domaine que l’API. */
+export const LIVE_URL = '/api/v1/live';
+// Sans flux (proxy qui le bloque, navigateur ancien) : relecture régulière des compteurs.
+const FALLBACK_MS = 60_000;
+// Avec flux : simple filet de sécurité, le serveur signale chaque changement.
+const SAFETY_MS = 5 * 60_000;
 
-/** Compteurs des pastilles du menu, rafraîchis périodiquement et après chaque lecture. */
+/** Compteurs des pastilles du menu : mis à jour dès qu’un signal du serveur arrive, après
+ * chaque lecture, au retour sur l’onglet et, en secours, à intervalle régulier. */
 export function UnreadProvider({ children }: { children: ReactNode }) {
   const { csrfToken, clear } = useSession();
   const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
   const [unread, setUnread] = useState<Unread>(empty);
   const [version, setVersion] = useState(0);
+  const [live, setLive] = useState(0);
   const refresh = useCallback(() => setVersion((value) => value + 1), []);
-  useEffect(() => {
-    const controller = new AbortController();
-    const load = () =>
+  const load = useCallback(
+    (signal: AbortSignal) =>
       api
-        .request<Unread>('/unread', 'GET', undefined, controller.signal)
+        .request<Unread>('/unread', 'GET', undefined, signal)
         .then((value) => {
           // Une API simulée ou ancienne peut répondre autre chose : on garde zéro.
           if (typeof value?.messages === 'number') setUnread(value);
         })
-        .catch(() => undefined);
-    void load();
-    const timer = window.setInterval(() => void load(), REFRESH_MS);
+        .catch(() => undefined),
+    [api],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load, version]);
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: number | undefined;
+    let connected = false;
+    // Premier signal d’une connexion : rattrapage des compteurs, pas un changement.
+    let fresh = true;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(
+        () => {
+          void load(controller.signal);
+          schedule();
+        },
+        connected ? SAFETY_MS : FALLBACK_MS,
+      );
+    };
+    schedule();
+    const source = typeof EventSource === 'function' ? new EventSource(LIVE_URL) : null;
+    if (source) {
+      source.onopen = () => {
+        connected = true;
+        fresh = true;
+        schedule();
+      };
+      // Le navigateur se reconnecte seul ; d’ici là, la relecture régulière prend le relais.
+      source.onerror = () => {
+        connected = false;
+        schedule();
+      };
+      source.addEventListener('unread', () => {
+        void load(controller.signal);
+        if (fresh) fresh = false;
+        else setLive((value) => value + 1);
+      });
+      // Session terminée : la relecture reçoit 401 et ramène à la connexion.
+      source.addEventListener('session', () => {
+        source.close();
+        connected = false;
+        void load(controller.signal);
+      });
+    }
+    const back = () => {
+      if (document.visibilityState === 'visible') void load(controller.signal);
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('online', back);
     return () => {
       controller.abort();
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
+      source?.close();
+      document.removeEventListener('visibilitychange', back);
+      window.removeEventListener('online', back);
     };
-  }, [api, version]);
-  return <UnreadContext.Provider value={{ ...unread, refresh }}>{children}</UnreadContext.Provider>;
+  }, [load]);
+  return (
+    <UnreadContext.Provider value={{ ...unread, refresh, live }}>{children}</UnreadContext.Provider>
+  );
+}
+
+/** Recharge une liste à chaque signal du serveur (nouvelle notification, message…). */
+export function useLiveReload(reload: () => void) {
+  const { live } = useUnread();
+  const latest = useRef(reload);
+  useEffect(() => {
+    latest.current = reload;
+  });
+  useEffect(() => {
+    if (live > 0) latest.current();
+  }, [live]);
 }
 
 export function CountBadge({ count, label }: { count: number; label: [string, string] }) {

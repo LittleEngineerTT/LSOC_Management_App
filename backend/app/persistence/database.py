@@ -11,3 +11,7 @@ SessionFactory = sessionmaker(engine, expire_on_commit=False)
 
 def session() -> Session:
     return SessionFactory()
+
+
+# Signaux NOTIFY des pastilles : branchés sur toute session, de l’API comme du worker.
+from app.persistence import signals as _signals  # noqa: E402, F401

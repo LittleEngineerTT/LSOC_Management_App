@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
     ParticipantView,
+    QuotaSummary,
     RegistrationDecisionInput,
     RegistrationInput,
     RegistrationSummary,
@@ -12,7 +15,7 @@ from app.api.schemas import (
 )
 from app.core.security import now, token
 from app.persistence.models import Assignment, Event, Position, Registration, Team, User
-from app.services.events import lock_planning
+from app.services.events import accepted_registrations, lock_planning
 from app.services.notifications import (
     PARIS,
     active_referents,
@@ -24,22 +27,65 @@ from app.services.notifications import (
 router = APIRouter(tags=["Inscriptions"])
 
 
-def eligible(db: Session, event: Event, user: User) -> bool:
-    if "member" not in user.roles or not (
-        event.registration_section_ids or event.registration_team_ids
-    ):
-        return False
-    assignments = list(
-        db.execute(
+def classic_open(event: Event) -> bool:
+    return bool(event.registration_section_ids or event.registration_team_ids)
+
+
+def is_open(event: Event) -> bool:
+    return classic_open(event) or bool(event.registration_quotas)
+
+
+def memberships(db: Session, user: User) -> list[tuple[str, str]]:
+    """Équipes du compte et leur section."""
+    return [
+        (team, section)
+        for team, section in db.execute(
             select(Team.id, Team.section_id)
             .join(Assignment, Assignment.team_id == Team.id)
             .where(Assignment.user_id == user.id)
-        )
-    )
+        ).tuples()
+    ]
+
+
+def classic_eligible(event: Event, links: list[tuple[str, str]]) -> bool:
     return any(
         team in event.registration_team_ids or section in event.registration_section_ids
-        for team, section in assignments
+        for team, section in links
     )
+
+
+def own_quotas(event: Event, links: list[tuple[str, str]]) -> list[dict[str, Any]]:
+    """Places réservées aux sections du compte."""
+    sections = {section for _, section in links}
+    return [quota for quota in event.registration_quotas if quota["section_id"] in sections]
+
+
+def eligible(db: Session, event: Event, user: User) -> bool:
+    if "member" not in user.roles or not is_open(event):
+        return False
+    links = memberships(db, user)
+    return classic_eligible(event, links) or bool(own_quotas(event, links))
+
+
+def team_positions(db: Session, user_ids: list[str]) -> dict[str, list[str]]:
+    """Postes de chaque joueur dans ses équipes, sans doublon."""
+    result: dict[str, list[str]] = {}
+    for user_id, position_id in db.execute(
+        select(Assignment.user_id, Assignment.position_id).where(
+            Assignment.user_id.in_(user_ids),
+            Assignment.kind == "player",
+            Assignment.position_id.is_not(None),
+        )
+    ).tuples():
+        positions = result.setdefault(user_id, [])
+        if position_id and position_id not in positions:
+            positions.append(position_id)
+    return result
+
+
+def unusual(position_id: str | None, usual: list[str]) -> bool:
+    """Poste demandé différent de celui du joueur en équipe : à signaler au coach."""
+    return bool(usual) and position_id not in usual
 
 
 def locked_event(db: Session, event_id: str) -> Event:
@@ -70,9 +116,33 @@ def accepted_count(db: Session, event_id: str) -> int:
     )
 
 
-def full(db: Session, event: Event) -> bool:
-    limit = event.registration_limit
-    return limit is not None and accepted_count(db, event.id) >= limit
+def quota(event: Event, quota_id: str) -> dict[str, Any] | None:
+    return next((item for item in event.registration_quotas if item["id"] == quota_id), None)
+
+
+def full(db: Session, event: Event, quota_id: str | None = None) -> bool:
+    """Ouverture classique (None) ou places réservées complètes."""
+    if quota_id is None:
+        limit = event.registration_limit
+    else:
+        found = quota(event, quota_id)
+        limit = found["limit"] if found else 0
+    return limit is not None and accepted_registrations(db, event.id, quota_id) >= limit
+
+
+def slot(db: Session, event: Event, user: User, position_id: str) -> str | None:
+    """Places occupées par une demande à ce poste : réservées à la section du joueur et à ce
+    poste si elles ne sont pas complètes, sinon l’ouverture classique (None)."""
+    links = memberships(db, user)
+    matching = [item for item in own_quotas(event, links) if position_id in item["position_ids"]]
+    for item in matching:
+        if not full(db, event, item["id"]):
+            return str(item["id"])
+    if classic_eligible(event, links):
+        return None
+    if matching:
+        raise HTTPException(409, {"code": "registration_full", "message": "Séance complète"})
+    raise HTTPException(403, "Poste non ouvert aux inscriptions de votre section")
 
 
 def reviewer(event: Event, user: User) -> bool:
@@ -117,6 +187,15 @@ def summary(event_id: str, db: DB, actor: Actor) -> RegistrationSummary:
     participants = None
     # La liste nominative reste réservée aux administrateurs et au référent.
     if reviewer(event, actor):
+        rows = list(
+            db.execute(
+                select(User, Registration)
+                .join(Registration, Registration.user_id == User.id)
+                .where(Registration.event_id == event_id, Registration.status != "rejected")
+                .order_by(Registration.created_at, Registration.id)
+            ).tuples()
+        )
+        usual = team_positions(db, [user.id for user, _ in rows])
         participants = [
             ParticipantView.model_validate(
                 {
@@ -126,21 +205,33 @@ def summary(event_id: str, db: DB, actor: Actor) -> RegistrationSummary:
                     "status": request.status,
                     "position_id": request.position_id,
                     "message": request.message,
+                    "quota_id": request.quota_id,
+                    "team_position_ids": usual.get(user.id, []),
+                    "position_warning": unusual(request.position_id, usual.get(user.id, [])),
                 }
             )
-            for user, request in db.execute(
-                select(User, Registration)
-                .join(Registration, Registration.user_id == User.id)
-                .where(Registration.event_id == event_id, Registration.status != "rejected")
-                .order_by(Registration.created_at, Registration.id)
-            ).tuples()
+            for user, request in rows
         ]
     value = own(db, event_id, actor.id)
+    links = memberships(db, actor)
+    allowed: list[str] | None = None
+    if not classic_eligible(event, links):
+        allowed = []
+        for item in own_quotas(event, links):
+            allowed += [p for p in item["position_ids"] if p not in allowed]
+    quotas = [
+        QuotaSummary.model_validate(
+            {**item, "count": accepted_registrations(db, event_id, item["id"])}
+        )
+        for item in event.registration_quotas
+    ]
     return RegistrationSummary.model_validate(
         {
             "event_id": event_id,
-            "open": bool(event.registration_section_ids or event.registration_team_ids),
+            "open": is_open(event),
             "limit": event.registration_limit,
+            "quotas": quotas,
+            "allowed_position_ids": allowed,
             "count": accepted_count(db, event_id),
             "pending": pending or 0,
             "registered": value is not None and value.status == "accepted",
@@ -163,19 +254,21 @@ def register(event_id: str, body: RegistrationInput, db: DB, actor: Actor) -> Re
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance annulée"})
     if event.starts_at <= now():
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance commencée"})
-    if not (event.registration_section_ids or event.registration_team_ids):
+    if not is_open(event):
         raise HTTPException(409, {"code": "registration_closed", "message": "Séance fermée"})
     if not eligible(db, event, actor):
         raise HTTPException(403, "Séance réservée à d’autres équipes ou sections")
     position = db.get(Position, body.position_id)
     if position is None:
         raise HTTPException(422, "Poste inconnu")
+    quota_id = slot(db, event, actor, position.id)
     if existing and existing.status == "pending":
         # Une demande en attente se corrige sans repartir de zéro.
         existing.position_id = body.position_id
         existing.message = body.message
+        existing.quota_id = quota_id
         return existing
-    if full(db, event):
+    if full(db, event, quota_id):
         raise HTTPException(409, {"code": "registration_full", "message": "Séance complète"})
     if existing:
         # Après un refus, une nouvelle demande repart d’une ligne neuve et d’une alerte neuve.
@@ -186,11 +279,18 @@ def register(event_id: str, body: RegistrationInput, db: DB, actor: Actor) -> Re
         event_id=event_id,
         position_id=body.position_id,
         message=body.message,
+        quota_id=quota_id,
     )
     db.add(value)
     db.flush()
     title = f"Demande d’inscription de {actor.first_name} : {event.title} du {day(event)}"
-    text = f"Poste : {position.name}" + (f"\n\n{body.message}" if body.message else "")
+    text = f"Poste : {position.name}"
+    usual = team_positions(db, [actor.id]).get(actor.id, [])
+    if unusual(position.id, usual):
+        names = db.scalars(select(Position.name).where(Position.id.in_(usual))).all()
+        text += f"\nAttention : poste habituel en équipe : {', '.join(sorted(names))}"
+    if body.message:
+        text += f"\n\n{body.message}"
     admins(db, request_key(value), "registration_request", title, event.id, body=text)
     for referent in active_referents(db, event.referent_ids):
         if "admin" in referent.roles or referent.id == actor.id:
@@ -220,8 +320,19 @@ def decide(
         raise HTTPException(404, "Demande introuvable")
     if value.status != "pending":
         raise HTTPException(409, "Demande déjà traitée")
-    if body.accept and full(db, event):
-        raise HTTPException(409, {"code": "registration_full", "message": "Séance complète"})
+    if body.accept and full(db, event, value.quota_id):
+        # Places de la demande complètes : d’autres places ouvertes au joueur peuvent rester.
+        try:
+            if value.position_id is None:
+                raise HTTPException(409)
+            alternative = slot(db, event, get(db, User, user_id), value.position_id)
+        except HTTPException as error:
+            raise HTTPException(
+                409, {"code": "registration_full", "message": "Séance complète"}
+            ) from error
+        if full(db, event, alternative):
+            raise HTTPException(409, {"code": "registration_full", "message": "Séance complète"})
+        value.quota_id = alternative
     value.status = "accepted" if body.accept else "rejected"
     value.decision = body.reason
     value.decided_at = now()

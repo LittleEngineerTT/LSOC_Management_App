@@ -153,9 +153,20 @@ export interface Event {
   /** Équipes ouvertes, en union avec les sections ; absent dans les anciens contrats. */
   registration_team_ids?: string[];
   registration_limit: number | null;
+  /** Places réservées, en plus de la limite ; absentes des anciens contrats. */
+  registration_quotas?: RegistrationQuota[];
+  /** Inscrits acceptés, places réservées comprises. */
   registration_count: number;
   /** Équipes organisatrices ; absentes des anciens contrats. */
   team_ids?: string[];
+}
+/** `limit` places pour les membres d’une section inscrits à l’un des postes. */
+export interface RegistrationQuota {
+  /** Vide pour de nouvelles places, attribué à l’enregistrement. */
+  id?: string;
+  section_id: string;
+  position_ids: string[];
+  limit: number;
 }
 /** Demande d’inscription : seule une demande acceptée compte parmi les inscrits. */
 export type RegistrationStatus = 'pending' | 'accepted' | 'rejected';
@@ -167,6 +178,12 @@ export interface Participant {
   /** Poste demandé ; vide si l’administration l’a supprimé depuis. */
   position_id: string | null;
   message: string;
+  /** Places réservées occupées ; nulle : ouverture classique. */
+  quota_id?: string | null;
+  /** Postes du joueur dans ses équipes. */
+  team_position_ids?: string[];
+  /** Poste demandé différent de celui en équipe. */
+  position_warning?: boolean;
 }
 export interface RegistrationSummary {
   event_id: string;
@@ -181,6 +198,10 @@ export interface RegistrationSummary {
   /** Message joint à la décision sur cette demande. */
   decision: string;
   eligible: boolean;
+  /** Places réservées et leurs inscrits acceptés ; `limit` ne les compte pas. */
+  quotas?: (Required<RegistrationQuota> & { count: number })[];
+  /** Postes que le compte peut demander ; nul : tous. */
+  allowed_position_ids?: string[] | null;
   /** Demandes en attente et inscrits, pour les administrateurs et le référent. */
   participants: Participant[] | null;
 }
