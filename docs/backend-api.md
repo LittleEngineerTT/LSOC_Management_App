@@ -141,6 +141,17 @@ Un événement porte une `description` libre (2000 caractères, vide par défaut
 
 Chaque personne a un seul numéro, commun à ses deux licences : `status` (joueur) et `coach_status` (coach). `PUT` accepte `{number, status?, coach_status?}`, et un statut absent reste inchangé. Tout statut peut être choisi directement, `active` compris : il n’y a plus d’étape préalable. La licence coach n’a pas de statut `payment_pending`. Une licence active exige un numéro. `GET /licenses?kind=coach` ne liste que les comptes avec le rôle ou un rattachement coach ; `missing` y signale un coach rattaché sans licence coach active. `GET /licenses/me` renvoie `{status, coach_status, coach}`. Le numéro est unique (409). Un filtre de section ou d’équipe limite la liste aux comptes rattachés à ce périmètre. `missing` signale un joueur rattaché à une équipe du périmètre dont la licence n’est pas active ; coachs et comptes sans équipe n’en ont pas. L’adhérent reçoit une notification, sans e-mail, à chaque changement de statut. La suppression d’un compte efface sa licence (migration 0011).
 
+## Photos des entraîneurs
+
+| Route | Rôle |
+|---|---|
+| `PUT /me/photo` | Le coach connecté dépose ou remplace sa photo |
+| `DELETE /me/photo` | Le coach connecté retire sa photo |
+| `PUT /users/{id}/photo` | Un administrateur dépose la photo d’un coach (à la création du compte…) |
+| `DELETE /users/{id}/photo` | Un administrateur retire la photo d’un coach |
+
+Facultative, la photo est réservée aux comptes ayant le rôle coach (409 sinon). Le corps est l’image brute, `Content-Type` `image/jpeg`, `image/png` ou `image/webp`, 5 Mo au plus (413) ; un contenu qui ne correspond pas au type annoncé est refusé (415). Elle est stockée sur le S3 public sous `photos/` et un nom aléatoire de 64 caractères ; la précédente est effacée après la validation. Sans stockage configuré : 503. `photo_url` (nul sans photo) figure dans les comptes (`/auth/me`, `/users`) et `photo` dans `GET /public/staff` pour les entraîneurs. Retirer le rôle coach ou supprimer le compte efface la photo (migration 0032).
+
 ## Séances ouvertes et inscriptions
 
 Un événement porte `registration_section_ids` (sections ouvertes), `registration_team_ids` (équipes ouvertes), `registration_limit` (obligatoire dès qu’une section ou équipe est ouverte, de 1 à 1000) et `registration_count` (lecture seule). Seul un admin modifie ces champs, qui suivent les règles habituelles de création, de série, d’historique et de restauration. La limite ne peut pas descendre sous le nombre d’inscrits ; fermer une séance conserve les inscriptions existantes. Les sections concernées (`section_ids`) et les équipes organisatrices sont facultatives si au moins une section ou équipe est ouverte aux inscriptions ; sinon 422. Le frontend demande alors une confirmation : l’événement n’a pas de catégorie organisatrice.

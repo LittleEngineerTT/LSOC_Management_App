@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
@@ -133,7 +133,9 @@ def user_detail(user_id: str, db: DB, actor: Admin) -> User:
 
 
 @router.put("/users/{user_id}", response_model=UserView)
-def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
+def update_user(
+    user_id: str, body: UserInput, db: DB, actor: Admin, tasks: BackgroundTasks
+) -> User:
     user = get(db, User, user_id)
     protect_last_admin(db, user, list(body.roles))
     protect_titles(db, user.id, list(body.roles))
@@ -149,6 +151,10 @@ def update_user(user_id: str, body: UserInput, db: DB, actor: Admin) -> User:
         role = "coach" if assignment.kind == "coach" else "member"
         if role not in user.roles:
             db.delete(assignment)
+    # La photo n’appartient qu’aux entraîneurs : elle part avec le rôle, après validation.
+    if "coach" not in user.roles and user.photo_key:
+        tasks.add_task(s3.discard, user.photo_key)
+        user.photo_key = None
     user = rekey(db, user)
     alert_duplicates(db, user)
     notify(
@@ -195,6 +201,7 @@ def erase_account(db: Session, user: User) -> None:
     record = db.get(License, user_id)
     if record is not None:
         s3.discard(record.file_key)
+    s3.discard(user.photo_key)
     # Les pièces des dossiers d’inscription quittent le stockage avec le compte.
     for key in db.scalars(
         select(DossierDocument.file_key)

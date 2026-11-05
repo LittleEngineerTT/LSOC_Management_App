@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createAdminApi } from '../admin/api';
+import { CoachPhotoPicker, photoError } from '../admin/CoachPhoto';
 import { useLoad } from '../admin/data';
 import { licenseLabels, licenseTones, type LicenseStatus } from '../admin/LicensesPanel';
 import { Badge, Confirm, EntityForm, LoadState, Notice, checked, str } from '../admin/ui';
@@ -28,6 +29,7 @@ export function ProfilePage({ account }: { account: Account }) {
       </section>
       <AccountSecurity />
       <MyLicense />
+      {account.roles.includes('coach') && <MyPhoto account={account} />}
       {notice && <Notice>{notice}</Notice>}
       <EntityForm
         title="Notifications par e-mail"
@@ -398,6 +400,73 @@ function MyLicense() {
         Les licences sont gérées par les administrateurs du club et sont à refaire chaque saison :
         leur statut repart de zéro le 1er août.
       </p>
+    </section>
+  );
+}
+
+/** Photo facultative de l’entraîneur, présentée dans les dirigeants de Notre club. */
+function MyPhoto({ account }: { account: Account }) {
+  const session = useSession();
+  const api = useMemo(
+    () => createAdminApi(session.csrfToken, session.clear),
+    [session.csrfToken, session.clear],
+  );
+  const request = useRequest();
+  const [notice, setNotice] = useState('');
+  const [problem, setProblem] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const send = async (file: File | undefined, signal: AbortSignal) => {
+    const csrf = session.csrfToken();
+    if (!csrf) throw new Error('Rechargez la page pour retrouver votre session.');
+    const updated = await api.request<Account>('/me/photo', file ? 'PUT' : 'DELETE', file, signal);
+    session.connected({ user: updated, csrf_token: csrf });
+    setNotice(file ? 'Photo enregistrée.' : 'Photo supprimée.');
+  };
+  return (
+    <section className="admin-card" aria-labelledby="my-photo">
+      <h2 id="my-photo">Ma photo</h2>
+      <CoachPhotoPicker
+        label={
+          request.pending
+            ? 'Envoi…'
+            : account.photo_url
+              ? 'Remplacer ma photo'
+              : 'Ajouter une photo'
+        }
+        preview={account.photo_url}
+        disabled={request.pending}
+        onPick={(file) => {
+          setNotice('');
+          const error = photoError(file);
+          setProblem(error ?? '');
+          if (!error) void request.run((signal) => send(file, signal));
+        }}
+      />
+      {account.photo_url && (
+        <button
+          className="admin-button danger"
+          disabled={request.pending}
+          onClick={() => setRemoving(true)}
+        >
+          Supprimer ma photo
+        </button>
+      )}
+      {notice && <Notice>{notice}</Notice>}
+      <ErrorNotice message={problem || request.error} />
+      {removing && (
+        <Confirm
+          title="Supprimer ma photo"
+          label="Supprimer"
+          onClose={() => setRemoving(false)}
+          onConfirm={async (signal) => {
+            setNotice('');
+            await send(undefined, signal);
+            setRemoving(false);
+          }}
+        >
+          <p>Votre photo ne sera plus présentée dans Notre club.</p>
+        </Confirm>
+      )}
     </section>
   );
 }

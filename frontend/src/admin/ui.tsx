@@ -200,7 +200,8 @@ export function EntityForm({
   onCancel?: () => void;
   /** Astérisque après le libellé des champs obligatoires. */
   markRequired?: boolean;
-  children?: ReactNode;
+  /** Contenu ajouté sous les champs ; une fonction le fait dépendre des valeurs saisies. */
+  children?: ReactNode | ((values: FormValues) => ReactNode);
 }) {
   const [values, setValues] = useState(initial);
   const request = useRequest();
@@ -386,7 +387,7 @@ export function EntityForm({
             </div>
           );
         })}
-        {children}
+        {typeof children === 'function' ? children(values) : children}
       </fieldset>
       <ErrorNotice message={request.error} />
       <div className="admin-actions">

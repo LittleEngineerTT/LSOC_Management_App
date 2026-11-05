@@ -66,6 +66,14 @@ class User(Identity, Base):
     admin_email: Mapped[bool] = mapped_column(Boolean, default=True)
     # Dernière activité (connexion ou session prolongée) : base de la purge après 2 ans.
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # Photo d’un entraîneur sur le S3 public (« photos/… ») ; nulle : pas de photo.
+    photo_key: Mapped[str | None] = mapped_column(String(100))
+
+    @property
+    def photo_url(self) -> str | None:
+        from app.integrations import s3
+
+        return s3.public_url(self.photo_key) if self.photo_key else None
 
 
 class License(Base):

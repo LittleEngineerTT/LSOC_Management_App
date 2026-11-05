@@ -14,6 +14,8 @@ export interface User {
   roles: Role[];
   active: boolean;
   messaging_allowed: boolean;
+  /** Photo d’entraîneur sur le stockage public ; nulle sans photo. */
+  photo_url?: string | null;
 }
 export interface Invitation {
   user: User;

@@ -104,8 +104,8 @@ def test_guest_reads_board_and_coaches_without_identifiers(admin: TestClient) ->
     assert staff.status_code == 200, staff.text
     # Bureau d’abord, puis les entraîneurs par prénom ; chaque fonction de la personne est listée.
     assert staff.json() == [
-        {'first_name': 'Yann', 'functions': ['president']},
-        {'first_name': 'Bruno', 'functions': ['vice_president', 'coach']},
-        {'first_name': 'Alice', 'functions': ['coach']},
-        {'first_name': 'Zoé', 'functions': ['coach']},
+        {'first_name': 'Yann', 'functions': ['president'], 'photo': None},
+        {'first_name': 'Bruno', 'functions': ['vice_president', 'coach'], 'photo': None},
+        {'first_name': 'Alice', 'functions': ['coach'], 'photo': None},
+        {'first_name': 'Zoé', 'functions': ['coach'], 'photo': None},
     ]

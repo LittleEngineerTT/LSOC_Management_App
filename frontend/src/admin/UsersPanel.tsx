@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { ErrorNotice } from '../auth/components';
 import { useSession } from '../auth/session';
+import { CoachPhotoPicker, photoError, usePreview } from './CoachPhoto';
 import { UserCredentials } from './UserCredentials';
 import { useAdmin, useResource } from './data';
 import type { Assignment, Invitation, Role, User } from './types';
@@ -46,6 +48,10 @@ export function UsersPanel() {
   const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
   const session = useSession();
   const [editing, setEditing] = useState<User | 'new' | null>(null);
+  // Photo facultative choisie à la création d’un coach, déposée après la création du compte.
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoProblem, setPhotoProblem] = useState('');
+  const photoPreview = usePreview(photo);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [section, setSection] = useState('');
@@ -128,6 +134,8 @@ export function UsersPanel() {
               setEditing('new');
               setInvitation(null);
               setNotice('');
+              setPhoto(null);
+              setPhotoProblem('');
             }}
           >
             Ajouter un utilisateur
@@ -254,11 +262,55 @@ export function UsersPanel() {
               const result = await api.request<Invitation>('/users', 'POST', body, signal);
               setInvitation(result);
               setEditing(result.user);
-              setNotice('Compte créé. Transmettez le lien d’invitation à cette personne.');
+              let message = 'Compte créé. Transmettez le lien d’invitation à cette personne.';
+              if (photo && roles.includes('coach')) {
+                try {
+                  await api.request(
+                    `/users/${encodeURIComponent(result.user.id)}/photo`,
+                    'PUT',
+                    photo,
+                    signal,
+                  );
+                } catch (error) {
+                  // Le compte existe : seule la photo reste à déposer, depuis le profil du coach.
+                  message += ` La photo n’a pas pu être déposée : ${
+                    error instanceof Error ? error.message : 'erreur inconnue'
+                  }`;
+                }
+              }
+              setPhoto(null);
+              setNotice(message);
               reloadCatalog();
             }
           }}
-        />
+        >
+          {(values) =>
+            !selected &&
+            choices(values, 'roles').includes('coach') && (
+              <div className="admin-field coach-photo-field">
+                <span className="coach-photo-title">Photo de l’entraîneur</span>
+                <CoachPhotoPicker
+                  label={photo ? 'Changer la photo' : 'Choisir une photo'}
+                  preview={photoPreview}
+                  onPick={(file) => {
+                    const problem = photoError(file);
+                    setPhotoProblem(problem ?? '');
+                    if (!problem) setPhoto(file);
+                  }}
+                />
+                {photo && (
+                  <p className="admin-hint">
+                    Photo choisie : {photo.name}.{' '}
+                    <button type="button" className="admin-button" onClick={() => setPhoto(null)}>
+                      Retirer la photo
+                    </button>
+                  </p>
+                )}
+                <ErrorNotice message={photoProblem} />
+              </div>
+            )
+          }
+        </EntityForm>
       )}
       {admin && selected && (
         <section className="admin-card" aria-label={`Gestion de ${selected.first_name}`}>

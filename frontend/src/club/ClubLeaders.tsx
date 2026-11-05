@@ -16,7 +16,7 @@ export interface StaffMember {
   /** Toutes ses fonctions, bureau d’abord. */
   functions: (keyof typeof functionNames)[];
   /** Photo facultative ; à défaut, un emplacement vide. */
-  photo?: string;
+  photo?: string | null;
 }
 
 /** Sous-onglet « Dirigeants » des infos du club : le bureau et les entraîneurs, en trombinoscope. */

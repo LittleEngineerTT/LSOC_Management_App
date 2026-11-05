@@ -73,9 +73,14 @@ FUNCTIONS: tuple[StaffFunction, ...] = ("president", "vice_president", "coach")
 
 @router.get("/staff", response_model=list[StaffView])
 def staff(db: DB) -> list[StaffView]:
-    """Bureau puis entraîneurs, par prénom : ni identifiant (numéro de licence) ni nom."""
+    """Bureau puis entraîneurs, par prénom et photo d’entraîneur : ni identifiant (numéro de
+    licence) ni nom."""
     people = [
-        StaffView(first_name=user.first_name, functions=functions)
+        StaffView(
+            first_name=user.first_name,
+            functions=functions,
+            photo=user.photo_url if "coach" in user.roles else None,
+        )
         for user in db.scalars(select(User).order_by(User.first_name, User.id))
         if (functions := [function for function in FUNCTIONS if function in user.roles])
     ]

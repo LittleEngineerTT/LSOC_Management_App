@@ -15,6 +15,10 @@ Les changements notables de l’application LSOC sont consignés ici. Le format 
   source, une fois par jour et le soir des matchs. Sous le classement, les matchs de l’équipe :
   à venir avec la date, l’heure et le lieu, puis joués avec le score, le détail des sets et la
   victoire ou la défaite. Visible aussi des invités.
+- **Photos des entraîneurs** : facultatives, ajoutées par le coach depuis son profil ou par un
+  administrateur à la création d’un compte coach. Stockées sur le S3, elles sont présentées dans
+  les dirigeants de Notre club, invités compris. Retirer le rôle coach ou supprimer le compte
+  efface la photo.
 
 ### Modifié
 

@@ -14,6 +14,8 @@ export interface Account {
   followed_email: boolean;
   referent_email: boolean;
   admin_email: boolean;
+  /** Photo d’entraîneur sur le stockage public ; nulle sans photo. */
+  photo_url?: string | null;
 }
 
 export interface LoginResult {

@@ -98,6 +98,8 @@ class UserView(View):
     active: bool
     messaging_allowed: bool
     username: str | None
+    # Photo d’entraîneur, lisible publiquement ; nulle sans photo.
+    photo_url: str | None = None
 
 
 class MeView(UserView):
@@ -307,6 +309,8 @@ class StaffView(View):
 
     first_name: str
     functions: list[StaffFunction]
+    # Photo d’un entraîneur ; nulle sans photo.
+    photo: str | None = None
 
 
 class PublicTeamView(SectionView):
