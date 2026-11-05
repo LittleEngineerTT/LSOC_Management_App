@@ -42,7 +42,8 @@ interface Played {
   match: FFVBResult;
 }
 
-/** Un match : date, équipe du club, domicile, score, extérieur, sets et victoire ou défaite. */
+/** Un match : équipe du club en titre, puis date, domicile, score, extérieur, victoire ou
+ * défaite et sets. */
 function ResultRow({ source, match }: Played) {
   const home = normalize(match.home_team) === normalize(source.club_team);
   const won = home ? match.home_sets > match.away_sets : match.away_sets > match.home_sets;
@@ -66,17 +67,30 @@ function ResultRow({ source, match }: Played) {
   );
 }
 
-/** Carte de l’encart : un titre et ses matchs, du plus récent au plus ancien. */
+/** Tableau de Notre club ouvert sur l’équipe du match le plus récent d’une section, ou sur la
+ * section elle-même si elle n’a encore aucun résultat ; sans section, en haut de page. */
+function tableLink(played: Played[], section?: string): string {
+  const params = new URLSearchParams({ onglet: 'resultats' });
+  const latest = section ? played[0] : undefined;
+  if (latest) params.set('equipe', latest.source.team_id);
+  else if (section) params.set('section', section);
+  return `/app/notre-club?${params.toString()}`;
+}
+
+/** Carte de l’encart : un titre, ses matchs du plus récent au plus ancien et le lien vers le
+ * tableau correspondant. */
 function ResultsCard({
   title,
   hint,
   played,
   empty,
+  link,
 }: {
   title: string;
   hint: string;
   played: Played[];
   empty: string;
+  link: string;
 }) {
   return (
     <div className="club-results-card">
@@ -96,12 +110,15 @@ function ResultsCard({
       ) : (
         <p className="club-day-empty">{empty}</p>
       )}
+      <Link className="admin-button" to={link}>
+        Voir le tableau
+      </Link>
     </div>
   );
 }
 
-/** Résultats FFVB : toutes les sections sur deux semaines, puis une carte par section, et un
- * lien vers le tableau des résultats de Notre club. */
+/** Résultats FFVB : toutes les sections sur deux semaines, puis une carte par section, chacune
+ * avec un lien vers son tableau dans Notre club. */
 export function RecentResults() {
   const { api, guest } = useClub();
   const loader = useCallback(
@@ -134,16 +151,21 @@ export function RecentResults() {
       hint={`${RECENT_DAYS} derniers jours`}
       played={played.filter((item) => item.match.kickoff_at >= since)}
       empty="Aucun match joué ces deux dernières semaines."
+      link={tableLink([])}
     />,
-    ...sections.map(([id, name]) => (
-      <ResultsCard
-        key={id}
-        title={name}
-        hint="tous les résultats de la saison"
-        played={played.filter((item) => item.source.section_id === id)}
-        empty="Aucun match joué pour le moment."
-      />
-    )),
+    ...sections.map(([id, name]) => {
+      const mine = played.filter((item) => item.source.section_id === id);
+      return (
+        <ResultsCard
+          key={id}
+          title={name}
+          hint="tous les résultats de la saison"
+          played={mine}
+          empty="Aucun match joué pour le moment."
+          link={tableLink(mine, id)}
+        />
+      );
+    }),
   ];
   return (
     <section className="admin-card club-results" aria-label="Résultats des matchs">
@@ -152,10 +174,6 @@ export function RecentResults() {
       {result.loaded && !result.error && (
         <Carousel label="Résultats par section" slides={cards} pausable={false} />
       )}
-      {/* Classements et matchs de chaque équipe, dans Notre club. */}
-      <Link className="admin-button" to="/app/notre-club?onglet=resultats">
-        Voir le tableau
-      </Link>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLoad } from '../admin/data';
 import { Badge, Empty, LoadState } from '../admin/ui';
@@ -194,17 +194,25 @@ function SectionStandings({
   name,
   teams,
   initial,
+  focused,
 }: {
   name: string;
   teams: TeamStandings[];
   initial: string | null;
+  /** Section demandée par l’adresse : la page défile jusqu’à elle. */
+  focused: boolean;
 }) {
   const [selected, setSelected] = useState(initial);
+  const element = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // Absent de certains environnements (tests).
+    if (focused) element.current?.scrollIntoView?.({ block: 'start' });
+  }, [focused]);
   const current = teams.find((item) => item.team_id === selected) ?? teams[0];
   if (!current) return null;
   const titleId = `club-standings-${current.section_id}`;
   return (
-    <section className="admin-card club-standings-section" aria-labelledby={titleId}>
+    <section ref={element} className="admin-card club-standings-section" aria-labelledby={titleId}>
       <h3 id={titleId}>{name}</h3>
       {teams.length > 1 && (
         <nav className="club-page-team-switch" aria-label={`Équipes ${name}`}>
@@ -229,7 +237,8 @@ function SectionStandings({
 }
 
 /** Onglet « Résultats des équipes » de Notre club : classement FFVB de chaque équipe dotée
- * d’une source, groupé par section. `?equipe=` ouvre directement le classement d’une équipe.
+ * d’une source, groupé par section. `?equipe=` ouvre directement le classement d’une équipe,
+ * `?section=` une section ; la page défile jusqu’à elle.
  */
 export function ClubStandingsTab() {
   const { api, guest } = useClub();
@@ -241,6 +250,9 @@ export function ClubStandingsTab() {
   );
   const result = useLoad(loader);
   const items = result.data ?? [];
+  // Section visée : celle de l’équipe demandée, sinon celle de l’adresse (`?section=`).
+  const team = search.get('equipe');
+  const focus = items.find((item) => item.team_id === team)?.section_id ?? search.get('section');
   // Sections dans l’ordre alphabétique, équipes de chacune aussi.
   const sections = [...new Map(items.map((item) => [item.section_id, item.section_name]))]
     .sort((left, right) => left[1].localeCompare(right[1], 'fr'))
@@ -262,7 +274,8 @@ export function ClubStandingsTab() {
           key={section.id}
           name={section.name}
           teams={section.teams}
-          initial={search.get('equipe')}
+          initial={team}
+          focused={section.id === focus}
         />
       ))}
     </>

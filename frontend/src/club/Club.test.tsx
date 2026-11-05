@@ -586,6 +586,8 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   // Première carte : toutes les sections, deux dernières semaines, du plus récent au plus ancien.
   expect(await within(results).findByRole('heading', { name: /Toutes les sections/ })).toBeInTheDocument();
   expect(within(results).queryByRole('button', { name: 'Mettre en pause' })).not.toBeInTheDocument();
+  // Toutes les sections : le tableau s’ouvre en haut de page.
+  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats');
   const recent = within(results).getAllByRole('listitem');
   expect(recent.map((item) => item.textContent)).toEqual([expect.stringContaining('PARIS UC'), expect.stringContaining('MEUDON CHAVILLE SEVRES VOLLEY 2')]);
   expect(within(results).queryByText('RUEIL 2')).not.toBeInTheDocument();
@@ -596,10 +598,11 @@ it('l’encart des résultats montre toutes les sections sur deux semaines, puis
   // Carte d’une section : tous ses résultats passés.
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
   expect(within(results).getByRole('heading', { name: /Compétition/ })).toBeInTheDocument();
+  // Carte d’une section : le tableau de l’équipe de son dernier match.
+  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats&equipe=t2');
   await userEvent.click(within(results).getByRole('button', { name: 'Information suivante' }));
   expect(within(results).getByRole('heading', { name: /Loisir/ })).toBeInTheDocument();
-  // Lien direct vers le tableau des résultats de Notre club.
-  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats');
+  expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats&equipe=t1');
   expect(within(results).getAllByRole('listitem').map((item) => item.textContent)).toEqual([expect.stringContaining('MEUDON'), expect.stringContaining('RUEIL 2')]);
 });
 

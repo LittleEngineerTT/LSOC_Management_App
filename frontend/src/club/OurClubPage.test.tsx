@@ -215,3 +215,23 @@ it('liste sous le classement les matchs à venir puis les matchs joués, avec he
   expect(played[1]).toHaveTextContent('Victoire');
   expect(played[1]).not.toHaveTextContent('Lieu');
 });
+
+it('défile jusqu’à la section de l’équipe demandée, ou jusqu’à la section de l’adresse', async () => {
+  const scrolled: string[] = [];
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value(this: HTMLElement) { scrolled.push(this.querySelector('h3')?.textContent ?? ''); } });
+  club.standings = [
+    standings('t1', 'Senior Féminin 1', 's1', 'Séniors', 'LSO COLOMBES', []),
+    standings('t5', 'M18 F', 's2', 'Jeunes', 'LSO COLOMBES', []),
+    standings('t6', 'M15 F', 's2', 'Jeunes', 'LSO COLOMBES 2', []),
+  ];
+  const { unmount } = render(<MemoryRouter initialEntries={['/?onglet=resultats&equipe=t6']}><OurClubPage pages={pages} /></MemoryRouter>);
+  const jeunes = await screen.findByRole('region', { name: 'Jeunes' });
+  expect(within(jeunes).getByRole('button', { name: 'M15 F' })).toHaveAttribute('aria-pressed', 'true');
+  expect(scrolled).toEqual(['Jeunes']);
+  unmount();
+  scrolled.length = 0;
+  render(<MemoryRouter initialEntries={['/?onglet=resultats&section=s1']}><OurClubPage pages={pages} /></MemoryRouter>);
+  await screen.findByRole('region', { name: 'Séniors' });
+  expect(scrolled).toEqual(['Séniors']);
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+});
