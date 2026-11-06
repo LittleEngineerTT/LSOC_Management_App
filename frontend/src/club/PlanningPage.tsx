@@ -10,6 +10,7 @@ import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
 import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
+import { concernsTeam } from './events';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
 
 /** Navigation par semaine, partagée par le planning et les gymnases. */
@@ -61,6 +62,7 @@ export function PlanningPage() {
   const team = teamChoices.some((item) => item.id === search.get('equipe'))
     ? (search.get('equipe') ?? '')
     : '';
+  const selectedTeam = teams.find((item) => item.id === team);
   // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
   const cancelled = search.get('annules') !== '0';
   const origin = search.get('origine') ?? '';
@@ -215,7 +217,7 @@ export function PlanningPage() {
                 : origin === 'local'
                   ? !event.ffvb_match_id
                   : true) &&
-              (!team || (event.team_ids ?? []).includes(team)),
+              (!selectedTeam || concernsTeam(event, selectedTeam)),
           )}
           days={days}
           mode={mode}

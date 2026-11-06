@@ -164,16 +164,17 @@ it('la messagerie marque toutes les questions comme lues', async () => {
   expect(screen.queryByRole('button', { name: 'Tout marquer comme lu' })).not.toBeInTheDocument();
 });
 
-it('les gymnases signalent un dépassement et mes sections présentent mon rôle', async () => {
+it('les gymnases signalent un dépassement et mes équipes présentent mon rôle', async () => {
   routes['/gymnasiums/g1/availability'] = { gymnasium_id: 'g1', capacity: 3, segments: [{ starts_at: at('18:00'), ends_at: at('19:00'), occupied: 4, available: 0, excess: 1 }] };
   open('/app/gymnases');
   // Le jour du créneau est parfois aujourd’hui : il paraît alors aussi dans la journée sélectionnée.
   expect((await screen.findAllByText('Complet · 1 terrain en excès')).length).toBeGreaterThan(0);
-  await userEvent.click(screen.getByRole('link', { name: 'Mes sections' }));
-  const card = (await screen.findByRole('heading', { name: 'Loisir' })).closest('section')!;
+  await userEvent.click(screen.getByRole('link', { name: 'Mes équipes' }));
+  const card = (await screen.findByRole('heading', { name: 'Loisir 1' })).closest('section')!;
   expect(within(card).getByText('Joueur')).toBeInTheDocument();
   await waitFor(() => expect(card).toHaveTextContent('Référents de l’équipe : Alix'));
   expect(await within(card).findByRole('link', { name: 'Entraînement loisir' })).toBeInTheDocument();
+  expect(within(card).getByRole('link', { name: 'Planning de l’équipe' })).toHaveAttribute('href', '/app/planning?equipe=t1');
 });
 
 it('un adhérent demande à s’inscrire avec son poste présélectionné et un message', async () => {

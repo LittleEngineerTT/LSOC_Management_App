@@ -153,3 +153,12 @@ export function Agenda({
     </div>
   );
 }
+
+/** Événement qui concerne une équipe : il l’organise, ou il n’a aucune équipe organisatrice et
+ * relève de sa section (un entraînement de section, par exemple). */
+export function concernsTeam(event: Event, team: { id: string; section_id: string }): boolean {
+  const organisers = event.team_ids ?? [];
+  return organisers.length
+    ? organisers.includes(team.id)
+    : event.section_ids.includes(team.section_id);
+}

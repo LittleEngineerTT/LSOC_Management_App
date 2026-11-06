@@ -15,7 +15,7 @@ import { PlanningPage } from '../club/PlanningPage';
 import { GymnasiumsPage } from '../club/GymnasiumsPage';
 import { MessagingPage } from '../club/MessagingPage';
 import { MyPlanningPage } from '../club/MyPlanningPage';
-import { MySectionsPage } from '../club/MySectionsPage';
+import { MyTeamsPage } from '../club/MyTeamsPage';
 import { OurClubPage } from '../club/OurClubPage';
 import { InscriptionsPage } from '../club/InscriptionsPage';
 
@@ -25,7 +25,7 @@ const clubSections = [
   'Gymnases',
   'Messagerie',
   'Mon planning',
-  'Mes sections',
+  'Mes équipes',
   'Notre club',
   'Demandes',
 ];
@@ -49,7 +49,9 @@ const sectionTitles: Record<string, string> = {
   '/app': 'Accueil',
   ...Object.fromEntries(applications.map((item) => [item.path, item.title])),
   '/app/mon-planning': 'Mon planning',
-  '/app/sections': 'Mes sections',
+  '/app/equipes': 'Mes équipes',
+  // Ancienne adresse de la page, conservée pour les favoris.
+  '/app/sections': 'Mes équipes',
   '/app/profil': 'Mon profil',
 };
 
@@ -240,9 +242,9 @@ function Workspace({ account, section }: { account: Account | null; section: str
                 <Icon name="calendar" />
                 <span>Mon planning</span>
               </NavLink>
-              <NavLink to="/app/sections" className="header-link" aria-label="Mes sections">
+              <NavLink to="/app/equipes" className="header-link" aria-label="Mes équipes">
                 <Icon name="layers" />
-                <span>Mes sections</span>
+                <span>Mes équipes</span>
               </NavLink>
               <span className="header-separator" />
               <div className="profile-control" ref={profile}>
@@ -340,7 +342,7 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Gymnases' && <GymnasiumsPage />}
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mon planning' && <MyPlanningPage />}
-      {section === 'Mes sections' && <MySectionsPage />}
+      {section === 'Mes équipes' && <MyTeamsPage />}
       {section === 'Notre club' && <OurClubPage />}
       {section === 'Demandes' && <InscriptionsPage />}
     </>

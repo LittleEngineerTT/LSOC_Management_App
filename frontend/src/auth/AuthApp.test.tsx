@@ -166,13 +166,13 @@ describe('session et connexion', () => {
     await userEvent.click(screen.getByRole('link', { name: 'Mon planning' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Mon planning' })).toBeInTheDocument();
     expect(await screen.findByText(/Rien de prévu/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Mes sections' })).toBeInTheDocument();
-    // Mon planning et Mes sections restent dans la barre du haut, plus dans le menu du compte.
+    expect(screen.getByRole('link', { name: 'Mes équipes' })).toBeInTheDocument();
+    // Mon planning et Mes équipes restent dans la barre du haut, plus dans le menu du compte.
     await userEvent.click(screen.getByRole('button', { name: /Options du profil/ }));
     const options = document.getElementById('profile-options')!;
     expect(within(options).getByRole('link', { name: 'Mon profil' })).toBeInTheDocument();
     expect(within(options).queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();
-    expect(within(options).queryByRole('link', { name: 'Mes sections' })).not.toBeInTheDocument();
+    expect(within(options).queryByRole('link', { name: 'Mes équipes' })).not.toBeInTheDocument();
   });
 
   it('masque l’entrée administration pour un adhérent', async () => {
