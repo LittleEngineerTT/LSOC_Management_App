@@ -150,6 +150,7 @@ function EventBody({
   const referent = event.referent_ids.includes(account.id);
   const [history, setHistory] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [asking, setAsking] = useState(false);
   const [asked, setAsked] = useState('');
   const staff = admin || account.roles.includes('coach');
@@ -237,6 +238,11 @@ function EventBody({
             Faire une demande
           </button>
         )}
+        {(admin || referent) && (
+          <button type="button" className="admin-button" onClick={() => setCancelling(true)}>
+            {event.cancelled ? 'Rétablir' : 'Annuler l’événement'}
+          </button>
+        )}
         {(admin || (referent && account.roles.includes('coach'))) && !event.ffvb_match_id && (
           <button type="button" className="admin-button danger" onClick={() => setDeleting(true)}>
             Supprimer
@@ -258,9 +264,94 @@ function EventBody({
       {deleting && (
         <DeleteEvent event={event} onClose={() => setDeleting(false)} onDeleted={onDeleted} />
       )}
+      {cancelling && (
+        <CancelEvent
+          event={event}
+          onClose={() => setCancelling(false)}
+          onDone={() => {
+            setCancelling(false);
+            onChanged();
+          }}
+        />
+      )}
+      <CancelReason event={event} />
       <Questions event={event} />
       {history && <History event={event} onChanged={onChanged} />}
     </>
+  );
+}
+
+const cancelReasons: Record<string, string> = {
+  capacity: 'Capacité du gymnase dépassée',
+  admin: 'Annulé par un administrateur',
+  referent: 'Annulé par le référent de l’événement',
+};
+
+/** Motif de l’annulation, juste au-dessus des questions. */
+function CancelReason({ event }: { event: Event }) {
+  if (!event.cancelled) return null;
+  const reason =
+    event.cancel_reason === 'unavailability'
+      ? `Gymnase indisponible${event.cancel_note ? ` : ${event.cancel_note}` : ''}`
+      : (cancelReasons[event.cancel_reason ?? ''] ?? 'Motif non renseigné');
+  return (
+    <p className="admin-notice club-cancel-reason" role="status">
+      <strong>Événement annulé</strong> · {reason}
+    </p>
+  );
+}
+
+function CancelEvent({
+  event,
+  onClose,
+  onDone,
+}: {
+  event: Event;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { api, admin } = useClub();
+  const [capacity, setCapacity] = useState(false);
+  const reopen = event.cancelled;
+  return (
+    <Confirm
+      title={`${reopen ? 'Rétablir' : 'Annuler'} « ${event.title} » ?`}
+      label={reopen ? 'Rétablir' : 'Annuler l’événement'}
+      onClose={onClose}
+      onConfirm={async (signal) => {
+        if (reopen)
+          await api.request(
+            `/events/${event.id}/cancellation?base_version=${event.version}`,
+            'DELETE',
+            undefined,
+            signal,
+          );
+        else
+          await api.request(
+            `/events/${event.id}/cancellation`,
+            'POST',
+            { base_version: event.version, ...(capacity ? { reason: 'capacity' } : {}) },
+            signal,
+          );
+        onDone();
+      }}
+    >
+      <p>
+        {reopen
+          ? 'L’événement redevient actif. Les personnes qui le suivent ou y sont inscrites sont prévenues.'
+          : 'L’événement reste dans le planning, marqué « Annulé », avec son historique. Les personnes qui le suivent ou y sont inscrites sont prévenues.'}
+      </p>
+      {!reopen && admin && !!event.gymnasium_id && (
+        <label className="club-check">
+          <input
+            type="checkbox"
+            checked={capacity}
+            onChange={(change) => setCapacity(change.target.checked)}
+          />
+          Motif : capacité du gymnase dépassée
+        </label>
+      )}
+    </Confirm>
   );
 }
 

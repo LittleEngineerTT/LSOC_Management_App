@@ -15,6 +15,8 @@ export const fieldLabels: Record<string, string> = {
   referent_ids: 'Référents',
   direct_edit: 'Modification directe',
   cancelled: 'Annulé',
+  cancel_reason: 'Motif d’annulation',
+  cancel_note: 'Précision du motif',
   kickoff_at: 'Coup d’envoi',
   before_minutes: 'Marge avant (min)',
   after_minutes: 'Marge après (min)',

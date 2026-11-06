@@ -139,6 +139,9 @@ export interface Event {
   referent_ids: string[];
   direct_edit: boolean;
   cancelled: boolean;
+  /** unavailability, capacity, admin ou referent ; vide si l’événement n’est pas annulé. */
+  cancel_reason?: string;
+  cancel_note?: string;
   version: number;
   series_id: string | null;
   exception: boolean;

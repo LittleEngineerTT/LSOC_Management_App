@@ -41,6 +41,17 @@ export const release: Release = {
       text: 'Un match FFVB peut occuper tout le gymnase, quel que soit son nombre de terrains, et ne bloque plus les autres matchs.',
     },
     {
+      kind: 'feature',
+      title: 'Mes équipes',
+      text: 'La page « Mes sections » devient « Mes équipes » : une carte par équipe, avec vos prochains rendez-vous et un accès direct au planning de l’équipe.',
+      link: { to: '/app/equipes', label: 'Voir mes équipes' },
+    },
+    {
+      kind: 'feature',
+      title: 'Annulation d’un événement',
+      text: 'Le référent ou un administrateur peut annuler et rétablir un événement ; le motif (gymnase indisponible, capacité dépassée, décision du référent ou d’un administrateur) s’affiche dans sa fiche.',
+    },
+    {
       kind: 'fix',
       title: 'Correctif apporté sur la récupération des matchs FFVB de certaines équipes.',
     },

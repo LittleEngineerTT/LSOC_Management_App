@@ -305,6 +305,29 @@ it('un administrateur supprime une occurrence et les suivantes de la série', as
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Entraînement loisir' })).not.toBeInTheDocument());
 });
 
+it('un administrateur annule un événement avec un motif affiché au-dessus des questions', async () => {
+  account = admin;
+  routes['/events/e1'] = { ...training, cancelled: true, cancel_reason: 'unavailability', cancel_note: 'Travaux' };
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  const reason = await within(dialog).findByText(/Gymnase indisponible : Travaux/);
+  const questions = within(dialog).getByRole('heading', { name: /Questions/ });
+  expect(reason.compareDocumentPosition(questions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(dialog).getByRole('button', { name: 'Rétablir' })).toBeInTheDocument();
+});
+
+it('un administrateur annule un événement actif en choisissant la capacité comme motif', async () => {
+  account = admin;
+  mutation = () => reply({ ...training, cancelled: true, cancel_reason: 'capacity' });
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  await userEvent.click(await within(dialog).findByRole('button', { name: 'Annuler l’événement' }));
+  const confirm = await screen.findByRole('dialog', { name: /Annuler « Entraînement loisir »/ });
+  await userEvent.click(within(confirm).getByLabelText('Motif : capacité du gymnase dépassée'));
+  await userEvent.click(within(confirm).getByRole('button', { name: 'Annuler l’événement' }));
+  await waitFor(() => expect(mutations).toEqual([{ path: '/events/e1/cancellation', method: 'POST', body: { base_version: 3, reason: 'capacity' } }]));
+});
+
 it('chaque notification mène à son action : examen d’une demande ou message de l’admin', async () => {
   routes['/notifications'] = [
     { id: 'n1', kind: 'decision', title: 'Modification refusée : Entraînement loisir', body: 'Gymnase indisponible.', link: '/app/messagerie?thread=q9', event_id: 'e1', read_at: null, created_at: at('10:00') },
