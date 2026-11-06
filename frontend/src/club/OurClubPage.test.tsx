@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -227,11 +227,11 @@ it('défile jusqu’à la section de l’équipe demandée, ou jusqu’à la sec
   const { unmount } = render(<MemoryRouter initialEntries={['/?onglet=resultats&equipe=t6']}><OurClubPage pages={pages} /></MemoryRouter>);
   const jeunes = await screen.findByRole('region', { name: 'Jeunes' });
   expect(within(jeunes).getByRole('button', { name: 'M15 F' })).toHaveAttribute('aria-pressed', 'true');
-  expect(scrolled).toEqual(['Jeunes']);
+  await waitFor(() => expect(scrolled).toEqual(['Jeunes']));
   unmount();
   scrolled.length = 0;
   render(<MemoryRouter initialEntries={['/?onglet=resultats&section=s1']}><OurClubPage pages={pages} /></MemoryRouter>);
   await screen.findByRole('region', { name: 'Séniors' });
-  expect(scrolled).toEqual(['Séniors']);
+  await waitFor(() => expect(scrolled).toEqual(['Séniors']));
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
 });
