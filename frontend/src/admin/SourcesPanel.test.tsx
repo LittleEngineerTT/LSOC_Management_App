@@ -90,6 +90,19 @@ it('règle les terrains et marges d’une source, vides pour suivre la configura
   expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ courts: 2, before_minutes: null, after_minutes: null });
 });
 
+it('fait prendre tout le gymnase aux matchs d’une source, sans nombre de terrains', async () => {
+  source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: 3, before_minutes: null, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
+  open();
+  expect(await screen.findByText('Réglages propres : 3 terrains')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+  await userEvent.click(screen.getByLabelText('Chaque match prend tout le gymnase'));
+  expect(screen.queryByLabelText('Terrains réservés par match')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await screen.findByText('Source enregistrée.');
+  const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/ffvb/sources/source') && init?.method === 'PUT');
+  expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ courts: 0 });
+});
+
 it('supprime une source et ses matchs après confirmation', async () => {
   source = { id: 'source', team_id: 't', season: '2026/2027', entity: 'PTIDF92', pool: 'BRC', team_number: '6', team_name: 'LSO COLOMBES', club_code: '0926620', enabled: true, courts: null, before_minutes: null, after_minutes: null, interval_minutes: 1440, interval_days: 1, last_success_at: null, last_error: null };
   open();

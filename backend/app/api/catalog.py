@@ -127,12 +127,13 @@ def create_gym(body: GymInput, db: DB, actor: Admin) -> Gymnasium:
 
 @router.put("/gymnasiums/{identifier}", response_model=GymView)
 def update_gym(identifier: str, body: GymInput, db: DB, actor: Admin) -> Gymnasium:
-    from app.services.events import alert_capacity, lock_gyms
+    from app.services.events import alert_capacity, follow_capacity, lock_gyms
 
     lock_gyms(db, [identifier])
     value = get(db, Gymnasium, identifier)
     renamed = value.name != body.name
     value.name, value.capacity = body.name, body.capacity
+    follow_capacity(db, value)
     db.flush()
     if renamed:
         from app.services.ffvb import remap_venues

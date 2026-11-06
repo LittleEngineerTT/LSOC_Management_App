@@ -31,6 +31,32 @@ from app.persistence.models import (
 from app.services.notifications import admins, event_changed, event_deleted, event_unavailable
 
 PARIS = ZoneInfo("Europe/Paris")
+# Terrains d’un match FFVB (`match_courts`, réglages du club et des sources) : zéro signifie
+# « tout le gymnase », qui suit la capacité du gymnase au lieu d’un nombre fixe.
+WHOLE_GYM = 0
+
+
+def match_occupancy(db: Session, event: Event) -> int:
+    """Terrains réellement réservés par un match : aucun hors du club, tout le gymnase ou N."""
+    if event.gymnasium_id is None:
+        return 0
+    if event.match_courts == WHOLE_GYM:
+        return get(db, Gymnasium, event.gymnasium_id).capacity
+    return event.match_courts
+
+
+def follow_capacity(db: Session, gym: Gymnasium) -> None:
+    """Les matchs « tout le gymnase » suivent un changement de capacité du gymnase."""
+    for event in db.scalars(
+        select(Event).where(
+            Event.gymnasium_id == gym.id,
+            Event.ffvb_match_id.is_not(None),
+            Event.match_courts == WHOLE_GYM,
+            Event.courts != gym.capacity,
+        )
+    ):
+        event.courts = gym.capacity
+        event.version += 1
 
 
 def lock_planning(db: Session) -> None:
@@ -143,7 +169,10 @@ def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -
     segments = availability(db, event.gymnasium_id, event.starts_at, event.ends_at).segments
     conflicts = [s.model_dump(mode="json") for s in segments if s.excess > 0]
     if conflicts:
-        if not force or (actor is not None and "admin" not in actor.roles):
+        # Un match FFVB passe toujours : le dépassement est signalé aux administrateurs.
+        if not event.ffvb_match_id and (
+            not force or (actor is not None and "admin" not in actor.roles)
+        ):
             raise HTTPException(409, {"code": "capacity_exceeded", "segments": conflicts})
         admins(
             db,
@@ -152,6 +181,24 @@ def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -
             f"Capacité dépassée : {event.title}",
             event.id,
         )
+        # Les matchs pris dans le dépassement sont signalés eux aussi, sans être annulés.
+        for match in db.scalars(
+            select(Event).where(
+                Event.gymnasium_id == event.gymnasium_id,
+                Event.id != event.id,
+                Event.ffvb_match_id.is_not(None),
+                Event.cancelled.is_(False),
+                Event.starts_at < event.ends_at,
+                Event.ends_at > event.starts_at,
+            )
+        ):
+            admins(
+                db,
+                f"capacity:{match.id}:{event.id}:{event.version}",
+                "capacity_conflict",
+                f"Capacité dépassée : {match.title}",
+                match.id,
+            )
     return bool(conflicts)
 
 
@@ -556,8 +603,8 @@ def change_event(
     if event.ffvb_match_id:
         if "courts" in values and event.courts > 0:
             event.match_courts = event.courts
-        if "match_courts" in values:
-            event.courts = event.match_courts if event.gymnasium_id else 0
+        if values.keys() & {"match_courts", "gymnasium_id"}:
+            event.courts = match_occupancy(db, event)
         state = get(db, FFVBMatchState, event.ffvb_match_id)
         protected = dict(state.protected)
         for key in values.keys() & {"kickoff_at", "gymnasium_id", "location"}:

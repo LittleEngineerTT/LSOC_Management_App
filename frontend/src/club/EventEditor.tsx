@@ -154,6 +154,16 @@ export function EventEditor({
             },
           ]
         : scheduleFields()),
+    ...(ffvb
+      ? [
+          {
+            name: 'whole_gym',
+            label: 'Le match prend tout le gymnase',
+            type: 'checkbox' as const,
+            hint: 'Réserve tous les terrains du gymnase, selon sa capacité, sans alerte de dépassement.',
+          },
+        ]
+      : []),
     {
       name: ffvb ? 'match_courts' : 'courts',
       label: ffvb ? 'Terrains réservés pour le match' : 'Terrains occupés',
@@ -162,6 +172,7 @@ export function EventEditor({
       max: 100,
       required: true,
       hint: ffvb ? undefined : 'Au moins un terrain dans un gymnase du club, zéro à l’extérieur.',
+      hiddenWhen: ffvb ? 'whole_gym' : undefined,
     },
     ...(admin
       ? [
@@ -239,7 +250,9 @@ export function EventEditor({
         before_minutes: String(event.before_minutes),
         after_minutes: String(event.after_minutes),
         courts: String(event.courts),
-        match_courts: String(event.match_courts),
+        whole_gym: event.match_courts === 0,
+        match_courts:
+          event.match_courts === 0 ? String(event.courts || 3) : String(event.match_courts),
         referent_ids: event.referent_ids,
         direct_edit: event.direct_edit,
         cancelled: event.cancelled,
@@ -291,9 +304,11 @@ export function EventEditor({
         str(values, name) !== toLocal(original[name])
       )
         result[name] = fromLocal(str(values, name));
-    for (const name of ['courts', 'match_courts', 'before_minutes', 'after_minutes'] as const)
-      if (fields.some((field) => field.name === name) && num(values, name) !== original[name])
-        result[name] = num(values, name);
+    for (const name of ['courts', 'match_courts', 'before_minutes', 'after_minutes'] as const) {
+      if (!fields.some((field) => field.name === name)) continue;
+      const value = name === 'match_courts' && checked(values, 'whole_gym') ? 0 : num(values, name);
+      if (value !== original[name]) result[name] = value;
+    }
     if (admin) {
       if (!sameList(choices(values, 'referent_ids'), original.referent_ids))
         result.referent_ids = choices(values, 'referent_ids');

@@ -186,7 +186,12 @@ function EventBody({
         </div>
         <div>
           <dt>Terrains occupés</dt>
-          <dd>{event.courts}</dd>
+          <dd>
+            {event.courts}
+            {event.ffvb_match_id && event.match_courts === 0 && event.gymnasium_id
+              ? ' (tout le gymnase)'
+              : ''}
+          </dd>
         </div>
         <div>
           <dt>Sections</dt>

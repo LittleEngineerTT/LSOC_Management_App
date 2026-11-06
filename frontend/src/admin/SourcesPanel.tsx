@@ -36,7 +36,8 @@ const optional = (values: FormValues, name: string) =>
 const setting = (value: number | null | undefined) => (value == null ? '' : String(value));
 function settingsLabel(source: Source) {
   const own = [
-    source.courts != null && `${source.courts} terrain${source.courts > 1 ? 's' : ''}`,
+    source.courts === 0 && 'tout le gymnase',
+    !!source.courts && `${source.courts} terrain${source.courts > 1 ? 's' : ''}`,
     source.before_minutes != null && `${source.before_minutes} min avant`,
     source.after_minutes != null && `${source.after_minutes} min après`,
   ].filter(Boolean);
@@ -113,11 +114,18 @@ export function SourcesPanel({
       max: 365,
     },
     {
+      name: 'whole_gym',
+      label: 'Chaque match prend tout le gymnase',
+      type: 'checkbox',
+      hint: 'Réserve tous les terrains du gymnase, selon sa capacité, sans alerte de dépassement.',
+    },
+    {
       name: 'courts',
       label: 'Terrains réservés par match',
       type: 'number',
       min: 1,
       max: 100,
+      hiddenWhen: 'whole_gym',
       hint: 'Laissez vide pour suivre la configuration par défaut (onglet Marges et terrains).',
     },
     {
@@ -169,7 +177,7 @@ export function SourcesPanel({
       team_name: str(values, 'team_name'),
       club_code: sourceClubCode,
       enabled: checked(values, 'enabled'),
-      courts: optional(values, 'courts'),
+      courts: checked(values, 'whole_gym') ? 0 : optional(values, 'courts'),
       before_minutes: optional(values, 'before_minutes'),
       after_minutes: optional(values, 'after_minutes'),
       interval_days: num(values, 'interval_days'),
@@ -323,7 +331,8 @@ export function SourcesPanel({
             team_name: item?.team_name ?? 'LSO COLOMBES',
             interval_days: String(item ? Math.ceil(days(item)) : 1),
             enabled: item?.enabled ?? true,
-            courts: setting(item?.courts),
+            whole_gym: item?.courts === 0,
+            courts: item?.courts === 0 ? '' : setting(item?.courts),
             before_minutes: setting(item?.before_minutes),
             after_minutes: setting(item?.after_minutes),
             ...(!item ? initial : {}),

@@ -47,6 +47,7 @@ from app.services.events import (
     delete_event,
     lock_gyms,
     lock_planning,
+    match_occupancy,
     revision,
     snapshot,
 )
@@ -267,10 +268,7 @@ def apply_official(
     home = official["home"]
     # Local reservations follow the mapped location; unknown venues never select an arbitrary gym.
     event.occupancy_unknown = bool(home and event.gymnasium_id is None)
-    if event.gymnasium_id is None:
-        event.courts = 0
-    else:
-        event.courts = event.match_courts
+    event.courts = match_occupancy(db, event)
     if event.kickoff_at:
         if home or event.gymnasium_id is not None:
             event.starts_at = event.kickoff_at - timedelta(minutes=event.before_minutes)

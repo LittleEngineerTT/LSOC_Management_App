@@ -262,7 +262,8 @@ class EventPatch(Input):
     referent_ids: list[str] | None = Field(default=None, min_length=1, max_length=10)
     direct_edit: bool | None = None
     cancelled: bool | None = None
-    match_courts: int | None = Field(default=None, gt=0, le=100)
+    # 0 : tout le gymnase, selon sa capacité.
+    match_courts: int | None = Field(default=None, ge=0, le=100)
     before_minutes: int | None = Field(default=None, ge=0, le=1440)
     after_minutes: int | None = Field(default=None, gt=0, le=1440)
     kickoff_at: AwareDatetime | None = None
@@ -830,7 +831,8 @@ class FFVBSourceInput(Input):
     # Vide : la source suit la configuration par défaut des matchs.
     before_minutes: int | None = Field(default=None, ge=0, le=1440)
     after_minutes: int | None = Field(default=None, gt=0, le=1440)
-    courts: int | None = Field(default=None, gt=0, le=100)
+    # 0 : tout le gymnase, selon sa capacité.
+    courts: int | None = Field(default=None, ge=0, le=100)
     interval_minutes: int = Field(default=1440, ge=5, le=525600, deprecated=True)
     interval_days: int | None = Field(default=None, ge=1, le=365, exclude=True)
 
@@ -941,7 +943,8 @@ class ResolutionInput(Input):
 class MatchDefaults(Input):
     before_minutes: int = Field(default=75, ge=0, le=1440)
     after_minutes: int = Field(default=150, gt=0, le=1440)
-    courts: int = Field(default=3, gt=0, le=100)
+    # 0 : tout le gymnase, selon sa capacité.
+    courts: int = Field(default=3, ge=0, le=100)
 
 
 class EmailJobView(View):

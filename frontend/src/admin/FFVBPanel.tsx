@@ -2,7 +2,18 @@ import { useSearchParams } from 'react-router-dom';
 import { useCallback, useState } from 'react';
 import { useAdmin, useLoad, useResource } from './data';
 import type { Conflict, Defaults, Mapping, Match } from './types';
-import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, PanelHeading, num, str } from './ui';
+import {
+  Badge,
+  Confirm,
+  Empty,
+  EntityForm,
+  LoadState,
+  Notice,
+  PanelHeading,
+  checked,
+  num,
+  str,
+} from './ui';
 import { dateLabel } from './time';
 import { Changes, fieldLabels } from './changes';
 import { SourcesPanel, ClubPanel } from './SourcesPanel';
@@ -194,18 +205,26 @@ function MatchDefaults() {
               required: true,
             },
             {
+              name: 'whole_gym',
+              label: 'Le match prend tout le gymnase',
+              type: 'checkbox',
+              hint: 'Réserve tous les terrains du gymnase, selon sa capacité, sans alerte de dépassement.',
+            },
+            {
               name: 'courts',
               label: 'Terrains réservés',
               type: 'number',
               min: 1,
               max: 100,
               required: true,
+              hiddenWhen: 'whole_gym',
             },
           ]}
           initial={{
             before_minutes: String(result.data.before_minutes),
             after_minutes: String(result.data.after_minutes),
-            courts: String(result.data.courts),
+            whole_gym: result.data.courts === 0,
+            courts: result.data.courts === 0 ? '3' : String(result.data.courts),
           }}
           onSave={async (values, signal) => {
             await api.request(
@@ -214,7 +233,7 @@ function MatchDefaults() {
               {
                 before_minutes: num(values, 'before_minutes'),
                 after_minutes: num(values, 'after_minutes'),
-                courts: num(values, 'courts'),
+                courts: checked(values, 'whole_gym') ? 0 : num(values, 'courts'),
               },
               signal,
             );
@@ -224,9 +243,10 @@ function MatchDefaults() {
           }}
         >
           <p className="admin-hint">
-            Valeurs de démarrage : 75 minutes avant, 150 minutes après et 3 terrains. Elles servent
-            aux sources sans réglage propre (Sources › Modifier), pour les matchs importés ensuite.
-            Les matchs existants restent inchangés.
+            Valeurs de démarrage : 75 minutes avant, 150 minutes après et 3 terrains. Un match qui
+            prend tout le gymnase s’adapte à la capacité de chaque gymnase. Elles servent aux
+            sources sans réglage propre (Sources › Modifier), pour les matchs importés ensuite. Les
+            matchs existants restent inchangés.
           </p>
         </EntityForm>
       )}

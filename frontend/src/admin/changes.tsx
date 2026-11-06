@@ -50,6 +50,7 @@ export function Changes({ values }: { values: Record<string, unknown> }) {
       return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeZone: 'UTC' }).format(
         new Date(`${value}T12:00:00Z`),
       );
+    if (key === 'match_courts' && value === 0) return 'Tout le gymnase';
     if (key === 'gymnasium_id')
       return catalog.gymnasiums.find((gym) => gym.id === value)?.name ?? String(value);
     if (key === 'registration_quotas' && Array.isArray(value))
