@@ -559,7 +559,7 @@ class FFVBSource(Identity, Base):
         CheckConstraint(
             "(before_minutes IS NULL OR before_minutes >= 0)"
             " AND (after_minutes IS NULL OR after_minutes > 0)"
-            " AND (courts IS NULL OR courts > 0)",
+            " AND (courts IS NULL OR courts >= 0)",
             name="ffvb_sources_match_settings_check",
         ),
     )
