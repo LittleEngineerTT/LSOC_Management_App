@@ -268,7 +268,8 @@ def create_series(body: SeriesInput, db: DB, actor: Admin) -> list[Event]:
 @router.post("/events/{event_id}/cancellation", response_model=EventView)
 def cancel(event_id: str, body: CancelInput, db: DB, actor: Actor) -> Event:
     """Annule l’événement (référent, administrateur) ; le motif s’affiche dans sa fiche."""
-    return set_cancellation(db, get(db, Event, event_id), actor, body.base_version, True, body.reason)
+    event = get(db, Event, event_id)
+    return set_cancellation(db, event, actor, body.base_version, True, body.reason)
 
 
 @router.delete("/events/{event_id}/cancellation", response_model=EventView)

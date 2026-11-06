@@ -282,9 +282,9 @@ def apply_official(
             event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)
     after = snapshot(event)
     status = {"cancelled", "cancel_reason", "cancel_note"}
-    changed = initial or {k: v for k, v in before.items() if k not in status} != {
-        k: v for k, v in after.items() if k not in status
-    }
+    kept_before = {k: v for k, v in before.items() if k not in status}
+    kept_after = {k: v for k, v in after.items() if k not in status}
+    changed = initial or kept_before != kept_after
     if not changed:
         event.cancelled, event.cancel_reason, event.cancel_note = cancelled
         after = snapshot(event)
