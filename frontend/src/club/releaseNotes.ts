@@ -14,10 +14,13 @@ export interface Release {
   notes: ReleaseNote[];
 }
 
-// À chaque version, ne reprenez du CHANGELOG que les nouveautés majeures et les correctifs
-// visibles, reformulés simplement ; les détails restent dans le CHANGELOG.
+// Tenir cette liste à jour à chaque changement visible pour l’utilisateur. Elle se compare
+// toujours à la dernière version mineure précédente (`previous`) : en passant de 0.4.0 à 0.4.2,
+// on conserve donc les nouveautés de 0.4.0 et 0.4.1 par rapport à 0.2.0. Ne reprenez que les
+// nouveautés majeures et les correctifs visibles, reformulés simplement ; les détails restent
+// dans le CHANGELOG.
 export const release: Release = {
-  version: '0.4.0',
+  version: '0.4.2',
   previous: '0.2.0',
   notes: [
     {
@@ -31,6 +34,11 @@ export const release: Release = {
       title: 'Photos des entraîneurs',
       text: 'Les entraîneurs peuvent ajouter leur photo, présentée avec les dirigeants du club.',
       link: { to: '/app/notre-club?onglet=infos', label: 'Voir les dirigeants' },
+    },
+    {
+      kind: 'feature',
+      title: 'Matchs sur tout le gymnase',
+      text: 'Un match FFVB peut occuper tout le gymnase, quel que soit son nombre de terrains, et ne bloque plus les autres matchs.',
     },
     {
       kind: 'fix',
