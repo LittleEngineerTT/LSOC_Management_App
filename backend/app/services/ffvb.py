@@ -216,6 +216,10 @@ def apply_official(
 ) -> bool:
     # `before` permet à l’appelant d’historiser une modification faite juste avant l’appel.
     before = snapshot(event) if before is None else before
+    # Une mise à jour recalcule le statut annulé (indisponibilité) et la capacité dépassée ;
+    # sans mise à jour, le statut reste tel quel.
+    cancelled = event.cancelled
+    event.cancelled = False
     for key in ("kickoff_at", "gymnasium_id", "location"):
         local = official_value(event, key)
         remote = official.get(key)
@@ -277,7 +281,12 @@ def apply_official(
             event.starts_at = event.kickoff_at
             event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)
     after = snapshot(event)
-    changed = initial or before != after
+    changed = initial or {k: v for k, v in before.items() if k != "cancelled"} != {
+        k: v for k, v in after.items() if k != "cancelled"
+    }
+    if not changed:
+        event.cancelled = cancelled
+        after = snapshot(event)
     if changed:
         if not initial:
             event.version += 1

@@ -598,6 +598,10 @@ def change_event(
         and "direct_edit" not in values
     ):
         values["direct_edit"] = False
+    # Modifier un match FFVB recalcule son statut annulé (indisponibilité, capacité), sauf si
+    # la modification porte elle-même sur ce statut.
+    if event.ffvb_match_id and "cancelled" not in values:
+        event.cancelled = False
     for key, value in values.items():
         setattr(event, key, value)
     if event.ffvb_match_id:
