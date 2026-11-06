@@ -37,6 +37,28 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Places réservées',
+      text: 'Un événement peut réserver des places à certains postes d’une section ; un joueur peut choisir un autre poste que celui de son équipe, son coach en est prévenu.',
+      link: { to: '/app/planning', label: 'Voir le planning' },
+    },
+    {
+      kind: 'feature',
+      title: 'Demandes d’inscription',
+      text: 'Les coachs et administrateurs traitent les inscriptions depuis Messagerie › Demandes, ou directement sur l’événement.',
+    },
+    {
+      kind: 'feature',
+      title: 'Notifications instantanées',
+      text: 'Les pastilles de notifications et de messages se mettent à jour aussitôt, sans recharger la page.',
+    },
+    {
+      kind: 'feature',
+      title: 'Filtres du planning',
+      text: 'Filtrez le planning par section, équipe et gymnase, y compris sans être connecté.',
+      link: { to: '/app/planning', label: 'Voir le planning' },
+    },
+    {
+      kind: 'feature',
       title: 'Matchs sur tout le gymnase',
       text: 'Un match FFVB peut occuper tout le gymnase, quel que soit son nombre de terrains, et ne bloque plus les autres matchs.',
     },
