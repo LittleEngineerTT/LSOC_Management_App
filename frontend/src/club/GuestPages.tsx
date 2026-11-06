@@ -6,7 +6,7 @@ import { Empty, LoadState, PanelHeading } from '../admin/ui';
 import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { dayLabel, dayStart, horizonEnd, parisDay, rangeQuery, timeRange, today } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
-import { CalendarView } from './CalendarView';
+import { CalendarLegend, CalendarView } from './CalendarView';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
@@ -125,7 +125,27 @@ export function GuestHome() {
 }
 
 export function GuestPlanning() {
-  const { api } = useClub();
+  const { api, sections, teams, gymnasiums } = useClub();
+  const [search, setSearch] = useSearchParams();
+  const section = sections.some((item) => item.id === search.get('section'))
+    ? (search.get('section') ?? '')
+    : '';
+  // Les équipes proposées suivent la section choisie ; une équipe inconnue est ignorée.
+  const teamChoices = teams.filter((item) => !section || item.section_id === section);
+  const team = teamChoices.some((item) => item.id === search.get('equipe'))
+    ? (search.get('equipe') ?? '')
+    : '';
+  const gym = gymnasiums.some((item) => item.id === search.get('gymnase'))
+    ? (search.get('gymnase') ?? '')
+    : '';
+  function filter(name: string, value: string) {
+    setSearch((previous) => {
+      const next = new URLSearchParams(previous);
+      if (value) next.set(name, value);
+      else next.delete(name);
+      return next;
+    });
+  }
   const { mode, anchor, days } = useCalendarPeriod();
   const firstDay = days[0]!;
   const loader = useCallback(
@@ -146,12 +166,58 @@ export function GuestPlanning() {
           Se connecter
         </Link>
       </PanelHeading>
-      <p className="calendar-legend">Horaires de Paris · cliquez sur un match pour le consulter</p>
+      <div className="admin-toolbar">
+        <label>
+          Section
+          <select
+            value={section}
+            onChange={(change) => {
+              filter('section', change.target.value);
+              filter('equipe', '');
+            }}
+          >
+            <option value="">Toutes les sections</option>
+            {sections.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Équipe
+          <select value={team} onChange={(change) => filter('equipe', change.target.value)}>
+            <option value="">Toutes les équipes</option>
+            {teamChoices.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Gymnase
+          <select value={gym} onChange={(change) => filter('gymnase', change.target.value)}>
+            <option value="">Tous les lieux</option>
+            {gymnasiums.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <CalendarLegend />
       <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
       {result.data && (
         <CalendarView
-          events={result.data}
+          events={result.data.filter(
+            (event) =>
+              (!gym || event.gymnasium_id === gym) &&
+              (!section || event.section_ids.includes(section)) &&
+              (!team || (event.team_ids ?? []).includes(team)),
+          )}
           days={days}
           mode={mode}
           anchor={anchor}

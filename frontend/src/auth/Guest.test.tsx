@@ -72,6 +72,21 @@ it('montre au planning les seuls matchs FFVB, en lecture seule', async () => {
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/public/events?starts_at='))).toBe(true);
 });
 
+it('permet à un invité de filtrer les matchs par section puis par équipe', async () => {
+  open('/app/planning?semaine=2099-10-12');
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  await within(calendar).findByRole('link', { name: /LSO Colombes – Paris/ });
+  await userEvent.selectOptions(await screen.findByLabelText('Équipe'), 't1');
+  expect(within(calendar).getByRole('link', { name: /LSO Colombes – Paris/ })).toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText('Gymnase'), 'g1');
+  expect(within(calendar).getByRole('link', { name: /LSO Colombes – Paris/ })).toBeInTheDocument();
+  expect(screen.getByLabelText('Légende du calendrier')).toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText('Section'), '');
+  await userEvent.selectOptions(screen.getByLabelText('Section'), 's1');
+  expect(screen.getByLabelText('Équipe')).toHaveValue('');
+  expect(within(calendar).getByRole('link', { name: /LSO Colombes – Paris/ })).toBeInTheDocument();
+});
+
 it('envoie un invité vers la connexion pour les sections réservées, puis peut revenir au site', async () => {
   open('/app/messagerie');
   expect(await screen.findByRole('button', { name: 'Se connecter' })).toBeInTheDocument();

@@ -6,7 +6,7 @@ import { AuthApp } from '../auth/AuthApp';
 import { today, dayLabel, addDays } from './calendar';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', active: true, roles: ['member'], email: null };
-const base = { section_ids: [], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false };
+const base = { section_ids: [], team_ids: [] as string[], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false };
 const events = [
   { ...base, id: 'local', title: 'Entraînement local', kind: 'training', ffvb_match_id: null },
   { ...base, id: 'ffvb', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'match-1' },
@@ -25,6 +25,7 @@ function open(path = '/app/planning?semaine=2026-10-12', suppliedEvents = events
     let body: unknown = [];
     if (url.pathname.endsWith('/auth/me')) body = account;
     if (url.pathname.endsWith('/events')) body = suppliedEvents;
+    if (url.pathname.endsWith('/teams')) body = [{ id: 't1', name: 'Seniors M1', section_id: 's', referent_ids: [] }, { id: 't2', name: 'Seniors F1', section_id: 's', referent_ids: [] }];
     // Fiche d’un événement ouverte depuis le calendrier.
     const detail = suppliedEvents.find((event) => url.pathname.endsWith(`/events/${event.id}`));
     if (detail) body = detail;
@@ -149,4 +150,14 @@ it('en vue semaine, un clic dans la colonne d’un jour le sélectionne', async 
   const event = within(calendar).getByRole('region', { name: 'Mercredi 14 octobre' });
   await userEvent.click(within(event).getByRole('link', { name: /Match fédéral/ }));
   expect(within(calendar).getByRole('region', { name: 'Événements du Mercredi 14 octobre' })).toBeInTheDocument();
+});
+
+it('filtre le planning par équipe organisatrice', async () => {
+  open('/app/planning?semaine=2026-10-12', [{ ...events[0]!, team_ids: ['t1'] }, { ...events[1]!, team_ids: ['t2'] }]);
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  await within(calendar).findByRole('link', { name: /Entraînement local/ });
+  expect(within(calendar).getByRole('link', { name: /Match fédéral/ })).toBeInTheDocument();
+  await userEvent.selectOptions(await screen.findByLabelText('Équipe'), 't1');
+  expect(within(calendar).getByRole('link', { name: /Entraînement local/ })).toBeInTheDocument();
+  expect(within(calendar).queryByRole('link', { name: /Match fédéral/ })).not.toBeInTheDocument();
 });

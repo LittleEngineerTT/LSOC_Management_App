@@ -44,7 +44,7 @@ export function useWeek(): string {
 }
 
 export function PlanningPage() {
-  const { api, admin, account, sections, gymnasiums } = useClub();
+  const { api, admin, account, sections, teams, gymnasiums } = useClub();
   const coached = useCoachedTeams();
   // Un coach voit toujours le bouton ; le formulaire exige une équipe dont il est référent
   // ou à laquelle il est rattaché comme coach. Un référent d’équipe le voit aussi.
@@ -56,6 +56,11 @@ export function PlanningPage() {
   const { selected } = useSelectedDay(days, anchor);
   const section = search.get('section') ?? '';
   const gym = search.get('gymnase') ?? '';
+  // Les équipes proposées suivent la section choisie ; une équipe inconnue est ignorée.
+  const teamChoices = teams.filter((item) => !section || item.section_id === section);
+  const team = teamChoices.some((item) => item.id === search.get('equipe'))
+    ? (search.get('equipe') ?? '')
+    : '';
   // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
   const cancelled = search.get('annules') !== '0';
   const origin = search.get('origine') ?? '';
@@ -160,6 +165,17 @@ export function PlanningPage() {
           </select>
         </label>
         <label>
+          Équipe
+          <select value={team} onChange={(change) => filter('equipe', change.target.value)}>
+            <option value="">Toutes les équipes</option>
+            {teamChoices.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Gymnase
           <select value={gym} onChange={(change) => filter('gymnase', change.target.value)}>
             <option value="">Tous les lieux</option>
@@ -192,12 +208,14 @@ export function PlanningPage() {
       <LoadState result={result} />
       {result.data && (
         <CalendarView
-          events={result.data.filter((event) =>
-            origin === 'ffvb'
-              ? !!event.ffvb_match_id
-              : origin === 'local'
-                ? !event.ffvb_match_id
-                : true,
+          events={result.data.filter(
+            (event) =>
+              (origin === 'ffvb'
+                ? !!event.ffvb_match_id
+                : origin === 'local'
+                  ? !event.ffvb_match_id
+                  : true) &&
+              (!team || (event.team_ids ?? []).includes(team)),
           )}
           days={days}
           mode={mode}
