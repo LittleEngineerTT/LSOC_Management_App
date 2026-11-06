@@ -125,6 +125,44 @@ def blocking(db: Session, event: Event) -> AvailabilityBlock | None:
     return blocks[0] if blocks and any(s.excess for s in segments) else None
 
 
+def clear_cancellation(event: Event) -> None:
+    event.cancelled = False
+    event.cancel_reason = event.cancel_note = ""
+
+
+def manual_reason(event: Event, actor: User) -> str:
+    return "admin" if "admin" in actor.roles else "referent"
+
+
+def set_cancellation(
+    db: Session, event: Event, actor: User, base_version: int, cancelled: bool, reason: str | None
+) -> Event:
+    """Annule ou rétablit un événement : le référent et les administrateurs, sans passer par
+    une modification complète."""
+    lock_gyms(db, [event.gymnasium_id])
+    db.refresh(event)
+    if event.version != base_version:
+        raise HTTPException(409, {"code": "stale_version", "current_version": event.version})
+    if "admin" not in actor.roles and actor.id not in event.referent_ids:
+        raise HTTPException(403, "Annulation réservée au référent ou aux administrateurs")
+    if event.cancelled == cancelled:
+        raise HTTPException(409, "L’événement est déjà " + ("annulé" if cancelled else "actif"))
+    before = snapshot(event)
+    if cancelled:
+        event.cancelled = True
+        event.cancel_reason = reason or manual_reason(event, actor)
+        event.cancel_note = ""
+    else:
+        clear_cancellation(event)
+        if blocking(db, event) is not None:
+            raise HTTPException(409, "Le gymnase est indisponible sur ce créneau")
+    event.version += 1
+    revision(db, event, actor, before, "cancel" if cancelled else "reopen")
+    db.flush()
+    event_changed(db, event, actor.id, before)
+    return event
+
+
 def cancel_if_blocked(db: Session, event: Event, actor: User | None, record: bool = True) -> bool:
     """Annule sans erreur un événement placé sur une indisponibilité et prévient ses membres.
 
@@ -135,6 +173,7 @@ def cancel_if_blocked(db: Session, event: Event, actor: User | None, record: boo
         return False
     before = snapshot(event)
     event.cancelled = True
+    event.cancel_reason, event.cancel_note = "unavailability", block.title[:200]
     if record:
         event.version += 1
         revision(db, event, actor, before, "unavailability_cancel", origin="unavailability")
@@ -601,9 +640,14 @@ def change_event(
     # Modifier un match FFVB recalcule son statut annulé (indisponibilité, capacité), sauf si
     # la modification porte elle-même sur ce statut.
     if event.ffvb_match_id and "cancelled" not in values:
-        event.cancelled = False
+        clear_cancellation(event)
     for key, value in values.items():
         setattr(event, key, value)
+    if "cancelled" in values:
+        if event.cancelled:
+            event.cancel_reason, event.cancel_note = manual_reason(event, actor), ""
+        else:
+            clear_cancellation(event)
     if event.ffvb_match_id:
         if "courts" in values and event.courts > 0:
             event.match_courts = event.courts

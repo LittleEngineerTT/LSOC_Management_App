@@ -331,6 +331,10 @@ class Event(Identity, Base):
     referent_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     direct_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Motif de l’annulation : unavailability, capacity, admin ou referent ; vide sinon.
+    cancel_reason: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    # Précision du motif (titre de l’indisponibilité).
+    cancel_note: Mapped[str] = mapped_column(String(200), default="", server_default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
     series_id: Mapped[str | None] = mapped_column(ForeignKey("event_series.id"), index=True)
     exception: Mapped[bool] = mapped_column(Boolean, default=False)

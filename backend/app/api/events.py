@@ -10,6 +10,7 @@ from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
     BlockInput,
     BlockView,
+    CancelInput,
     CapacityView,
     ChangeInput,
     ChangeView,
@@ -43,6 +44,7 @@ from app.services.events import (
     lock_planning,
     permission,
     revision,
+    set_cancellation,
     snapshot,
 )
 from app.services.mails import event_card, state
@@ -261,6 +263,18 @@ def decide(request_id: str, body: DecisionInput, db: DB, actor: Admin) -> Change
 def create_series(body: SeriesInput, db: DB, actor: Admin) -> list[Event]:
     lock_planning(db)
     return create_series_events(db, body.event, body.until, body.weekdays, actor, body.force)
+
+
+@router.post("/events/{event_id}/cancellation", response_model=EventView)
+def cancel(event_id: str, body: CancelInput, db: DB, actor: Actor) -> Event:
+    """Annule l’événement (référent, administrateur) ; le motif s’affiche dans sa fiche."""
+    return set_cancellation(db, get(db, Event, event_id), actor, body.base_version, True, body.reason)
+
+
+@router.delete("/events/{event_id}/cancellation", response_model=EventView)
+def reopen(event_id: str, base_version: int, db: DB, actor: Actor) -> Event:
+    """Rétablit un événement annulé."""
+    return set_cancellation(db, get(db, Event, event_id), actor, base_version, False, None)
 
 
 @router.delete("/events/{event_id}", status_code=204)

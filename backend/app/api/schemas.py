@@ -282,6 +282,12 @@ class EventPatch(Input):
         return self
 
 
+class CancelInput(Input):
+    base_version: int = Field(gt=0)
+    # Motif choisi par l’annulation manuelle ; à défaut, le rôle de la personne qui annule.
+    reason: Literal["capacity"] | None = None
+
+
 class ChangeInput(Input):
     base_version: int = Field(gt=0)
     changes: EventPatch
@@ -305,6 +311,8 @@ class EventView(View):
     referent_ids: list[str]
     direct_edit: bool
     cancelled: bool
+    cancel_reason: str = ""
+    cancel_note: str = ""
     version: int
     series_id: str | None
     exception: bool

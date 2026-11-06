@@ -218,8 +218,8 @@ def apply_official(
     before = snapshot(event) if before is None else before
     # Une mise à jour recalcule le statut annulé (indisponibilité) et la capacité dépassée ;
     # sans mise à jour, le statut reste tel quel.
-    cancelled = event.cancelled
-    event.cancelled = False
+    cancelled = (event.cancelled, event.cancel_reason, event.cancel_note)
+    event.cancelled, event.cancel_reason, event.cancel_note = False, "", ""
     for key in ("kickoff_at", "gymnasium_id", "location"):
         local = official_value(event, key)
         remote = official.get(key)
@@ -281,11 +281,12 @@ def apply_official(
             event.starts_at = event.kickoff_at
             event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)
     after = snapshot(event)
-    changed = initial or {k: v for k, v in before.items() if k != "cancelled"} != {
-        k: v for k, v in after.items() if k != "cancelled"
+    status = {"cancelled", "cancel_reason", "cancel_note"}
+    changed = initial or {k: v for k, v in before.items() if k not in status} != {
+        k: v for k, v in after.items() if k not in status
     }
     if not changed:
-        event.cancelled = cancelled
+        event.cancelled, event.cancel_reason, event.cancel_note = cancelled
         after = snapshot(event)
     if changed:
         if not initial:

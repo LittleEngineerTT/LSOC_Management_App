@@ -37,6 +37,8 @@ Le cookie `lsoc_session` est HttpOnly. Le jeton CSRF est aussi disponible dans l
 | 422 | Entrée invalide ; erreurs de validation dans `detail` |
 | 429 | Limitation des tentatives d’authentification ; `Retry-After` |
 
+`POST /events/{id}/cancellation` (`base_version`, `reason` facultatif : `capacity`) annule un événement et `DELETE /events/{id}/cancellation?base_version=` le rétablit ; réservés aux administrateurs et aux référents, sans exiger la modification directe. L’événement porte `cancel_reason` (`unavailability`, `capacity`, `admin`, `referent`, vide s’il n’est pas annulé) et `cancel_note` (titre de l’indisponibilité) ; la fiche affiche ce motif au-dessus des questions. L’historique garde les actions `cancel` et `reopen`.
+
 Les erreurs métier utilisent `{"detail": "message"}` ou un objet dans `detail`. Pour la capacité : `detail.code="capacity_exceeded"` avec `segments`, ou `events` pour une série. Chaque segment contient dates, occupation, disponibilité et dépassement. Pour une version obsolète : `detail.code="stale_version"` et `current_version`. Recharger l’événement et demander à l’utilisateur de réexaminer sa modification. Un admin peut confirmer un dépassement avec `force=true` ; le forçage est historisé. Un match FFVB n’est jamais refusé ni annulé pour dépassement : il est historisé comme forcé et les administrateurs reçoivent une alerte « Capacité dépassée » pour le match et pour chaque match pris dans un dépassement causé par un autre événement. Deux matchs FFVB qui se chevauchent s’additionnent comme tout autre événement et déclenchent donc ce conflit.
 
 ## Comptes et catalogue
