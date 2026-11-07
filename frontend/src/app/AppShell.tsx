@@ -9,10 +9,11 @@ import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
 import { CountBadge, UnreadProvider, useUnread } from './unread';
 import { ClubProvider, GuestClubProvider } from '../club/context';
-import { GuestHome, GuestPlanning } from '../club/GuestPages';
-import { HomePage } from '../club/HomePage';
-import { PlanningPage } from '../club/PlanningPage';
+import { GuestGymnasiums, GuestHome, GuestPlanning } from '../club/GuestPages';
 import { GymnasiumsPage } from '../club/GymnasiumsPage';
+import { PlanningPage } from '../club/PlanningPage';
+import { HomePage } from '../club/HomePage';
+import { PlanningApp } from '../club/PlanningApp';
 import { MessagingPage } from '../club/MessagingPage';
 import { MyPlanningPage } from '../club/MyPlanningPage';
 import { MyTeamsPage } from '../club/MyTeamsPage';
@@ -22,7 +23,6 @@ import { InscriptionsPage } from '../club/InscriptionsPage';
 const clubSections = [
   'Accueil',
   'Planning',
-  'Gymnases',
   'Messagerie',
   'Mon planning',
   'Mes équipes',
@@ -34,7 +34,6 @@ const applications = [
   { path: '/app', title: 'Accueil', icon: 'home' },
   { path: '/app/planning', title: 'Planning', icon: 'calendar' },
   { path: '/app/notre-club', title: 'Notre club', icon: 'users' },
-  { path: '/app/gymnases', title: 'Gymnases', icon: 'court' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
   { path: '/app/inscriptions', title: 'Demandes', icon: 'clipboard' },
   { path: '/app/administration', title: 'Administration', icon: 'shield' },
@@ -55,10 +54,18 @@ const sectionTitles: Record<string, string> = {
   '/app/profil': 'Mon profil',
 };
 
+const GYMNASIUMS_PATH = '/app/gymnases';
+
 export function AppShell() {
   const session = useSession();
   const location = useLocation();
   const section = sectionTitles[location.pathname];
+  // Ancienne application « Gymnases », devenue un onglet du Planning : favoris et liens conservés.
+  if (location.pathname === GYMNASIUMS_PATH) {
+    const search = new URLSearchParams(location.search);
+    search.set('onglet', 'gymnases');
+    return <Navigate to={`/app/planning?${search.toString()}`} replace />;
+  }
   if (session.state === 'idle' || session.state === 'loading')
     return (
       <AuthLayout>
@@ -319,7 +326,9 @@ function Workspace({ account, section }: { account: Account | null; section: str
           {!account && (
             <GuestClubProvider>
               {section === 'Accueil' && <GuestHome />}
-              {section === 'Planning' && <GuestPlanning />}
+              {section === 'Planning' && (
+                <PlanningApp club={<GuestPlanning />} gyms={<GuestGymnasiums />} />
+              )}
               {section === 'Notre club' && <OurClubPage />}
             </GuestClubProvider>
           )}
@@ -338,8 +347,7 @@ function ClubPage({ section }: { section: string }) {
   return (
     <>
       {section === 'Accueil' && <HomePage />}
-      {section === 'Planning' && <PlanningPage />}
-      {section === 'Gymnases' && <GymnasiumsPage />}
+      {section === 'Planning' && <PlanningApp club={<PlanningPage />} gyms={<GymnasiumsPage />} />}
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mon planning' && <MyPlanningPage />}
       {section === 'Mes équipes' && <MyTeamsPage />}

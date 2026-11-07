@@ -124,8 +124,9 @@ test('menu mobile repliable et navigation entre applications', async ({ page }) 
   await page.goto('/app');
   await expect(page.getByRole('navigation', { name: 'Applications' })).not.toBeVisible();
   await page.getByRole('button', { name: 'Ouvrir les applications' }).click();
-  await page.getByRole('link', { name: 'Gymnases', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Gymnases' })).toBeVisible();
+  await page.getByRole('link', { name: 'Planning', exact: true }).click();
+  await page.getByRole('link', { name: 'Planning des gymnases' }).click();
+  await expect(page.getByRole('heading', { name: 'Planning des gymnases' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Applications' })).not.toBeVisible();
   await expect(page.getByText('Aucun gymnase n’est encore configuré.')).toBeVisible();
 });

@@ -98,3 +98,19 @@ it('ouvre directement le planning des matchs en invité', async () => {
   open('/app/planning');
   expect(await screen.findByRole('region', { name: 'Calendrier de la semaine' })).toBeInTheDocument();
 });
+
+it('montre à un invité le planning des gymnases avec les seuls matchs FFVB', async () => {
+  // L’ancienne adresse de l’application Gymnases ouvre l’onglet du Planning.
+  const fetchMock = open('/app/gymnases?semaine=2099-10-12');
+  expect(await screen.findByRole('heading', { name: 'Planning des gymnases' })).toBeInTheDocument();
+  const tabs = screen.getByRole('navigation', { name: 'Planning' });
+  expect(within(tabs).getByRole('link', { name: 'Planning des gymnases' })).toHaveAttribute('aria-current', 'page');
+  const picker = screen.getByRole('navigation', { name: 'Gymnases' });
+  expect(within(picker).getByRole('link', { name: 'Ambroise Paré' })).toHaveAttribute('aria-current', 'page');
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  expect(await within(calendar).findByRole('link', { name: /LSO Colombes – Paris/ })).toBeInTheDocument();
+  const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname);
+  expect(paths.filter((path) => !path.endsWith('/auth/me')).every((path) => path.startsWith('/api/v1/public/'))).toBe(true);
+  // Retour au planning du club, sur la même semaine.
+  expect(within(tabs).getByRole('link', { name: 'Planning du club' })).toHaveAttribute('href', '/app/planning?semaine=2099-10-12&onglet=club');
+});

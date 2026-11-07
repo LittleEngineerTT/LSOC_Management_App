@@ -10,6 +10,7 @@ import { CalendarLegend, CalendarView } from './CalendarView';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
+import { GymPicker, useSelectedGym } from './GymnasiumsPage';
 import {
   EventOrigin,
   kindLabels,
@@ -223,6 +224,53 @@ export function GuestPlanning() {
           anchor={anchor}
           empty="Aucun match FFVB sur cette période."
         />
+      )}
+      <GuestDetailHost />
+    </>
+  );
+}
+
+/** Onglet « Planning des gymnases » d’un invité : les seuls matchs FFVB du gymnase choisi, sans
+ * l’occupation des terrains ni les indisponibilités, réservées aux adhérents. */
+export function GuestGymnasiums() {
+  const { api } = useClub();
+  const selected = useSelectedGym();
+  const { mode, anchor, days } = useCalendarPeriod();
+  const firstDay = days[0]!;
+  const loader = useCallback(
+    (signal: AbortSignal) =>
+      api
+        .list<PublicEvent>(`/public/events?${rangeQuery(firstDay, days.length)}`, true, signal)
+        .then((events) => events.map(asEvent)),
+    [api, firstDay, days.length],
+  );
+  const result = useLoad(loader);
+  return (
+    <>
+      <PanelHeading
+        title="Planning des gymnases"
+        description="Les matchs FFVB du club, gymnase par gymnase. L’occupation des terrains est réservée aux adhérents connectés."
+      >
+        <Link className="admin-button primary" to="/login">
+          Se connecter
+        </Link>
+      </PanelHeading>
+      <GymPicker />
+      {selected && (
+        <>
+          <CalendarLegend />
+          <CalendarNavigation mode={mode} anchor={anchor} />
+          <LoadState result={result} />
+          {result.data && (
+            <CalendarView
+              events={result.data.filter((event) => event.gymnasium_id === selected.id)}
+              days={days}
+              mode={mode}
+              anchor={anchor}
+              empty="Aucun match FFVB dans ce gymnase sur cette période."
+            />
+          )}
+        </>
       )}
       <GuestDetailHost />
     </>

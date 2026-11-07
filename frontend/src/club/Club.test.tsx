@@ -166,8 +166,16 @@ it('la messagerie marque toutes les questions comme lues', async () => {
 
 it('les gymnases signalent un dépassement et mes équipes présentent mon rôle', async () => {
   routes['/gymnasiums/g1/availability'] = { gymnasium_id: 'g1', capacity: 3, segments: [{ starts_at: at('18:00'), ends_at: at('19:00'), occupied: 4, available: 0, excess: 1 }] };
+  // L’ancienne adresse de l’application Gymnases ouvre l’onglet du Planning.
   open('/app/gymnases');
   // Le jour du créneau est parfois aujourd’hui : il paraît alors aussi dans la journée sélectionnée.
+  expect((await screen.findAllByText('Complet · 1 terrain en excès')).length).toBeGreaterThan(0);
+  const tabs = screen.getByRole('navigation', { name: 'Planning' });
+  expect(within(tabs).getByRole('link', { name: 'Planning des gymnases' })).toHaveAttribute('aria-current', 'page');
+  expect(within(screen.getByRole('navigation', { name: 'Applications' })).queryByRole('link', { name: 'Gymnases' })).not.toBeInTheDocument();
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Planning du club' }));
+  expect(await screen.findByRole('heading', { name: 'Planning du club' })).toBeInTheDocument();
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Planning des gymnases' }));
   expect((await screen.findAllByText('Complet · 1 terrain en excès')).length).toBeGreaterThan(0);
   await userEvent.click(screen.getByRole('link', { name: 'Mes équipes' }));
   const card = (await screen.findByRole('heading', { name: 'Loisir 1' })).closest('section')!;

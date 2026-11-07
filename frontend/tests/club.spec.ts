@@ -105,7 +105,7 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
     ['/app/planning', 'Planning du club'],
     ['/app/planning?event=event-2', 'LSO COLOMBES / AS SP BOURG LA REINE 2'],
     ['/app/planning?event=event-1', 'Inscriptions'],
-    ['/app/gymnases', 'Gymnases'],
+    ['/app/planning?onglet=gymnases', 'Planning des gymnases'],
     ['/app/messagerie?thread=thread-1', 'Entraînement loisir du mercredi soir'],
     ['/app/mon-planning', 'Mon planning'],
     ['/app/equipes', 'Loisir 1'],
@@ -118,7 +118,7 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
       await noOverflow(page);
     }
   }
-  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lu'], ['planning', `/app/planning?jour=${day(2)}`, 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['equipes', '/app/equipes', 'Joueur']];
+  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lu'], ['planning', `/app/planning?jour=${day(2)}`, 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/planning?onglet=gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['equipes', '/app/equipes', 'Joueur']];
   for (const [name, path, text] of previews) {
     for (const [device, size] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]] as const) {
       await page.setViewportSize(size);

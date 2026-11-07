@@ -31,7 +31,7 @@ async function prepare(page: Page) {
 
 test('calendrier des gymnases : créneaux libres, complet, dépassement et détail conservé', async ({ page }) => {
   const calls = await prepare(page);
-  await page.goto('/app/gymnases?gymnase=g1&semaine=2026-10-12');
+  await page.goto('/app/planning?onglet=gymnases&gymnase=g1&semaine=2026-10-12');
   const week = page.getByRole('region', { name: 'Calendrier de disponibilité de la semaine' });
   await expect(week.getByRole('region', { name: 'Lundi 12 octobre' })).toContainText('3 libres sur 3');
   await week.getByLabel('Grille horaire des disponibilités, défilement horizontal et vertical').scrollIntoViewIfNeeded();
@@ -70,7 +70,7 @@ test('calendrier des gymnases utilisable de 320 à 2560 px', async ({ page }, in
   for (const [width, height] of [[320,568],[360,800],[390,844],[430,932],[768,1024],[1024,768],[1440,900],[1920,1080],[2560,1440]] as const) {
     await page.setViewportSize({ width, height });
     for (const vue of ['semaine', 'mois']) {
-      await page.goto(`/app/gymnases?semaine=2026-10-12&vue=${vue}&jour=2026-10-14`);
+      await page.goto(`/app/planning?onglet=gymnases&semaine=2026-10-12&vue=${vue}&jour=2026-10-14`);
       await expect(page.getByRole('region', { name: 'Disponibilités du Mercredi 14 octobre' })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${vue} ${width}px`).toBe(true);
       if (vue === 'semaine') {
@@ -82,7 +82,7 @@ test('calendrier des gymnases utilisable de 320 à 2560 px', async ({ page }, in
   for (const [device, viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]] as const) {
     await page.setViewportSize(viewport);
     for (const vue of ['semaine','mois']) {
-      await page.goto(`/app/gymnases?semaine=2026-10-12&vue=${vue}&jour=2026-10-14`);
+      await page.goto(`/app/planning?onglet=gymnases&semaine=2026-10-12&vue=${vue}&jour=2026-10-14`);
       await expect(page.getByRole('region', { name: 'Disponibilités du Mercredi 14 octobre' })).toBeVisible();
       await page.screenshot({ path: `.cache/previews/gym-calendar-${vue}-${device}.png`, fullPage: true });
     }

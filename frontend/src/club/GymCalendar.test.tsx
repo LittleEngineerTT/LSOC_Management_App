@@ -15,7 +15,7 @@ beforeAll(() => {
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.removeAttribute('open'); } });
 });
 afterAll(() => { Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal'); Reflect.deleteProperty(HTMLDialogElement.prototype, 'close'); });
-function open(path = '/app/gymnases?semaine=2026-10-12', cancelled = false) {
+function open(path = '/app/planning?onglet=gymnases&semaine=2026-10-12', cancelled = false) {
   const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
     const url = new URL(String(input), 'http://localhost');
     const name = url.pathname.replace('/api/v1', '');
@@ -70,7 +70,7 @@ it('répartit la capacité et les indisponibilités sur chaque jour avec une fin
 });
 
 it('charge 42 jours au mois et détaille les créneaux du jour choisi', async () => {
-  const fetchMock = open('/app/gymnases?semaine=2026-10-12&vue=mois');
+  const fetchMock = open('/app/planning?onglet=gymnases&semaine=2026-10-12&vue=mois');
   const month = await screen.findByRole('region', { name: 'Calendrier de disponibilité du mois' });
   expect(within(month).getAllByRole('button', { name: /Voir les disponibilités/ })).toHaveLength(42);
   await userEvent.click(within(month).getByRole('button', { name: /Voir les disponibilités du Jeudi 15 octobre/ }));
@@ -85,15 +85,15 @@ it('charge 42 jours au mois et détaille les créneaux du jour choisi', async ()
 });
 
 it('conserve la vue, la date, le jour et les filtres en changeant de gymnase', async () => {
-  open('/app/gymnases?gymnase=g1&semaine=2026-10-12&vue=mois&jour=2026-10-15&origine=local&event=e1');
+  open('/app/planning?onglet=gymnases&gymnase=g1&semaine=2026-10-12&vue=mois&jour=2026-10-15&origine=local&event=e1');
   const picker = await screen.findByRole('navigation', { name: 'Gymnases' });
   const next = within(picker).getByRole('link', { name: /Ladoumègue/ });
   const params = new URLSearchParams(next.getAttribute('href')!.split('?')[1]);
-  expect(Object.fromEntries(params)).toEqual({ gymnase: 'g2', semaine: '2026-10-12', vue: 'mois', jour: '2026-10-15', origine: 'local' });
+  expect(Object.fromEntries(params)).toEqual({ onglet: 'gymnases', gymnase: 'g2', semaine: '2026-10-12', vue: 'mois', jour: '2026-10-15', origine: 'local' });
 });
 
 it('signale une séance annulée sans recalculer l’occupation renvoyée par le serveur', async () => {
-  open('/app/gymnases?semaine=2026-10-12&jour=2026-10-14', true);
+  open('/app/planning?onglet=gymnases&semaine=2026-10-12&jour=2026-10-14', true);
   const week = await screen.findByRole('region', { name: 'Calendrier de disponibilité de la semaine' });
   const day = within(week).getByRole('region', { name: 'Mercredi 14 octobre' });
   expect(within(day).getByRole('link', { name: /Séance locale.*annulé, sans occupation/ })).toHaveClass('cancelled');
@@ -102,7 +102,7 @@ it('signale une séance annulée sans recalculer l’occupation renvoyée par le
 });
 
 it('la vue mois n’emploie jamais la notion « complet »', async () => {
-  open('/app/gymnases?semaine=2026-10-12&vue=mois&jour=2026-10-16');
+  open('/app/planning?onglet=gymnases&semaine=2026-10-12&vue=mois&jour=2026-10-16');
   const month = await screen.findByRole('region', { name: 'Calendrier de disponibilité du mois' });
   expect(month).not.toHaveTextContent(/complet/i);
   const legend = screen.getByLabelText('Légende des disponibilités');

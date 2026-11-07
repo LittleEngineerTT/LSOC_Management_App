@@ -70,6 +70,12 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Planning et gymnases réunis',
+      text: 'L’application Planning regroupe, en deux onglets, le planning du club et celui des gymnases. Sans compte, on y voit les matchs FFVB, aussi gymnase par gymnase.',
+      link: { to: '/app/planning?onglet=gymnases', label: 'Voir le planning des gymnases' },
+    },
+    {
+      kind: 'feature',
       title: 'Annulation d’un événement',
       text: 'Le référent ou un administrateur peut annuler et rétablir un événement ; le motif (gymnase indisponible, capacité dépassée, décision du référent ou d’un administrateur) s’affiche en tête de sa fiche.',
     },

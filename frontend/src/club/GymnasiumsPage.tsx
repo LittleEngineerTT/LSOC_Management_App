@@ -9,21 +9,53 @@ import { GymAvailabilityCalendar, GymCalendarLegend } from './GymAvailabilityCal
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 
-export function GymnasiumsPage() {
-  const { gymnasiums, admin } = useClub();
+/** Gymnase choisi par le paramètre « gymnase » de l’URL, sinon le premier. */
+export function useSelectedGym() {
+  const { gymnasiums } = useClub();
   const [search] = useSearchParams();
-  const selected =
-    gymnasiums.find((gym) => gym.id === search.get('gymnase')) ?? gymnasiums[0] ?? null;
+  return gymnasiums.find((gym) => gym.id === search.get('gymnase')) ?? gymnasiums[0] ?? null;
+}
+
+/** Choix du gymnase affiché ; sa capacité n’est indiquée que si elle est connue (pas aux invités). */
+export function GymPicker() {
+  const { gymnasiums } = useClub();
+  const [search] = useSearchParams();
+  const selected = useSelectedGym();
   function gymLink(id: string) {
     const next = new URLSearchParams(search);
     next.set('gymnase', id);
     next.delete('event');
     return `?${next.toString()}`;
   }
+  if (!gymnasiums.length) return <Empty>Aucun gymnase n’est encore configuré.</Empty>;
+  return (
+    <nav className="club-gyms" aria-label="Gymnases">
+      {gymnasiums.map((gym) => (
+        <Link
+          key={gym.id}
+          to={gymLink(gym.id)}
+          className={gym.id === selected?.id ? 'active' : ''}
+          aria-current={gym.id === selected?.id ? 'page' : undefined}
+        >
+          <strong>{gym.name}</strong>
+          {gym.capacity > 0 && (
+            <span>
+              {gym.capacity} terrain{gym.capacity > 1 ? 's' : ''}
+            </span>
+          )}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+export function GymnasiumsPage() {
+  const { admin } = useClub();
+  const selected = useSelectedGym();
   return (
     <>
       <PanelHeading
-        title="Gymnases"
+        title="Planning des gymnases"
         description="Occupation des terrains et disponibilités de chaque gymnase, créneau par créneau."
       >
         {admin && (
@@ -32,25 +64,7 @@ export function GymnasiumsPage() {
           </Link>
         )}
       </PanelHeading>
-      {!gymnasiums.length ? (
-        <Empty>Aucun gymnase n’est encore configuré.</Empty>
-      ) : (
-        <nav className="club-gyms" aria-label="Gymnases">
-          {gymnasiums.map((gym) => (
-            <Link
-              key={gym.id}
-              to={gymLink(gym.id)}
-              className={gym.id === selected?.id ? 'active' : ''}
-              aria-current={gym.id === selected?.id ? 'page' : undefined}
-            >
-              <strong>{gym.name}</strong>
-              <span>
-                {gym.capacity} terrain{gym.capacity > 1 ? 's' : ''}
-              </span>
-            </Link>
-          ))}
-        </nav>
-      )}
+      <GymPicker />
       {selected && <GymWeek key={selected.id} id={selected.id} capacity={selected.capacity} />}
     </>
   );
