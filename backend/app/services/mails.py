@@ -83,7 +83,7 @@ def action_label(path: str) -> str:
         return "Voir l’événement"
     if path.startswith("/app/administration"):
         return "Traiter dans l’administration"
-    if path.startswith("/app/gymnases"):
+    if path.startswith("/app/gymnases") or "onglet=gymnases" in path:
         return "Voir les gymnases"
     if path.startswith("/app/mon-planning"):
         return "Voir mon planning"
