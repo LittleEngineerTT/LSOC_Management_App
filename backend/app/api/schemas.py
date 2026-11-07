@@ -353,7 +353,7 @@ class EventConflictView(View):
     problems: list[EventProblem]
 
 
-StaffFunction =Literal["president", "vice_president", "coach"]
+StaffFunction = Literal["president", "vice_president", "coach"]
 
 
 class StaffView(View):
