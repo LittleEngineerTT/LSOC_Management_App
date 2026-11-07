@@ -44,3 +44,34 @@ def test_conflicts_list_capacity_excess_and_erroneous_events(admin: TestClient) 
 def test_conflicts_are_reserved_to_admins(admin: TestClient) -> None:
     add_user('coach', ['member', 'coach'])
     assert login('coach').get('/api/v1/event-conflicts').status_code == 403
+
+
+def test_disabled_and_suspended_ffvb_matches_are_listed_until_reactivated(admin: TestClient) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from test_ffvb import configure, match_event, sync
+
+    from app.persistence.models import FFVBMatchState
+
+    source, _, _ = configure(admin)
+    sync(source)
+    disabled, suspended = match_event('BRC007'), match_event('BRC005')
+    with SessionFactory.begin() as db:
+        # Les matchs du fichier de référence sont ramenés dans l’avenir pour être « à venir ».
+        for identifier, day in ((disabled.id, 20), (suspended.id, 21)):
+            event = db.get_one(Event, identifier)
+            event.starts_at = datetime(2099, 10, day, 16, tzinfo=UTC)
+            event.ends_at = datetime(2099, 10, day, 20, tzinfo=UTC)
+        db.get_one(FFVBMatchState, disabled.ffvb_match_id).disabled = True
+        db.get_one(FFVBMatchState, suspended.ffvb_match_id).suspended_until = datetime.now(UTC) + timedelta(hours=48)
+
+    def codes() -> dict[str, list[str]]:
+        return {item['event']['id']: [problem['code'] for problem in item['problems']] for item in admin.get('/api/v1/event-conflicts').json()}
+
+    found = codes()
+    assert 'ffvb_disabled' in found[disabled.id]
+    assert 'ffvb_suspended' in found[suspended.id]
+    for event in (disabled, suspended):
+        assert admin.post(f'/api/v1/ffvb/matches/{event.ffvb_match_id}/reactivate', json={}).status_code == 200
+    found = codes()
+    assert not {'ffvb_disabled', 'ffvb_suspended'} & set(found.get(disabled.id, []) + found.get(suspended.id, []))

@@ -33,6 +33,7 @@ async function prepare(page: Page) {
     if (path.endsWith('/decision')) { const item = collections['/change-requests']?.[0]; if (item) item.status = body.accept ? 'accepted' : 'rejected'; return reply(item); }
     if (path.endsWith('/resolve')) { collections['/ffvb/conflicts'] = []; return reply(collections['/ffvb/matches']?.[0]); }
     if (path.endsWith('/reactivate')) { const item = collections['/ffvb/matches']?.[0]; if (item) item.disabled = false; return reply(item); }
+    if (path === '/event-conflicts') { const match = collections['/ffvb/matches']?.[0]; return reply(match?.disabled ? [{ event: { id: 'event-ffvb', title: 'LSO COLOMBES / PARIS', starts_at: '2099-10-15T16:00:00Z', ends_at: '2099-10-15T18:00:00Z', gymnasium_id: 'gym-1', location: '', ffvb_match_id: match.id }, problems: [{ code: 'ffvb_disabled', message: 'Vérification FFVB désactivée pour ce match' }] }] : []); }
     if (path.endsWith('/sync')) return reply(collections['/ffvb/sources']?.find((source) => path.includes(String(source.id))));
     if (path.includes('/invitation')) {
       if (method === 'DELETE') return reply(undefined, 204);
@@ -162,10 +163,10 @@ test('sources et associations FFVB, conflits et réactivation', async ({ page })
   await page.getByRole('button', { name: 'Suspendre 48 h', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Confirmer', exact: true }).click();
   await expect(page.getByText('Aucun conflit FFVB ouvert.')).toBeVisible();
-  await page.getByRole('button', { name: 'Matchs importés', exact: true }).click();
-  await page.getByRole('button', { name: 'Réactiver', exact: true }).click();
+  await tab(page, 'Conflits');
+  await page.getByRole('button', { name: 'Réactiver la vérification FFVB', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Confirmer', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Réactiver', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Aucun événement en conflit.')).toBeVisible();
 });
 
 test('création par URL et avertissement des équipes sans source', async ({ page }) => {

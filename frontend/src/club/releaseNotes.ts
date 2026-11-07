@@ -77,7 +77,7 @@ export const release: Release = {
     {
       kind: 'feature',
       title: 'Conflits du planning',
-      text: 'Les administrateurs retrouvent dans Administration > Conflits les événements à venir où la capacité d’un gymnase est dépassée, et ceux qui comportent une erreur : match à domicile sans gymnase, référent manquant, écart avec le calendrier FFVB.',
+      text: 'Les administrateurs retrouvent dans Administration > Conflits les événements à venir où la capacité d’un gymnase est dépassée, et ceux qui comportent une erreur : match à domicile sans gymnase, référent manquant, écart avec le calendrier FFVB, vérification FFVB désactivée ou suspendue, qu’on réactive sur place.',
     },
     {
       kind: 'feature',

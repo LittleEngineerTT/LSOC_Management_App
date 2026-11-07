@@ -270,6 +270,7 @@ PROBLEM_MESSAGES: dict[EventProblemCode, str] = {
     "no_referent": "Aucun référent : événement à réattribuer",
     "ffvb_divergence": "Divergence avec le calendrier officiel FFVB à traiter",
     "ffvb_missing": "Match absent du calendrier officiel FFVB",
+    "ffvb_disabled": "Vérification FFVB désactivée pour ce match",
 }
 
 
@@ -284,7 +285,8 @@ def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
 
     Un événement ressort quand la capacité de son gymnase est dépassée pendant sa durée,
     quand un match à domicile n’a pas de gymnase (occupation inconnue), quand il n’a plus
-    de référent, ou quand son match FFVB diverge du calendrier officiel ou en a disparu.
+    de référent, ou quand son match FFVB diverge du calendrier officiel, en a disparu, ou
+    n’est plus vérifié (désactivé ou suspendu) : la réactivation se fait depuis cette liste.
     """
     events = list(
         db.scalars(
@@ -321,25 +323,35 @@ def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
             )
         )
     )
-    missing = set(
-        db.scalars(
-            select(FFVBMatchState.id).where(
-                FFVBMatchState.id.in_(matches), FFVBMatchState.missing.is_(True)
-            )
-        )
-    )
+    states = {
+        state.id: state
+        for state in db.scalars(select(FFVBMatchState).where(FFVBMatchState.id.in_(matches)))
+    }
     for event in events:
+        state = states.get(event.ffvb_match_id or "")
         checks: list[tuple[EventProblemCode, bool]] = [
             ("missing_gymnasium", event.occupancy_unknown),
             ("no_referent", not event.referent_ids),
             ("ffvb_divergence", event.ffvb_match_id in divergent),
-            ("ffvb_missing", event.ffvb_match_id in missing),
+            ("ffvb_missing", state is not None and state.missing),
+            ("ffvb_disabled", state is not None and state.disabled),
         ]
         problems[event.id].extend(
             EventProblem(code=code, message=PROBLEM_MESSAGES[code])
             for code, found in checks
             if found
         )
+        # Une suspension échue ne compte plus : la vérification a déjà repris.
+        if state is None or state.disabled or state.suspended_until is None:
+            continue
+        until = state.suspended_until
+        if until > since:
+            problems[event.id].append(
+                EventProblem(
+                    code="ffvb_suspended",
+                    message=f"Vérification FFVB suspendue jusqu’au {until.astimezone(PARIS):%d/%m à %H:%M}",
+                )
+            )
     return [
         EventConflictView(event=EventView.model_validate(event), problems=problems[event.id])
         for event in events

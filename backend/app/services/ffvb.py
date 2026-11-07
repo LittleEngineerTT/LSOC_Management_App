@@ -528,7 +528,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                         f"ffvb-missing:{state.id}:{now().isoformat()}",
                         "ffvb_missing",
                         f"Match FFVB absent : {state.match_code}",
-                        link="/app/administration?tab=ffvb&vue=matches",
+                        link="/app/administration?tab=conflicts",
                     )
                 state.missing = True
     record_calendar(db, source, matches)

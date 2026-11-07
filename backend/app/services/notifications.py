@@ -133,9 +133,13 @@ GROUPED = {
     "ffvb_missing": (
         "match FFVB absent",
         "matchs FFVB absents",
-        "/app/administration?tab=ffvb&vue=matches",
+        "/app/administration?tab=conflicts",
     ),
-    "capacity_conflict": ("dépassement de capacité", "dépassements de capacité", "/app/gymnases"),
+    "capacity_conflict": (
+        "dépassement de capacité",
+        "dépassements de capacité",
+        "/app/administration?tab=conflicts",
+    ),
     "referent_missing": ("référent à réattribuer", "référents à réattribuer", "/app/planning"),
     "ffvb_added": ("match ajouté", "matchs ajoutés", "/app/planning"),
 }

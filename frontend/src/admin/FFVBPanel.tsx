@@ -1,9 +1,8 @@
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useCallback, useState } from 'react';
 import { useAdmin, useLoad, useResource } from './data';
 import type { Conflict, Defaults, Mapping, Match } from './types';
 import {
-  Badge,
   Confirm,
   Empty,
   EntityForm,
@@ -29,6 +28,9 @@ export function FFVBPanel() {
     [api],
   );
   const club = useLoad(clubLoader);
+  // L’ancienne sous-vue « Matchs importés » (liens d’anciennes notifications) est remplacée par
+  // l’onglet Conflits, où se réactivent les matchs désactivés ou suspendus.
+  if (view === 'matches') return <Navigate to="?tab=conflicts" replace />;
   const clubCode = club.data?.club_code ?? null;
   return (
     <>
@@ -42,7 +44,6 @@ export function FFVBPanel() {
           { id: 'club', label: 'Configuration du club' },
           { id: 'mappings', label: 'Gymnases FFVB' },
           { id: 'defaults', label: 'Marges et terrains' },
-          { id: 'matches', label: 'Matchs importés' },
           { id: 'conflicts', label: 'Conflits' },
         ].map((item) => (
           <button
@@ -65,7 +66,6 @@ export function FFVBPanel() {
         )}
         {view === 'mappings' && <Mappings />}
         {view === 'defaults' && <MatchDefaults />}
-        {view === 'matches' && <Matches />}
         {view === 'conflicts' && <Conflicts />}
       </div>
     </>
@@ -249,84 +249,6 @@ function MatchDefaults() {
             matchs existants restent inchangés.
           </p>
         </EntityForm>
-      )}
-    </>
-  );
-}
-function Matches() {
-  const { api } = useAdmin();
-  const result = useResource<Match>('/ffvb/matches', true);
-  const [reactivating, setReactivating] = useState<Match | null>(null);
-  const [query, setQuery] = useState('');
-  const filtered =
-    result.data?.filter((match) => match.match_code.toLowerCase().includes(query.toLowerCase())) ??
-    [];
-  return (
-    <>
-      <LoadState result={result} />
-      <div className="admin-toolbar">
-        <label>
-          Rechercher un match
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Code du match…"
-          />
-        </label>
-        <button className="admin-button" onClick={result.reload}>
-          Actualiser
-        </button>
-      </div>
-      {result.loaded && !filtered.length && <Empty>Aucun match importé correspondant.</Empty>}
-      <div className="admin-list">
-        {filtered.map((match) => (
-          <article className="admin-card" key={match.id}>
-            <div className="admin-row">
-              <div>
-                <h3>
-                  {match.match_code} · {match.season}
-                </h3>
-                <p>Dernière vérification : {dateLabel(match.last_verified_at)}</p>
-                {match.disabled && <Badge tone="warning">Désactivé</Badge>}
-                {match.suspended_until && (
-                  <Badge tone="warning">Suspendu jusqu’au {dateLabel(match.suspended_until)}</Badge>
-                )}
-                {match.missing && <Badge tone="warning">Absent de la source officielle</Badge>}
-              </div>
-              {(match.disabled || match.suspended_until) && (
-                <button className="admin-button" onClick={() => setReactivating(match)}>
-                  Réactiver
-                </button>
-              )}
-            </div>
-            <details>
-              <summary>État officiel et protections locales</summary>
-              <Changes values={match.official} />
-              <p>
-                Champs protégés :{' '}
-                {Object.keys(match.protected)
-                  .map((key) => fieldLabels[key] ?? key)
-                  .join(', ') || 'Aucun'}
-              </p>
-            </details>
-          </article>
-        ))}
-      </div>
-      {reactivating && (
-        <Confirm
-          title="Réactiver la vérification de ce match ?"
-          onClose={() => setReactivating(null)}
-          onConfirm={async (signal) => {
-            await api.request(`/ffvb/matches/${reactivating.id}/reactivate`, 'POST', {}, signal);
-            result.reload();
-          }}
-        >
-          <p>
-            La vérification FFVB de {reactivating.match_code} reprendra. Une divergence persistante
-            pourra rouvrir un conflit.
-          </p>
-        </Confirm>
       )}
     </>
   );

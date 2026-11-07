@@ -331,7 +331,13 @@ class EventView(View):
 
 
 EventProblemCode = Literal[
-    "capacity_exceeded", "missing_gymnasium", "no_referent", "ffvb_divergence", "ffvb_missing"
+    "capacity_exceeded",
+    "missing_gymnasium",
+    "no_referent",
+    "ffvb_divergence",
+    "ffvb_missing",
+    "ffvb_disabled",
+    "ffvb_suspended",
 ]
 
 

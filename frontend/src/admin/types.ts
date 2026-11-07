@@ -290,7 +290,13 @@ export interface Capacity {
 /** Anomalie d’un événement à venir, relevée par `/event-conflicts`. */
 export interface EventProblem {
   code:
-    'capacity_exceeded' | 'missing_gymnasium' | 'no_referent' | 'ffvb_divergence' | 'ffvb_missing';
+    | 'capacity_exceeded'
+    | 'missing_gymnasium'
+    | 'no_referent'
+    | 'ffvb_divergence'
+    | 'ffvb_missing'
+    | 'ffvb_disabled'
+    | 'ffvb_suspended';
   message: string;
 }
 export interface EventConflict {
