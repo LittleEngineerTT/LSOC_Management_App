@@ -1,16 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ErrorNotice } from '../auth/components';
-import { useRequest } from '../auth/useRequest';
 import { useLoad } from '../admin/data';
-import { dateLabel } from '../admin/time';
 import { Badge, Empty, LoadState } from '../admin/ui';
 import { dayLabel, parisDay, timeRange } from './calendar';
-import { useClub, type Notification } from './context';
+import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
 import { useMyEvents } from './MyPlanningPage';
-import { useLiveReload, useUnread } from '../app/unread';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 
@@ -60,92 +56,9 @@ export function HomePage() {
             Tout mon planning
           </Link>
         </section>
-        <Notifications />
       </div>
       <DetailHost onChanged={result.reload} />
     </>
-  );
-}
-
-/** Notifications non lues ; une notification marquée comme lue disparaît, avec sa pastille. */
-function Notifications() {
-  const { api } = useClub();
-  const { notifications: total, refresh } = useUnread();
-  const loader = useCallback(
-    (signal: AbortSignal) =>
-      api.request<Notification[]>(
-        '/notifications?unread_only=true&limit=30',
-        'GET',
-        undefined,
-        signal,
-      ),
-    [api],
-  );
-  const result = useLoad(loader);
-  useLiveReload(result.refresh);
-  const request = useRequest();
-  const [read, setRead] = useState<Set<string>>(new Set());
-  const link = useEventLink();
-  const items = (result.data ?? []).filter((item) => !item.read_at && !read.has(item.id));
-  // Chaque notification mène à l’action attendue : lien explicite, sinon l’événement.
-  const target = (item: Notification) => item.link ?? (item.event_id ? link(item.event_id) : null);
-  const count = Math.max(total, items.length);
-  function markRead(ids: string[]) {
-    void request.run(async (signal) => {
-      for (const id of ids) {
-        await api.request(`/notifications/${id}/read`, 'POST', {}, signal);
-        setRead((previous) => new Set(previous).add(id));
-      }
-      refresh();
-    });
-  }
-  return (
-    <section className="admin-card">
-      <h3>Notifications {count > 0 && <span className="club-count">{count}</span>}</h3>
-      <LoadState result={result} />
-      {result.loaded && !items.length && <Empty>Aucune nouvelle notification.</Empty>}
-      <ErrorNotice message={request.error} />
-      {items.length > 1 && (
-        <div className="admin-actions club-notifications-all">
-          <button
-            type="button"
-            className="admin-button"
-            disabled={request.pending}
-            onClick={() => markRead(items.map((item) => item.id))}
-          >
-            Tout marquer comme lu
-          </button>
-        </div>
-      )}
-      <ul className="club-plain-list club-notifications">
-        {items.map((item) => (
-          <li key={item.id} className="unread">
-            <span className="club-notification-copy">
-              <span>
-                {target(item) ? <Link to={target(item)!}>{item.title}</Link> : item.title}
-                <span className="admin-hint"> · {dateLabel(item.created_at)}</span>
-              </span>
-              {item.body && <span className="club-notification-body">{item.body}</span>}
-            </span>
-            <span className="club-notification-actions">
-              {actionLabel(item) && (
-                <Link className="admin-button primary" to={target(item)!}>
-                  {actionLabel(item)}
-                </Link>
-              )}
-              <button
-                type="button"
-                className="admin-button"
-                disabled={request.pending}
-                onClick={() => markRead([item.id])}
-              >
-                Marquer comme lu
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
@@ -175,10 +88,4 @@ function AdminSummary() {
       </Link>
     </div>
   );
-}
-
-function actionLabel(item: Notification): string | null {
-  if (item.link?.includes('tab=requests')) return 'Examiner la demande';
-  if (item.link?.startsWith('/app/messagerie')) return 'Voir le message';
-  return null;
 }

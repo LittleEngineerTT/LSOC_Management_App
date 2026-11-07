@@ -79,10 +79,10 @@ def test_unread_counts_for_questions_answers_and_notifications(admin: TestClient
     assert second.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Non, merci.'}).status_code == 201
     assert admin.post(f'/api/v1/questions/{thread}/read').status_code == 204
     # Lire le fil efface aussi les alertes de question, sans marquer la réponse d’un autre admin.
-    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}}
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0}
     # La boîte des admins est partagée : un fil lu par un admin l’est pour tous.
     assert second.get('/api/v1/unread').json()['messages'] == 0
-    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread], 'thread_counts': {thread: 1}}
+    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread], 'thread_counts': {thread: 1}, 'requests': 0}
     assert member.post(f'/api/v1/questions/{thread}/read').status_code == 204
     assert member.get('/api/v1/unread').json()['messages'] == 0
     # Le second admin a répondu : ses alertes de question sur ce fil sont lues.
@@ -107,7 +107,7 @@ def test_reply_and_mark_all_read_clear_question_counters(admin: TestClient) -> N
     assert member.get('/api/v1/unread').json()['messages'] == 0
     assert admin.get('/api/v1/unread').json()['messages'] == 1
     assert admin.post('/api/v1/questions/read').status_code == 204
-    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}}
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0}
 
 
 def test_deleting_a_conversation_hides_it_for_that_account_only(admin: TestClient) -> None:
@@ -135,3 +135,17 @@ def test_deleting_a_conversation_hides_it_for_that_account_only(admin: TestClien
     assert admin.delete(f'/api/v1/questions/{thread}').status_code == 204
     assert admin.get('/api/v1/questions').json() == []
     assert [t['id'] for t in member.get('/api/v1/questions').json()] == [thread]
+
+
+def test_notifications_list_unread_first_then_most_recent(admin: TestClient) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.persistence.models import Notification
+
+    start = datetime(2026, 11, 1, tzinfo=UTC)
+    with SessionFactory.begin() as db:
+        for index, read in enumerate([False, True, False, True]):
+            db.add(Notification(user_id='admin', dedupe_key=f'order:{index}', kind='license', title=f'N{index}', created_at=start + timedelta(hours=index), read_at=start if read else None))
+    titles = [item['title'] for item in admin.get('/api/v1/notifications?unread_first=true&limit=20').json() if item['title'].startswith('N')]
+    assert titles == ['N2', 'N0', 'N3', 'N1']
+    assert [item['title'] for item in admin.get('/api/v1/notifications?limit=20').json() if item['title'].startswith('N')] == ['N3', 'N2', 'N1', 'N0']

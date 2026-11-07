@@ -653,6 +653,9 @@ class UnreadView(View):
     threads: list[str]
     # Nombre de messages non lus par fil, pour les pastilles de la messagerie.
     thread_counts: dict[str, int]
+    # Notifications de demandes non lues (coachs et administrateurs), suivies dans
+    # Messagerie › Demandes ; celles écrites dans un fil comptent déjà parmi les messages.
+    requests: int = 0
 
 
 LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]

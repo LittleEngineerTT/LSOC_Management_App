@@ -352,32 +352,6 @@
   font-size: 26px;
   font-weight: 650;
 }
-.club-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 11px;
-  background: #d94040;
-  color: #fff;
-  font-size: 12px;
-  vertical-align: middle;
-}
-.club-notifications li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 7px;
-}
-.club-notifications li.unread {
-  background: #fff8ec;
-}
-.club-notifications .admin-button {
-  flex-shrink: 0;
-}
 .club-section h4 {
   margin-top: 6px !important;
 }
@@ -423,10 +397,6 @@
   }
   .club-summary {
     grid-template-columns: 1fr;
-  }
-  .club-notifications li {
-    flex-direction: column;
-    align-items: stretch;
   }
   .club-gyms a {
     flex: 1 1 140px;
@@ -500,26 +470,6 @@
 .club-threads a .club-unread {
   color: #fff;
   font-size: 11px;
-}
-.club-notification-copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-.club-notification-body {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  padding: 6px 10px;
-  border-left: 3px solid #d7e1e8;
-  background: #fff;
-  border-radius: 4px;
-  color: #33475a;
-}
-.club-notification-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex-shrink: 0;
 }
 /* Dossier d’inscription : pièces demandées et dépôt par le joueur. */
 .club-dossier {
@@ -1101,4 +1051,22 @@ a.club-team-card:focus-visible {
 }
 .club-registrations .club-quota-list {
   margin: 0 0 12px;
+}
+/* Pastilles des sous-onglets de la messagerie, dans le fil du libellé. */
+.admin-subtabs .nav-count {
+  position: static;
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f56761;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: none;
+  vertical-align: 1px;
 }

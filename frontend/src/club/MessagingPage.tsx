@@ -8,7 +8,7 @@ import type { Event } from '../admin/types';
 import { Confirm, Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
-import { useLiveReload, useUnread } from '../app/unread';
+import { CountBadge, useLiveReload, useUnread } from '../app/unread';
 import { RequestsList } from './StaffRequests';
 
 interface Conversation extends Thread {
@@ -21,9 +21,15 @@ function conversationTitle(conversation: Conversation) {
 export function MessagingPage() {
   const { account } = useClub();
   const [search, setSearch] = useSearchParams();
+  const { messages, requests: pending = 0 } = useUnread();
   // Coachs et administrateurs suivent aussi leurs demandes dans la messagerie.
   const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
   const requests = staff && search.get('vue') === 'demandes';
+  // La pastille des demandes ne se lève qu’en marquant leurs notifications comme lues.
+  const counts: Record<'' | 'demandes', { count: number; label: [string, string] }> = {
+    '': { count: messages, label: ['message non lu', 'messages non lus'] },
+    demandes: { count: pending, label: ['nouvelle demande', 'nouvelles demandes'] },
+  };
   return (
     <>
       <PanelHeading
@@ -50,6 +56,7 @@ export function MessagingPage() {
               onClick={() => setSearch(id ? { vue: id } : {})}
             >
               {label}
+              <CountBadge {...counts[id]} />
             </button>
           ))}
         </div>

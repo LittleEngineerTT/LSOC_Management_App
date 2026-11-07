@@ -514,3 +514,28 @@ def test_description_follows_the_accepted_request_and_stays_editable(admin: Test
     )
     assert changed.status_code == 200 and changed.json()["description"] == "Ateliers seulement."
     assert admin.post("/api/v1/events", json=payload(section, gym, start=START, end=END) | {"courts": 1}).json()["description"] == ""
+
+
+def test_request_notifications_count_in_messaging_until_marked_read(
+    admin: TestClient,
+) -> None:
+    coach, team, _, gym = coach_setup(admin)
+    add_user("member")
+    member = login("member")
+    request_event(coach, team, gym)
+    before = admin.get("/api/v1/unread").json()
+    # L’alerte « Événement à valider » de l’admin et la confirmation du coach.
+    assert before["requests"] == 1
+    assert coach.get("/api/v1/unread").json()["requests"] == 1
+    assert member.get("/api/v1/unread").json()["requests"] == 0
+    # Seule la lecture explicite de la notification lève la pastille.
+    alert = next(
+        item
+        for item in admin.get("/api/v1/notifications?unread_only=true").json()
+        if item["kind"] == "event_request"
+    )
+    assert admin.post(f"/api/v1/notifications/{alert['id']}/read").status_code == 200
+    after = admin.get("/api/v1/unread").json()
+    assert after["requests"] == 0
+    assert after["notifications"] == before["notifications"] - 1
+    assert coach.get("/api/v1/unread").json()["requests"] == 1

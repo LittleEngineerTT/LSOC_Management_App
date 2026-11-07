@@ -19,6 +19,9 @@ export interface Unread {
   threads: string[];
   /** Messages non lus par fil ; absent d’une API antérieure. */
   thread_counts?: Record<string, number>;
+  /** Notifications de demandes non lues, suivies dans Messagerie › Demandes (coachs et
+   * administrateurs) ; absent d’une API antérieure. */
+  requests?: number;
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;

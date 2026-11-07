@@ -85,6 +85,16 @@ export const release: Release = {
       text: 'Le référent ou un administrateur peut annuler et rétablir un événement ; le motif (gymnase indisponible, capacité dépassée, décision du référent ou d’un administrateur) s’affiche en tête de sa fiche.',
     },
     {
+      kind: 'feature',
+      title: 'Notifications dans le bandeau',
+      text: 'Les notifications quittent l’accueil : la cloche en haut de l’écran affiche leur nombre et présente les 20 dernières, non lues en tête ; les déjà lues apparaissent avec « Tout afficher ». Une notification ne passe en lue qu’avec « Marquer comme lu ».',
+    },
+    {
+      kind: 'feature',
+      title: 'Demandes signalées dans la Messagerie',
+      text: 'Pour les coachs et administrateurs, une nouvelle demande ou une décision ajoute une pastille sur la Messagerie et sur son onglet Demandes, jusqu’à ce que sa notification soit marquée comme lue.',
+    },
+    {
       kind: 'fix',
       title: 'Correctif apporté sur la récupération des matchs FFVB de certaines équipes.',
     },

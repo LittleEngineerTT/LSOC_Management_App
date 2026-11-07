@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import ColumnElement, delete, exists, func, or_, select, true
+from sqlalchemy import ColumnElement, delete, exists, false, func, or_, select, true
 from sqlalchemy.orm import Session, aliased
 
 from app.api.common import DB, Actor, Admin, get
@@ -80,6 +80,7 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         .order_by(QuestionMessage.thread_id)
     )
     counts = {thread_id: count for thread_id, count in rows}
+    requests = db.scalar(select(func.count(Notification.id)).where(request_alerts(actor)))
     notifications = db.scalar(
         select(func.count(Notification.id)).where(
             Notification.user_id == actor.id, Notification.read_at.is_(None)
@@ -90,6 +91,34 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         notifications=notifications or 0,
         threads=list(counts),
         thread_counts=counts,
+        requests=requests or 0,
+    )
+
+
+# Notifications des demandes suivies dans Messagerie › Demandes : nouvelles demandes à décider
+# ou à suivre, et décisions rendues.
+REQUEST_KINDS = (
+    "change_request",
+    "event_request",
+    "registration_request",
+    "staff_request",
+    "request_decided",
+    "registration_decision",
+    "decision",
+)
+
+
+def request_alerts(actor: User) -> ColumnElement[bool]:
+    """Notifications de demandes non lues du compte, pour les coachs et administrateurs seuls :
+    eux seuls ont l’onglet Demandes. Celles qui mènent à un fil de discussion sont exclues, le
+    message écrit dans le fil comptant déjà parmi les non lus."""
+    if not {"admin", "coach"} & set(actor.roles):
+        return false()
+    return (
+        (Notification.user_id == actor.id)
+        & Notification.read_at.is_(None)
+        & Notification.kind.in_(REQUEST_KINDS)
+        & or_(Notification.link.is_(None), Notification.link.not_like("/app/messagerie?thread=%"))
     )
 
 
@@ -288,15 +317,22 @@ def notifications(
     db: DB,
     actor: Actor,
     unread_only: bool = False,
+    unread_first: bool = False,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[Notification]:
+    """Notifications du compte, des plus récentes aux plus anciennes ; `unread_first` place
+    d’abord les non lues, pour le panneau du bandeau qui n’en montre que les dernières."""
     query = select(Notification).where(Notification.user_id == actor.id)
     if unread_only:
         query = query.where(Notification.read_at.is_(None))
+    # Faux avant vrai : les non lues remontent en tête.
+    first: tuple[ColumnElement[bool], ...] = (
+        (Notification.read_at.is_not(None),) if unread_first else ()
+    )
     return list(
         db.scalars(
-            query.order_by(Notification.created_at.desc(), Notification.id)
+            query.order_by(*first, Notification.created_at.desc(), Notification.id)
             .offset(offset)
             .limit(limit)
         )

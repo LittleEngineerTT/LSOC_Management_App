@@ -118,11 +118,13 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
       await noOverflow(page);
     }
   }
-  const previews: [string, string, string][] = [['home', '/app', 'Marquer comme lu'], ['planning', `/app/planning?jour=${day(2)}`, 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/planning?onglet=gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['equipes', '/app/equipes', 'Joueur']];
+  const previews: [string, string, string][] = [['home', '/app', 'Prochains rendez-vous'], ['notifications', '/app', 'Marquer comme lu'], ['planning', `/app/planning?jour=${day(2)}`, 'Entraînement loisir du mercredi soir'], ['event', '/app/planning?event=event-2', 'Match BRC007'], ['registrations', '/app/planning?event=event-1', '5 inscrits sur 12'], ['gyms', '/app/planning?onglet=gymnases', 'Travaux de peinture'], ['messages', '/app/messagerie?thread=thread-1', 'Non, le club en fournit'], ['equipes', '/app/equipes', 'Joueur']];
   for (const [name, path, text] of previews) {
     for (const [device, size] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]] as const) {
       await page.setViewportSize(size);
       await page.goto(path);
+      // Les notifications s’ouvrent depuis la cloche du bandeau.
+      if (name === 'notifications') await page.getByRole('button', { name: 'Notifications' }).click();
       await expect(page.getByText(text).filter({ visible: true }).first()).toBeVisible();
       await page.screenshot({ path: `.cache/previews/club-${name}-${device}.png`, fullPage: true });
     }

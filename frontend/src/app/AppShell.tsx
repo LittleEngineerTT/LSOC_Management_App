@@ -7,6 +7,7 @@ import { useRequest } from '../auth/useRequest';
 import { createAdminApi } from '../admin/api';
 import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
+import { NotificationsPanel } from './NotificationsPanel';
 import { CountBadge, UnreadProvider, useUnread } from './unread';
 import { ClubProvider, GuestClubProvider } from '../club/context';
 import { GuestGymnasiums, GuestHome, GuestPlanning } from '../club/GuestPages';
@@ -122,16 +123,18 @@ function Workspace({ account, section }: { account: Account | null; section: str
   const unread = useUnread();
   // Relu à chaque nouvelle notification : une demande de pièces fait apparaître l’application.
   const dossier = useOpenDossier(account, unread.notifications);
+  // Les notifications ont leur cloche dans le bandeau ; la messagerie compte ses messages et
+  // les notifications des demandes qu’elle suit.
+  const requests = unread.requests ?? 0;
+  const messaging = unread.messages + requests;
   const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
-    Accueil: {
-      count: unread.notifications,
-      label: ['notification non lue', 'notifications non lues'],
-    },
     Messagerie: {
-      count: unread.messages,
-      label: admin
-        ? ['question non lue', 'questions non lues']
-        : ['réponse non lue', 'réponses non lues'],
+      count: messaging,
+      label: requests
+        ? ['nouveauté dans la messagerie', 'nouveautés dans la messagerie']
+        : admin
+          ? ['question non lue', 'questions non lues']
+          : ['réponse non lue', 'réponses non lues'],
     },
     Demandes: {
       count: dossier.pending,
@@ -233,9 +236,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
             onClick={() => setNavigationOpen(!navigationOpen)}
           >
             <Icon name="menu" />
-            {unread.messages + unread.notifications > 0 && (
-              <span className="nav-dot" aria-hidden="true" />
-            )}
+            {messaging + dossier.pending > 0 && <span className="nav-dot" aria-hidden="true" />}
           </button>
           <div className="app-title">
             <span className="eyebrow">{account ? 'ESPACE CLUB' : 'ESPACE CLUB · INVITÉ'}</span>
@@ -245,6 +246,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
           </div>
           {account ? (
             <div className="account-tools">
+              <NotificationsPanel />
               <NavLink to="/app/mon-planning" className="header-link" aria-label="Mon planning">
                 <Icon name="calendar" />
                 <span>Mon planning</span>
