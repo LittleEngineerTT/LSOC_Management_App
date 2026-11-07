@@ -878,3 +878,62 @@ it('un signal du serveur met aussitôt à jour la pastille et la liste des notif
   act(() => source.emit('session'));
   expect(source.closed).toBe(true);
 });
+
+it('un administrateur suit les demandes de contact : pastille, prise en charge, résolution et filtre', async () => {
+  account = admin;
+  const requested: string[] = [];
+  const contact = { id: 'c1', email: 'parent@example.org', phone: '06 12 34 56 78', message: 'Mon fils peut-il faire un essai ?', team_ids: ['t1'], status: 'open', handler_id: null as string | null, handler_name: null as string | null, handled_at: null as string | null, resolved_at: null as string | null, created_at: at('09:00') };
+  const done = { ...contact, id: 'c2', message: 'Horaires des M15 ?', status: 'resolved', handler_id: 'x9', handler_name: 'Sam', handled_at: at('08:00'), resolved_at: at('08:30'), created_at: at('07:00') };
+  const open_ = () => [contact].filter((item) => item.status === 'open').length;
+  Object.defineProperty(routes, '/unread', { enumerable: true, get: () => ({ messages: 0, notifications: 0, threads: [], contacts: open_() }) });
+  Object.defineProperty(routes, '/contact-requests', { enumerable: true, get: () => (requested.at(-1)?.includes('status=open') ? [contact].filter((item) => item.status === 'open') : [contact, done]) });
+  const fetcher = fetch;
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>((input, init) => { if (String(input).includes('/contact-requests') && (init?.method ?? 'GET') === 'GET') requested.push(String(input)); return fetcher(input, init); }));
+  mutation = (path) => {
+    if (path.endsWith('/take')) Object.assign(contact, { handler_id: 'a1', handler_name: 'Alix', handled_at: at('10:00') });
+    if (path.endsWith('/resolve')) Object.assign(contact, { status: 'resolved', resolved_at: at('11:00') });
+    return reply(contact);
+  };
+  open('/app/contact');
+  const menu = await screen.findByRole('navigation', { name: 'Applications' });
+  expect(await within(menu).findByLabelText('1 demande de contact non résolue')).toBeInTheDocument();
+  const tabs = screen.getByRole('group', { name: 'Vue du contact' });
+  expect(within(tabs).getByLabelText('1 demande non résolue')).toBeInTheDocument();
+  const list = await screen.findByRole('region', { name: 'Demandes de contact' });
+  // Par défaut, seules les demandes non résolues.
+  expect(within(list).getByRole('checkbox', { name: 'Non résolues uniquement' })).toBeChecked();
+  const item = (await within(list).findByText('Mon fils peut-il faire un essai ?')).closest('li')!;
+  expect(requested[0]).toContain('/contact-requests?status=open');
+  expect(within(list).queryByText('Horaires des M15 ?')).not.toBeInTheDocument();
+  expect(within(item).getByText('Loisir 1')).toBeInTheDocument();
+  expect(within(item).getByRole('link', { name: 'parent@example.org' })).toHaveAttribute('href', 'mailto:parent@example.org');
+  expect(within(item).getByRole('link', { name: '06 12 34 56 78' })).toHaveAttribute('href', 'tel:0612345678');
+  expect(within(item).getByText('Pas encore prise en charge')).toBeInTheDocument();
+  await userEvent.click(within(item).getByRole('button', { name: 'Prendre en charge' }));
+  expect(await within(list).findByText('Demande prise en charge.')).toBeInTheDocument();
+  const taken = (await within(list).findByText('Mon fils peut-il faire un essai ?')).closest('li')!;
+  await waitFor(() => expect(within(taken).getByText(/Prise en charge par/)).toHaveTextContent('Prise en charge par vous'));
+  expect(within(taken).queryByRole('button', { name: 'Prendre en charge' })).not.toBeInTheDocument();
+  await userEvent.click(within(taken).getByRole('button', { name: 'Marquer comme résolue' }));
+  expect(await within(list).findByText('Aucune demande de contact à traiter.')).toBeInTheDocument();
+  expect(mutations.map((item) => item.path)).toEqual(['/contact-requests/c1/take', '/contact-requests/c1/resolve']);
+  await waitFor(() => expect(within(menu).queryByLabelText(/demandes? de contact/)).not.toBeInTheDocument());
+  // Toutes les demandes : celle d’un collègue garde son nom.
+  await userEvent.click(within(list).getByRole('checkbox', { name: 'Non résolues uniquement' }));
+  const old = (await within(list).findByText('Horaires des M15 ?')).closest('li')!;
+  expect(within(old).getByText(/Prise en charge par/)).toHaveTextContent('Prise en charge par Sam');
+  expect(within(old).getByText('Résolue')).toBeInTheDocument();
+  expect(within(old).getByRole('button', { name: 'Rouvrir' })).toBeInTheDocument();
+  // Le formulaire reste accessible aux administrateurs.
+  await userEvent.click(within(tabs).getByRole('button', { name: 'Formulaire' }));
+  expect(await screen.findByRole('form', { name: 'Formulaire de contact' })).toBeInTheDocument();
+});
+
+it('un adhérent ne voit que le formulaire de contact, adresse de son compte préremplie', async () => {
+  account = { ...member, email: 'camille@example.org' } as unknown as typeof member;
+  open('/app/contact');
+  const form = await screen.findByRole('form', { name: 'Formulaire de contact' });
+  expect(within(form).getByLabelText('Adresse e-mail')).toHaveValue('camille@example.org');
+  expect(screen.queryByRole('group', { name: 'Vue du contact' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Demandes de contact' })).not.toBeInTheDocument();
+});

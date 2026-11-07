@@ -1,7 +1,8 @@
 """Signal « pastilles à rafraîchir », émis par PostgreSQL NOTIFY dans la transaction qui écrit.
 
 Toute écriture d’une notification ou d’un message (création, lecture, suppression), par l’API
-comme par le worker, signale les comptes concernés sur le canal `CHANNEL`. NOTIFY n’est remis
+comme par le worker, signale les comptes concernés sur le canal `CHANNEL` ; celle d’une demande
+de contact signale les administrateurs, qui en suivent le nombre non résolu. NOTIFY n’est remis
 qu’à la validation de la transaction, et jamais si elle est annulée : un navigateur ne recharge
 ses compteurs que lorsque les données ont changé. Le signal ne porte que des identifiants de
 comptes ; les compteurs eux-mêmes se relisent par `GET /unread`, avec les droits habituels.
@@ -12,7 +13,7 @@ import json
 from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
 
-from app.persistence.models import Notification, QuestionMessage, QuestionThread
+from app.persistence.models import ContactRequest, Notification, QuestionMessage, QuestionThread
 
 CHANNEL = "lsoc_live"
 # Une charge NOTIFY est limitée à 8000 octets : les identifiants partent par lots.
@@ -22,7 +23,7 @@ PENDING = "live_signal"
 
 def _pending(session: Session) -> dict[str, set[str]]:
     pending: dict[str, set[str]] = session.info.setdefault(
-        PENDING, {"users": set(), "threads": set()}
+        PENDING, {"users": set(), "threads": set(), "admins": set()}
     )
     return pending
 
@@ -34,6 +35,8 @@ def _collect(session: Session, _context: object) -> None:
             _pending(session)["users"].add(item.user_id)
         elif isinstance(item, QuestionMessage):
             _pending(session)["threads"].add(item.thread_id)
+        elif isinstance(item, ContactRequest):
+            _pending(session)["admins"].add(item.id)
 
 
 @event.listens_for(Session, "after_flush_postexec")
@@ -42,7 +45,7 @@ def _emit(session: Session, _context: object) -> None:
     if not pending:
         return
     users: set[str] = set(pending["users"])
-    admins = False
+    admins = bool(pending["admins"])
     if pending["threads"]:
         # Un message concerne l’auteur du fil et, venant de lui, les administrateurs.
         owners = select(QuestionThread.user_id).where(QuestionThread.id.in_(pending["threads"]))

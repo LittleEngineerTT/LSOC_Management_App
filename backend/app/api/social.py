@@ -14,6 +14,7 @@ from app.api.schemas import (
 )
 from app.core.security import now
 from app.persistence.models import (
+    ContactRequest,
     EmailJob,
     Event,
     EventSeries,
@@ -81,6 +82,11 @@ def unread(db: DB, actor: Actor) -> UnreadView:
     )
     counts = {thread_id: count for thread_id, count in rows}
     requests = db.scalar(select(func.count(Notification.id)).where(request_alerts(actor)))
+    contacts = (
+        db.scalar(select(func.count(ContactRequest.id)).where(ContactRequest.status == "open"))
+        if "admin" in actor.roles
+        else 0
+    )
     notifications = db.scalar(
         select(func.count(Notification.id)).where(
             Notification.user_id == actor.id, Notification.read_at.is_(None)
@@ -92,6 +98,7 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         threads=list(counts),
         thread_counts=counts,
         requests=requests or 0,
+        contacts=contacts or 0,
     )
 
 

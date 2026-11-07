@@ -51,13 +51,17 @@ export function PrivacyPage() {
           </li>
           <li>Contact : adresse e-mail, facultative, utilisée seulement pour les notifications.</li>
           <li>
+            Demande de contact, avec ou sans compte : adresse e-mail ou numéro de téléphone laissé
+            pour la réponse, question et équipes concernées.
+          </li>
+          <li>
             Sécurité : mot de passe (stocké haché, jamais lisible), sessions de connexion et
             compteurs anti-abus calculés à partir d’une empreinte de l’adresse IP.
           </li>
         </ul>
         <p>
-          Aucune date de naissance, adresse postale, numéro de téléphone ni donnée de santé n’est
-          collectée.
+          Aucune date de naissance, adresse postale ni donnée de santé n’est collectée ; un numéro
+          de téléphone ne l’est que si vous le laissez dans une demande de contact.
         </p>
 
         <h2>Finalités et bases légales</h2>
@@ -74,17 +78,22 @@ export function PrivacyPage() {
             Vous envoyer des e-mails de notification : votre choix, modifiable à tout moment dans
             votre profil (article 6.1.a).
           </li>
+          <li>
+            Répondre à une demande de contact : intérêt légitime du club à répondre aux questions
+            qu’on lui adresse (article 6.1.f).
+          </li>
         </ul>
 
         <h2>Qui voit vos données</h2>
         <p>
-          Les administrateurs du club. Les coachs voient, pour les équipes dont ils sont référents
-          ou coachs, la fiche de compte des membres (prénom, initiale, catégorie, rôles, équipes)
-          ainsi que le statut et le PDF de leur licence. Les autres adhérents ne voient que votre
-          prénom lorsque vous êtes référent d’un événement. Les matchs FFVB proviennent des
-          calendriers publics de la fédération. Les prestataires techniques du club (hébergement,
-          stockage des PDF, envoi des e-mails) traitent les données pour son compte uniquement.
-          Aucune donnée n’est vendue ni utilisée à des fins publicitaires.
+          Les administrateurs du club, seuls à lire les demandes de contact. Les coachs voient, pour
+          les équipes dont ils sont référents ou coachs, la fiche de compte des membres (prénom,
+          initiale, catégorie, rôles, équipes) ainsi que le statut et le PDF de leur licence. Les
+          autres adhérents ne voient que votre prénom lorsque vous êtes référent d’un événement. Les
+          matchs FFVB proviennent des calendriers publics de la fédération. Les prestataires
+          techniques du club (hébergement, stockage des PDF, envoi des e-mails) traitent les données
+          pour son compte uniquement. Aucune donnée n’est vendue ni utilisée à des fins
+          publicitaires.
         </p>
 
         <h2>Durées de conservation</h2>
@@ -95,6 +104,7 @@ export function PrivacyPage() {
             Messages privés, historique des modifications, demandes traitées et inscriptions : 2 ans
             après le dernier message, la décision ou l’événement.
           </li>
+          <li>Demandes de contact : 2 ans après leur résolution.</li>
           <li>
             Sessions, liens d’invitation ou de réinitialisation : effacés à leur expiration. E-mails
             envoyés : retirés de la file d’envoi après 7 jours ; e-mails en échec : 30 jours après

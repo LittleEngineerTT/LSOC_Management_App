@@ -32,6 +32,9 @@ function errorMessage(status: number, detail: unknown): string {
   return 'Le serveur ne peut pas traiter cette demande. Réessayez.';
 }
 
+// Écritures ouvertes aux invités : sans session, il n’y a pas de jeton CSRF à joindre.
+const PUBLIC_WRITES = new Set(['/contact']);
+
 export function createAdminApi(csrfToken: () => string | undefined, expired: () => void) {
   async function request<T>(
     path: string,
@@ -40,7 +43,7 @@ export function createAdminApi(csrfToken: () => string | undefined, expired: () 
     signal?: AbortSignal,
   ): Promise<T> {
     const csrf = method === 'GET' ? undefined : csrfToken();
-    if (method !== 'GET' && !csrf)
+    if (method !== 'GET' && !csrf && !PUBLIC_WRITES.has(path))
       throw new AdminError('Le jeton de session est manquant. Rechargez la page.', 403, null);
     const controller = new AbortController();
     const abort = () => controller.abort();

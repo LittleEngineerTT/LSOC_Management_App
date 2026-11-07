@@ -10,6 +10,7 @@ from app.integrations import s3
 from app.persistence.models import (
     ChangeRequest,
     CoachEventRequest,
+    ContactRequest,
     Event,
     EventRevision,
     License,
@@ -110,6 +111,13 @@ def apply_retention(db: Session, at: datetime | None = None) -> int:
                 func.coalesce(model.decided_at, model.created_at) < history,
             )
         )
+    # Coordonnées laissées sans compte : effacées avec l’historique une fois la demande résolue.
+    db.execute(
+        delete(ContactRequest).where(
+            ContactRequest.status == "resolved",
+            func.coalesce(ContactRequest.resolved_at, ContactRequest.created_at) < history,
+        )
+    )
     finished = select(Event.id).where(Event.ends_at < history)
     db.execute(delete(Registration).where(Registration.event_id.in_(finished)))
     return erase_inactive(db, current - timedelta(days=INACTIVE_ACCOUNT_DAYS))

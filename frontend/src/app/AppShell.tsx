@@ -19,6 +19,7 @@ import { MessagingPage } from '../club/MessagingPage';
 import { MyPlanningPage } from '../club/MyPlanningPage';
 import { MyTeamsPage } from '../club/MyTeamsPage';
 import { OurClubPage } from '../club/OurClubPage';
+import { ContactPage } from '../club/ContactPage';
 import { InscriptionsPage } from '../club/InscriptionsPage';
 
 const clubSections = [
@@ -29,6 +30,7 @@ const clubSections = [
   'Mes équipes',
   'Notre club',
   'Demandes',
+  'Contact',
 ];
 
 const applications = [
@@ -37,14 +39,15 @@ const applications = [
   { path: '/app/notre-club', title: 'Notre club', icon: 'users' },
   { path: '/app/messagerie', title: 'Messagerie', icon: 'message' },
   { path: '/app/inscriptions', title: 'Demandes', icon: 'clipboard' },
+  { path: '/app/contact', title: 'Contact', icon: 'mail' },
   { path: '/app/administration', title: 'Administration', icon: 'shield' },
 ] as const;
 // Application réservée aux administrateurs et aux coachs.
 const staffOnly = ['/app/administration'];
 // Ouverte à l’encadrement, et à un joueur pendant le traitement de son dossier d’inscription.
 const DOSSIER_PATH = '/app/inscriptions';
-// Un invité ne voit que l’accueil et les matchs FFVB du planning.
-const guestSections = ['Accueil', 'Planning', 'Notre club'];
+// Un invité voit l’accueil, les matchs FFVB du planning, Notre club et le formulaire de contact.
+const guestSections = ['Accueil', 'Planning', 'Notre club', 'Contact'];
 const sectionTitles: Record<string, string> = {
   '/app': 'Accueil',
   ...Object.fromEntries(applications.map((item) => [item.path, item.title])),
@@ -127,6 +130,8 @@ function Workspace({ account, section }: { account: Account | null; section: str
   // les notifications des demandes qu’elle suit.
   const requests = unread.requests ?? 0;
   const messaging = unread.messages + requests;
+  // Demandes de contact non résolues : seuls les administrateurs en reçoivent le nombre.
+  const contacts = unread.contacts ?? 0;
   const badges: Partial<Record<string, { count: number; label: [string, string] }>> = {
     Messagerie: {
       count: messaging,
@@ -135,6 +140,10 @@ function Workspace({ account, section }: { account: Account | null; section: str
         : admin
           ? ['question non lue', 'questions non lues']
           : ['réponse non lue', 'réponses non lues'],
+    },
+    Contact: {
+      count: contacts,
+      label: ['demande de contact non résolue', 'demandes de contact non résolues'],
     },
     Demandes: {
       count: dossier.pending,
@@ -236,7 +245,9 @@ function Workspace({ account, section }: { account: Account | null; section: str
             onClick={() => setNavigationOpen(!navigationOpen)}
           >
             <Icon name="menu" />
-            {messaging + dossier.pending > 0 && <span className="nav-dot" aria-hidden="true" />}
+            {messaging + dossier.pending + contacts > 0 && (
+              <span className="nav-dot" aria-hidden="true" />
+            )}
           </button>
           <div className="app-title">
             <span className="eyebrow">{account ? 'ESPACE CLUB' : 'ESPACE CLUB · INVITÉ'}</span>
@@ -332,6 +343,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
                 <PlanningApp club={<GuestPlanning />} gyms={<GuestGymnasiums />} />
               )}
               {section === 'Notre club' && <OurClubPage />}
+              {section === 'Contact' && <ContactPage />}
             </GuestClubProvider>
           )}
           {account && clubSections.includes(section) && (
@@ -355,6 +367,7 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Mes équipes' && <MyTeamsPage />}
       {section === 'Notre club' && <OurClubPage />}
       {section === 'Demandes' && <InscriptionsPage />}
+      {section === 'Contact' && <ContactPage />}
     </>
   );
 }

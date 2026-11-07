@@ -53,6 +53,7 @@ EMAIL_CATEGORIES = {
     "event_request": "request",
     "registration_request": "request",
     "staff_request": "request",
+    "contact_request": "request",
     "decision": "decision",
     "request_decided": "decision",
     "registration_decision": "decision",

@@ -17,9 +17,10 @@ afterEach(() => {
 });
 
 function open(path = '/login') {
-  const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const url = new URL(String(input), 'http://localhost');
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    if (init?.method === 'POST' && url.pathname.endsWith('/contact')) return json({ message: 'Demande envoyée' }, 201);
     if (url.pathname.endsWith('/auth/me')) return json({ detail: 'Connexion requise' }, 401);
     if (url.pathname.endsWith('/public/sections')) return json([{ id: 's1', name: 'Seniors' }]);
     if (url.pathname.endsWith('/public/teams')) return json([{ id: 't1', name: 'Seniors M1', section_id: 's1' }]);
@@ -53,7 +54,7 @@ it('arrive en invité : accueil sans notifications, menu réduit et API publique
   expect(within(results).getByLabelText('3 sets à 1')).toHaveTextContent('3 – 1');
   expect(within(results).getByRole('link', { name: 'Voir le tableau' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats&equipe=t1');
   const menu = screen.getByRole('navigation', { name: 'Applications' });
-  expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning', 'Notre club']);
+  expect(within(menu).getAllByRole('link').map((link) => link.textContent)).toEqual(['Accueil', 'Planning', 'Notre club', 'Contact']);
   expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();
   expect(screen.getAllByRole('link', { name: 'Se connecter' }).length).toBeGreaterThan(0);
   const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost').pathname);
@@ -113,4 +114,29 @@ it('montre à un invité le planning des gymnases avec les seuls matchs FFVB', a
   expect(paths.filter((path) => !path.endsWith('/auth/me')).every((path) => path.startsWith('/api/v1/public/'))).toBe(true);
   // Retour au planning du club, sur la même semaine.
   expect(within(tabs).getByRole('link', { name: 'Planning du club' })).toHaveAttribute('href', '/app/planning?semaine=2099-10-12&onglet=club');
+});
+
+it('laisse un invité envoyer une demande de contact aux administrateurs', async () => {
+  const fetchMock = open('/app/contact');
+  const form = await screen.findByRole('form', { name: 'Formulaire de contact' });
+  // Le formulaire vérifie un moyen de réponse, une équipe et la question avant tout envoi.
+  await userEvent.click(within(form).getByRole('button', { name: 'Envoyer' }));
+  expect(await within(form).findByText('Indiquez une adresse e-mail ou un téléphone pour notre réponse.')).toBeInTheDocument();
+  await userEvent.type(within(form).getByLabelText('Téléphone'), '06 12 34 56 78');
+  await userEvent.click(within(form).getByRole('button', { name: 'Envoyer' }));
+  expect(await within(form).findByText('Choisissez au moins une équipe concernée.')).toBeInTheDocument();
+  expect(within(form).getByText('Seniors')).toBeInTheDocument();
+  await userEvent.click(within(form).getByRole('checkbox', { name: 'Seniors M1' }));
+  await userEvent.click(within(form).getByRole('button', { name: 'Envoyer' }));
+  expect(await within(form).findByText('Écrivez votre question.')).toBeInTheDocument();
+  await userEvent.type(within(form).getByLabelText('Votre question'), 'Peut-on faire un essai ?');
+  await userEvent.click(within(form).getByRole('button', { name: 'Envoyer' }));
+  expect(await screen.findByText('Merci, votre demande a été envoyée. Le club vous répondra dès que possible.')).toBeInTheDocument();
+  const posted = fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(posted).toHaveLength(1);
+  const [url, init] = posted[0]!;
+  expect(String(url)).toContain('/api/v1/contact');
+  expect(JSON.parse(String(init?.body))).toEqual({ email: null, phone: '06 12 34 56 78', message: 'Peut-on faire un essai ?', team_ids: ['t1'] });
+  // Un invité ne voit pas la liste des demandes reçues.
+  expect(screen.queryByRole('region', { name: 'Demandes de contact' })).not.toBeInTheDocument();
 });

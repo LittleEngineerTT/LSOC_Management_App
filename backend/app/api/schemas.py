@@ -498,6 +498,46 @@ class StaffRequestInput(Input):
     documents: list[RequestedDocument] = Field(default_factory=list, max_length=10)
 
 
+# Un numéro lisible : chiffres, espaces, points, tirets, parenthèses et « + » initial.
+PHONE_PATTERN = r"^\+?[0-9 .()-]{6,30}$"
+
+
+class ContactInput(Input):
+    """Demande de contact : un moyen de réponse au moins, la question et les équipes visées."""
+
+    email: EmailStr | None = None
+    phone: str | None = Field(default=None, max_length=30, pattern=PHONE_PATTERN)
+    message: str = Field(min_length=1, max_length=4000)
+    team_ids: list[str] = Field(min_length=1, max_length=20)
+
+    @field_validator("email", "phone", mode="before")
+    @classmethod
+    def blank_is_none(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @model_validator(mode="after")
+    def reachable(self) -> "ContactInput":
+        if self.email is None and self.phone is None:
+            raise ValueError("Indiquez une adresse e-mail ou un téléphone pour la réponse")
+        if self.phone is not None and sum(char.isdigit() for char in self.phone) < 6:
+            raise ValueError("Numéro de téléphone invalide")
+        return self
+
+
+class ContactRequestView(View):
+    id: str
+    email: str | None
+    phone: str | None
+    message: str
+    team_ids: list[str]
+    status: Literal["open", "resolved"]
+    handler_id: str | None
+    handler_name: str | None
+    handled_at: datetime | None
+    resolved_at: datetime | None
+    created_at: datetime
+
+
 class RequestDecisionInput(Input):
     accept: bool
     reason: str = Field(default="", max_length=2000)
@@ -656,6 +696,8 @@ class UnreadView(View):
     # Notifications de demandes non lues (coachs et administrateurs), suivies dans
     # Messagerie › Demandes ; celles écrites dans un fil comptent déjà parmi les messages.
     requests: int = 0
+    # Demandes de contact non résolues, pour la pastille de l’application Contact (admins).
+    contacts: int = 0
 
 
 LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]

@@ -22,6 +22,8 @@ export interface Unread {
   /** Notifications de demandes non lues, suivies dans Messagerie › Demandes (coachs et
    * administrateurs) ; absent d’une API antérieure. */
   requests?: number;
+  /** Demandes de contact non résolues (administrateurs) ; absent d’une API antérieure. */
+  contacts?: number;
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;

@@ -470,6 +470,36 @@ class StaffRequest(Identity, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ContactRequest(Identity, Base):
+    """Demande de contact laissée depuis l’application Contact, avec ou sans compte.
+
+    L’auteur laisse une adresse e-mail ou un téléphone pour la réponse, sa question et les
+    équipes concernées. Un administrateur la prend en charge puis la marque comme résolue ; son
+    prénom reste affiché. Résolue, elle est effacée après la durée de l’historique.
+    """
+
+    __tablename__ = "contact_requests"
+    __table_args__ = (
+        CheckConstraint("status IN ('open','resolved')", name="contact_requests_status_check"),
+        CheckConstraint(
+            "email IS NOT NULL OR phone IS NOT NULL", name="contact_requests_reply_check"
+        ),
+    )
+    email: Mapped[str | None] = mapped_column(String(254))
+    phone: Mapped[str | None] = mapped_column(String(30))
+    message: Mapped[str] = mapped_column(Text)
+    team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    # Administrateur qui a pris la demande en charge ; son prénom survit au compte.
+    handler_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
+    handler_name: Mapped[str | None] = mapped_column(String(80))
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Follow(Identity, Base):
     __tablename__ = "follows"
     __table_args__ = (

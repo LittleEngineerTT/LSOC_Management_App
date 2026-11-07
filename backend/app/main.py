@@ -8,6 +8,7 @@ from app.api import (
     accounts,
     auth,
     catalog,
+    contact,
     dossiers,
     event_requests,
     events,
@@ -78,5 +79,6 @@ for router in (
     ffvb.router,
     public.router,
     privacy.router,
+    contact.router,
 ):
     app.include_router(router, prefix="/api/v1")

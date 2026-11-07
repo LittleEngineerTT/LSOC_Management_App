@@ -95,6 +95,12 @@ export const release: Release = {
       text: 'Pour les coachs et administrateurs, une nouvelle demande ou une décision ajoute une pastille sur la Messagerie et sur son onglet Demandes, jusqu’à ce que sa notification soit marquée comme lue.',
     },
     {
+      kind: 'feature',
+      title: 'Contact',
+      text: 'Une nouvelle application pour écrire au club, avec ou sans compte : un e-mail ou un téléphone pour la réponse, la question et les équipes concernées. Les administrateurs y suivent les demandes, les prennent en charge et les marquent comme résolues.',
+      link: { to: '/app/contact', label: 'Nous contacter' },
+    },
+    {
       kind: 'fix',
       title: 'Correctif apporté sur la récupération des matchs FFVB de certaines équipes.',
     },
