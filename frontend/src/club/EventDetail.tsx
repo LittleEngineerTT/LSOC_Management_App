@@ -156,6 +156,7 @@ function EventBody({
   const staff = admin || account.roles.includes('coach');
   return (
     <>
+      <CancelReason event={event} />
       <div className="club-detail-badges">
         <Badge>{kindLabels[event.kind]}</Badge>
         {event.cancelled && <Badge tone="danger">Annulé</Badge>}
@@ -274,7 +275,6 @@ function EventBody({
           }}
         />
       )}
-      <CancelReason event={event} />
       <Questions event={event} />
       {history && <History event={event} onChanged={onChanged} />}
     </>
@@ -287,7 +287,7 @@ const cancelReasons: Record<string, string> = {
   referent: 'Annulé par le référent de l’événement',
 };
 
-/** Motif de l’annulation, juste au-dessus des questions. */
+/** Motif de l’annulation, tout en haut de la fiche. */
 function CancelReason({ event }: { event: Event }) {
   if (!event.cancelled) return null;
   const reason =

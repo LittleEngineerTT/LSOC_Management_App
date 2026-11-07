@@ -305,14 +305,14 @@ it('un administrateur supprime une occurrence et les suivantes de la série', as
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Entraînement loisir' })).not.toBeInTheDocument());
 });
 
-it('un administrateur annule un événement avec un motif affiché au-dessus des questions', async () => {
+it('un administrateur annule un événement avec un motif affiché tout en haut de la fiche', async () => {
   account = admin;
   routes['/events/e1'] = { ...training, cancelled: true, cancel_reason: 'unavailability', cancel_note: 'Travaux' };
   open('/app/planning?event=e1');
   const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   const reason = await within(dialog).findByText(/Gymnase indisponible : Travaux/);
-  const questions = within(dialog).getByRole('heading', { name: /Questions/ });
-  expect(reason.compareDocumentPosition(questions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const badge = within(dialog).getByText('Annulé');
+  expect(reason.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(within(dialog).getByRole('button', { name: 'Rétablir' })).toBeInTheDocument();
 });
 
