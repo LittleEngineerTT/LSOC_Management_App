@@ -4,6 +4,7 @@ import { UsersPanel } from './UsersPanel';
 import { SectionsTeamsPanel, GymnasiumsPanel, PositionsPanel } from './CatalogPanels';
 import { BlocksPanel } from './BlocksPanel';
 import { FFVBPanel } from './FFVBPanel';
+import { ConflictsPanel } from './ConflictsPanel';
 import { LicensesPanel } from './LicensesPanel';
 import { EmailsPanel, RequestsPanel } from './OperationsPanels';
 import './admin.css';
@@ -17,6 +18,7 @@ const tabs = [
   { id: 'gymnasiums', title: 'Gymnases' },
   { id: 'blocks', title: 'Indisponibilités' },
   { id: 'requests', title: 'Validations' },
+  { id: 'conflicts', title: 'Conflits' },
   { id: 'ffvb', title: 'FFVB' },
   { id: 'emails', title: 'E-mails' },
 ];
@@ -77,6 +79,7 @@ function Administration() {
         {tab === 'positions' && <PositionsPanel />}
         {tab === 'gymnasiums' && <GymnasiumsPanel />}
         {tab === 'blocks' && <BlocksPanel />}
+        {tab === 'conflicts' && <ConflictsPanel />}
         {tab === 'ffvb' && <FFVBPanel />}
         {tab === 'emails' && <EmailsPanel />}
         {tab === 'requests' && <RequestsPanel />}

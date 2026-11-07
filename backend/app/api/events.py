@@ -1,4 +1,4 @@
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -12,6 +12,7 @@ from app.api.schemas import (
     BlockView,
     CancelInput,
     CapacityView,
+    EventConflictView,
     ChangeInput,
     ChangeView,
     DecisionInput,
@@ -40,6 +41,7 @@ from app.services.events import (
     create_event,
     create_series_events,
     delete_event,
+    event_conflicts,
     lock_gyms,
     lock_planning,
     permission,
@@ -87,6 +89,12 @@ def events(
     if section_id:
         query = query.where(cast(Event.section_ids, JSONB).contains([section_id]))
     return list(db.scalars(query.order_by(Event.starts_at, Event.id).offset(offset).limit(limit)))
+
+
+@router.get("/event-conflicts", response_model=list[EventConflictView])
+def conflicts(db: DB, actor: Admin) -> list[EventConflictView]:
+    """Événements à venir en conflit de capacité ou erronés, pour l’administration."""
+    return event_conflicts(db, datetime.now(UTC))
 
 
 @router.post("/events", response_model=EventView, status_code=201)

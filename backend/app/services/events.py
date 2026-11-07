@@ -7,7 +7,16 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
-from app.api.schemas import CapacityView, EventInput, EventPatch, EventView
+from app.api.schemas import (
+    CapacitySegment,
+    CapacityView,
+    EventConflictView,
+    EventInput,
+    EventPatch,
+    EventProblem,
+    EventProblemCode,
+    EventView,
+)
 from app.core.security import token
 from app.domain.capacity import capacity_segments
 from app.persistence.models import (
@@ -17,6 +26,7 @@ from app.persistence.models import (
     Event,
     EventRevision,
     EventSeries,
+    FFVBConflict,
     FFVBMatchState,
     FFVBSource,
     Gymnasium,
@@ -253,6 +263,88 @@ def alert_capacity(db: Session, gym_id: str) -> None:
                 f"Capacité dépassée : {event.title}",
                 event.id,
             )
+
+
+PROBLEM_MESSAGES: dict[EventProblemCode, str] = {
+    "missing_gymnasium": "Match à domicile sans gymnase associé : occupation des terrains inconnue",
+    "no_referent": "Aucun référent : événement à réattribuer",
+    "ffvb_divergence": "Divergence avec le calendrier officiel FFVB à traiter",
+    "ffvb_missing": "Match absent du calendrier officiel FFVB",
+}
+
+
+def overlapping_excess(segments: list[CapacitySegment], event: Event) -> int:
+    """Plus fort dépassement de capacité pendant l’événement, zéro sans dépassement."""
+    overlaps = [s for s in segments if s.starts_at < event.ends_at and s.ends_at > event.starts_at]
+    return max((s.excess for s in overlaps), default=0)
+
+
+def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
+    """Événements à venir, non annulés, qui demandent l’attention d’un administrateur.
+
+    Un événement ressort quand la capacité de son gymnase est dépassée pendant sa durée,
+    quand un match à domicile n’a pas de gymnase (occupation inconnue), quand il n’a plus
+    de référent, ou quand son match FFVB diverge du calendrier officiel ou en a disparu.
+    """
+    events = list(
+        db.scalars(
+            select(Event)
+            .where(Event.cancelled.is_(False), Event.ends_at > since)
+            .order_by(Event.starts_at, Event.id)
+        )
+    )
+    problems: dict[str, list[EventProblem]] = {event.id: [] for event in events}
+    # Capacité : une seule lecture par gymnase, sur la période couverte par ses événements.
+    by_gym: dict[str, list[Event]] = {}
+    for event in events:
+        if event.gymnasium_id is not None:
+            by_gym.setdefault(event.gymnasium_id, []).append(event)
+    for gym_id, items in by_gym.items():
+        start = min(event.starts_at for event in items)
+        end = max(event.ends_at for event in items)
+        excesses = [s for s in availability(db, gym_id, start, end).segments if s.excess > 0]
+        for event in items:
+            excess = overlapping_excess(excesses, event)
+            if excess:
+                plural = "s" if excess > 1 else ""
+                problems[event.id].append(
+                    EventProblem(
+                        code="capacity_exceeded",
+                        message=f"Capacité du gymnase dépassée de {excess} terrain{plural}",
+                    )
+                )
+    matches = [event.ffvb_match_id for event in events if event.ffvb_match_id is not None]
+    divergent = set(
+        db.scalars(
+            select(FFVBConflict.match_id).where(
+                FFVBConflict.match_id.in_(matches), FFVBConflict.status == "open"
+            )
+        )
+    )
+    missing = set(
+        db.scalars(
+            select(FFVBMatchState.id).where(
+                FFVBMatchState.id.in_(matches), FFVBMatchState.missing.is_(True)
+            )
+        )
+    )
+    for event in events:
+        checks: list[tuple[EventProblemCode, bool]] = [
+            ("missing_gymnasium", event.occupancy_unknown),
+            ("no_referent", not event.referent_ids),
+            ("ffvb_divergence", event.ffvb_match_id in divergent),
+            ("ffvb_missing", event.ffvb_match_id in missing),
+        ]
+        problems[event.id].extend(
+            EventProblem(code=code, message=PROBLEM_MESSAGES[code])
+            for code, found in checks
+            if found
+        )
+    return [
+        EventConflictView(event=EventView.model_validate(event), problems=problems[event.id])
+        for event in events
+        if problems[event.id]
+    ]
 
 
 REFERENT_ROLES = {"coach", "admin"}

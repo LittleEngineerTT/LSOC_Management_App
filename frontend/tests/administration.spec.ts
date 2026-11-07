@@ -207,7 +207,7 @@ test('administration utilisable de 320 à 2560 px sans débordement', async ({ p
   const dimensions = [[320,568],[360,800],[375,667],[390,844],[412,915],[430,932],[768,1024],[820,1180],[1024,768],[1280,720],[1366,768],[1440,900],[1920,1080],[2560,1440]];
   for (const [width, height] of dimensions) {
     await page.setViewportSize({ width: width!, height: height! });
-    for (const name of ['Utilisateurs', 'Sections et équipes', 'Licences', 'Postes', 'Gymnases', 'Indisponibilités', 'Validations', 'FFVB', 'E-mails']) {
+    for (const name of ['Utilisateurs', 'Sections et équipes', 'Licences', 'Postes', 'Gymnases', 'Indisponibilités', 'Validations', 'Conflits', 'FFVB', 'E-mails']) {
       await tab(page, name);
       const heading = name === 'Postes' ? 'Postes des joueurs' : name;
       await expect(page.getByRole('heading', { name: heading, exact: true }).last()).toBeVisible();

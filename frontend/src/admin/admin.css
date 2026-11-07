@@ -958,3 +958,12 @@
   color: #354d60;
   font-weight: 600;
 }
+/* Problèmes d’un événement en conflit, un badge par anomalie. */
+.admin-problems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}

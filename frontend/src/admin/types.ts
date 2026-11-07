@@ -286,3 +286,14 @@ export interface Capacity {
     excess: number;
   }[];
 }
+
+/** Anomalie d’un événement à venir, relevée par `/event-conflicts`. */
+export interface EventProblem {
+  code:
+    'capacity_exceeded' | 'missing_gymnasium' | 'no_referent' | 'ffvb_divergence' | 'ffvb_missing';
+  message: string;
+}
+export interface EventConflict {
+  event: Event;
+  problems: EventProblem[];
+}

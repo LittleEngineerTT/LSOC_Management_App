@@ -76,6 +76,11 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Conflits du planning',
+      text: 'Les administrateurs retrouvent dans Administration > Conflits les événements à venir où la capacité d’un gymnase est dépassée, et ceux qui comportent une erreur : match à domicile sans gymnase, référent manquant, écart avec le calendrier FFVB.',
+    },
+    {
+      kind: 'feature',
       title: 'Annulation d’un événement',
       text: 'Le référent ou un administrateur peut annuler et rétablir un événement ; le motif (gymnase indisponible, capacité dépassée, décision du référent ou d’un administrateur) s’affiche en tête de sa fiche.',
     },

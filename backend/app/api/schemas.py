@@ -330,7 +330,24 @@ class EventView(View):
     team_ids: list[str] = Field(default_factory=list)
 
 
-StaffFunction = Literal["president", "vice_president", "coach"]
+EventProblemCode = Literal[
+    "capacity_exceeded", "missing_gymnasium", "no_referent", "ffvb_divergence", "ffvb_missing"
+]
+
+
+class EventProblem(View):
+    """Anomalie d’un événement à venir, à traiter par un administrateur."""
+
+    code: EventProblemCode
+    message: str
+
+
+class EventConflictView(View):
+    event: EventView
+    problems: list[EventProblem]
+
+
+StaffFunction =Literal["president", "vice_president", "coach"]
 
 
 class StaffView(View):
