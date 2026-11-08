@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAdmin, useResource } from './data';
-import type { Block, Capacity } from './types';
+import type { Block } from './types';
 import { dateLabel, interval, toLocal } from './time';
 import {
   Confirm,
@@ -133,73 +133,6 @@ export function BlocksPanel() {
           <p>Les terrains réservés par « {removing.title} » redeviendront disponibles.</p>
         </Confirm>
       )}
-      <Availability />
     </>
-  );
-}
-function Availability() {
-  const { api, catalog } = useAdmin();
-  const [capacity, setCapacity] = useState<Capacity | null>(null);
-  const [gymnasiumName, setGymnasiumName] = useState('');
-  return (
-    <section className="admin-card">
-      <EntityForm
-        title="Consulter les disponibilités"
-        fields={[
-          {
-            name: 'gymnasium_id',
-            label: 'Gymnase à consulter',
-            type: 'select',
-            required: true,
-            options: catalog.gymnasiums.map((gym) => ({ value: gym.id, label: gym.name })),
-          },
-          { name: 'starts_at', label: 'Du (Europe/Paris)', type: 'datetime-fr', required: true },
-          {
-            name: 'ends_at',
-            label: 'Au (Europe/Paris)',
-            type: 'datetime-fr',
-            required: true,
-          },
-        ]}
-        initial={{ gymnasium_id: '', starts_at: '', ends_at: '' }}
-        submit="Consulter"
-        onSave={async (values, signal) => {
-          setCapacity(null);
-          setGymnasiumName(
-            catalog.gymnasiums.find((gym) => gym.id === str(values, 'gymnasium_id'))?.name ??
-              'Gymnase',
-          );
-          const dates = interval(str(values, 'starts_at'), str(values, 'ends_at'));
-          const query = new URLSearchParams(dates);
-          setCapacity(
-            await api.request<Capacity>(
-              `/gymnasiums/${str(values, 'gymnasium_id')}/availability?${query}`,
-              'GET',
-              undefined,
-              signal,
-            ),
-          );
-        }}
-      />
-      {capacity && (
-        <div className="admin-list">
-          <h4>Disponibilités de {gymnasiumName}</h4>
-          <p role="status">Capacité : {capacity.capacity} terrain(s)</p>
-          {capacity.segments.map((segment) => (
-            <div className="admin-row" key={segment.starts_at}>
-              <div>
-                <p>
-                  {dateLabel(segment.starts_at)} → {dateLabel(segment.ends_at)}
-                </p>
-                <p>
-                  {segment.occupied} occupé(s) · {segment.available} disponible(s)
-                  {segment.excess > 0 && ` · Dépassement : ${segment.excess}`}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }

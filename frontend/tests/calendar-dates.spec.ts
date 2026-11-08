@@ -66,33 +66,24 @@ async function prepare(page: Page) {
   return calls;
 }
 
-test('les calendriers Du et Au permettent une consultation avec date française et heures complètes', async ({ page }) => {
+test('les calendriers Début et Fin d’une indisponibilité : date française et heures complètes', async ({ page }) => {
   const calls = await prepare(page);
   await page.goto('/app/administration?tab=blocks');
-  await page.getByLabel('Gymnase à consulter').selectOption('g');
-  await pickDate(page, 'Du', '2026-10-20');
-  await pickDate(page, 'Au', '2026-10-20');
-  await expect(page.getByLabel('Du (Europe/Paris)', { exact: true })).toHaveValue('20/10/2026');
-  await expect(page.getByLabel('Au (Europe/Paris)', { exact: true })).toHaveValue('20/10/2026');
-  await page.getByLabel('Heure de Du', { exact: true }).selectOption('18');
-  await page.getByLabel('Minutes de Du', { exact: true }).selectOption('45');
-  await page.getByLabel('Heure de Au', { exact: true }).selectOption('20');
-  await page.getByRole('button', { name: 'Consulter', exact: true }).click();
-  await expect(page.getByText('1 occupé(s) · 2 disponible(s)', { exact: true })).toBeVisible();
-  const call = calls.find((item) => item.path.endsWith('/availability'))!;
-  expect(call.query.get('starts_at')).toBe('2026-10-20T16:45:00.000Z');
-  expect(call.query.get('ends_at')).toBe('2026-10-20T18:00:00.000Z');
-  expect(await page.locator('form').last().evaluate((form: HTMLFormElement) => form.checkValidity())).toBe(true);
+  // La consultation des disponibilités d’un gymnase a été retirée de l’onglet.
+  await expect(page.getByLabel('Gymnase à consulter')).toHaveCount(0);
   await page.getByRole('button', { name: 'Ajouter une indisponibilité' }).click();
   await page.getByLabel('Motif', { exact: true }).fill('Travaux');
   await page.getByLabel('Gymnase', { exact: true }).selectOption('g');
   await pickDate(page, 'Début', '2026-10-20');
+  await expect(page.getByLabel('Début (Europe/Paris)', { exact: true })).toHaveValue('20/10/2026');
   await page.getByLabel('Heure de Début', { exact: true }).selectOption('19');
+  await page.getByLabel('Minutes de Début', { exact: true }).selectOption('45');
   await pickDate(page, 'Fin', '2026-10-20');
+  await expect(page.getByLabel('Fin (Europe/Paris)', { exact: true })).toHaveValue('20/10/2026');
   await page.getByLabel('Heure de Fin', { exact: true }).selectOption('21');
   await page.getByRole('button', { name: 'Créer', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Travaux' })).toBeVisible();
-  expect(calls.find((item) => item.path === '/availability-blocks' && item.method === 'POST')?.body).toMatchObject({ starts_at: '2026-10-20T17:00:00.000Z', ends_at: '2026-10-20T19:00:00.000Z' });
+  expect(calls.find((item) => item.path === '/availability-blocks' && item.method === 'POST')?.body).toMatchObject({ starts_at: '2026-10-20T17:45:00.000Z', ends_at: '2026-10-20T19:00:00.000Z' });
 });
 
 test('calendrier semaine et mois : couleurs, filtres, sélection et détail conservé', async ({ page }) => {
@@ -140,7 +131,8 @@ test('calendrier et formulaire des bornes restent utilisables de 320 à 2560 px'
     await page.getByRole('button', { name: 'Mercredi 14 octobre, 3 événements', exact: true }).click();
     await page.screenshot({path:`.cache/previews/calendar-month-${device}.png`,fullPage:true});
     await page.goto('/app/administration?tab=blocks');
-    await pickDate(page, 'Du', '2026-10-20');
+    await page.getByRole('button', { name: 'Ajouter une indisponibilité' }).click();
+    await pickDate(page, 'Début', '2026-10-20');
     await page.screenshot({path:`.cache/previews/french-dates-${device}.png`,fullPage:true});
   }
 });

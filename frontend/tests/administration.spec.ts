@@ -133,7 +133,7 @@ test('création des sections, équipes et gymnases, modification et suppression'
   await expect(page.getByRole('heading', { name: 'Stade', exact: true })).toHaveCount(0);
 });
 
-test('indisponibilités et disponibilité en heure de Paris', async ({ page }) => {
+test('indisponibilités en heure de Paris', async ({ page }) => {
   const { mutations } = await prepare(page);
   await tab(page, 'Indisponibilités');
   await page.getByRole('button', { name: 'Ajouter une indisponibilité' }).click();
@@ -144,11 +144,8 @@ test('indisponibilités et disponibilité en heure de Paris', async ({ page }) =
   await page.getByRole('button', { name: 'Créer', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Travaux', exact: true })).toBeVisible();
   expect(mutations.find((item) => item.path === '/availability-blocks')?.body.starts_at).toBe('2026-10-20T16:00:00.000Z');
-  await page.getByLabel('Gymnase à consulter').selectOption('gym-1');
-  await page.getByLabel('Du (Europe/Paris)').fill('2026-10-20T18:00');
-  await page.getByLabel('Au (Europe/Paris)').fill('2026-10-20T20:00');
-  await page.getByRole('button', { name: 'Consulter', exact: true }).click();
-  await expect(page.getByText('1 occupé(s) · 2 disponible(s)', { exact: true })).toBeVisible();
+  // Plus de consultation des disponibilités dans cet onglet.
+  await expect(page.getByLabel('Gymnase à consulter')).toHaveCount(0);
 });
 
 test('sources et associations FFVB, conflits et réactivation', async ({ page }) => {
