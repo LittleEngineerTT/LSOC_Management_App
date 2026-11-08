@@ -58,7 +58,7 @@ def test_standings_of_each_team_for_members_and_guests(admin: TestClient) -> Non
     assert [match['match_code'] for match in matches][:3] == ['BRC005', 'BRC007', 'BRC014']
     assert len(matches) == 18
     # Joué avant le premier import : le score, sans lieu, la FFVB ne l’affichant plus.
-    assert matches[0] == {'match_code': 'BRC005', 'kickoff_at': '2026-10-15T18:50:00Z', 'home_team': 'MEUDON CHAVILLE SEVRES VOLLEY 2', 'away_team': 'LSO COLOMBES', 'location': None, 'score': {'home_sets': 3, 'away_sets': 1, 'set_scores': ['23:21', '21:8', '18:21', '21:9'], 'points': '83-59'}}
+    assert matches[0] == {'match_code': 'BRC005', 'kickoff_at': '2026-10-15T18:50:00Z', 'home_team': 'MEUDON CHAVILLE SEVRES VOLLEY 2', 'away_team': 'LSO COLOMBES', 'location': None, 'score': {'home_sets': 3, 'away_sets': 1, 'set_scores': ['23:21', '21:8', '18:21', '21:9'], 'points': '83-59'}, 'time_unknown': False}
     assert (matches[1]['location'], matches[1]['score'], matches[1]['kickoff_at']) == ('GYMNASE AMBROISE PARE', None, '2026-11-02T19:30:00Z')
     assert TestClient(admin.app).get('/api/v1/ffvb/standings').status_code == 401
     guest = TestClient(admin.app).get('/api/v1/public/ffvb/standings')
@@ -133,9 +133,16 @@ def test_matches_without_a_time_take_their_plateau_time_or_their_day() -> None:
     assert matches['BFA007'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '21/11 14:30'
     assert matches['BFA008'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '21/11 14:30'
     assert not matches['BFA008'].time_unknown
-    # BFA014 : aucune heure ce jour-là aux Platanes, il est placé sur sa journée.
-    assert matches['BFA014'].time_unknown
-    assert matches['BFA014'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '05/12 00:00'
+    # BFA014 : LSO ne joue pas le premier match du plateau aux Platanes ; son heure (14:00),
+    # lue sur le match d’autres équipes, sert au plateau.
+    assert matches['BFA014'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '05/12 14:00'
+    assert not matches['BFA014'].time_unknown
+    # Sans aucune heure ce jour-là (horaires de 14:00 retirés), le match est placé sur sa journée.
+    blank = html.replace(b'>14:00<', b'><')
+    unknown = {match.code: match for match in parse_calendar(blank, '2026/2027', 'PTIDF92', 'BFA', 'LSO COLOMBES')}
+    assert unknown['BFA014'].time_unknown
+    assert unknown['BFA014'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '05/12 00:00'
+    assert unknown['BFA007'].kickoff_at.astimezone(paris).strftime('%H:%M') == '14:30'
 
 
 def test_matches_without_a_time_no_longer_break_the_page() -> None:
