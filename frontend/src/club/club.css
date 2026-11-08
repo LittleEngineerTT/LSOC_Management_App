@@ -951,6 +951,19 @@ a.club-team-card:focus-visible {
   color: #617282;
   font-size: 14px;
 }
+/* Équipes entraînées, en badges sous les fonctions. */
+.club-staff-teams {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.club-staff-teams .admin-badge {
+  font-size: 11px;
+}
 /* Résultats des équipes : une carte par section, le classement de l’équipe choisie. */
 .club-standings-section + .club-standings-section {
   margin-top: 16px;

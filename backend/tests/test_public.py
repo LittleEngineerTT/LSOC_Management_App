@@ -100,12 +100,20 @@ def test_guest_reads_board_and_coaches_without_identifiers(admin: TestClient) ->
     create('Yann', ['member', 'president'])
     create('Alice', ['coach'])
     create('Membre', ['member'])
+    # Alice entraîne deux équipes, présentées par nom.
+    section = admin.post('/api/v1/sections', json={'name': 'Loisir'}).json()['id']
+    alice = next(user['id'] for user in admin.get('/api/v1/users').json() if user['first_name'] == 'Alice')
+    for name in ('Loisir B', 'Loisir A'):
+        team = admin.post('/api/v1/teams', json={'name': name, 'section_id': section}).json()['id']
+        response = admin.post(f'/api/v1/users/{alice}/assignments', json={'team_id': team, 'kind': 'coach'})
+        assert response.status_code == 201, response.text
+        alice = response.json()['user_id']
     staff = TestClient(app).get('/api/v1/public/staff')
     assert staff.status_code == 200, staff.text
     # Bureau d’abord, puis les entraîneurs par prénom ; chaque fonction de la personne est listée.
     assert staff.json() == [
-        {'first_name': 'Yann', 'functions': ['president'], 'photo': None},
-        {'first_name': 'Bruno', 'functions': ['vice_president', 'coach'], 'photo': None},
-        {'first_name': 'Alice', 'functions': ['coach'], 'photo': None},
-        {'first_name': 'Zoé', 'functions': ['coach'], 'photo': None},
+        {'first_name': 'Yann', 'functions': ['president'], 'photo': None, 'teams': []},
+        {'first_name': 'Bruno', 'functions': ['vice_president', 'coach'], 'photo': None, 'teams': []},
+        {'first_name': 'Alice', 'functions': ['coach'], 'photo': None, 'teams': ['Loisir A', 'Loisir B']},
+        {'first_name': 'Zoé', 'functions': ['coach'], 'photo': None, 'teams': []},
     ]

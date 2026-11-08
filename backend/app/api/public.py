@@ -15,7 +15,7 @@ from app.api.schemas import (
     StaffFunction,
     StaffView,
 )
-from app.persistence.models import Event, Gymnasium, Section, Team, User
+from app.persistence.models import Assignment, Event, Gymnasium, Section, Team, User
 from app.services.ffvb import recent_results, team_standings
 
 router = APIRouter(prefix="/public", tags=["Invités"])
@@ -73,13 +73,22 @@ FUNCTIONS: tuple[StaffFunction, ...] = ("president", "vice_president", "coach")
 
 @router.get("/staff", response_model=list[StaffView])
 def staff(db: DB) -> list[StaffView]:
-    """Bureau puis entraîneurs, par prénom et photo d’entraîneur : ni identifiant (numéro de
-    licence) ni nom."""
+    """Bureau puis entraîneurs, par prénom et photo d’entraîneur, avec les équipes qu’ils
+    entraînent : ni identifiant (numéro de licence) ni nom."""
+    coached: dict[str, list[str]] = {}
+    for user_id, name in db.execute(
+        select(Assignment.user_id, Team.name)
+        .join(Team, Team.id == Assignment.team_id)
+        .where(Assignment.kind == "coach")
+        .order_by(Team.name)
+    ):
+        coached.setdefault(user_id, []).append(name)
     people = [
         StaffView(
             first_name=user.first_name,
             functions=functions,
             photo=user.photo_url if "coach" in user.roles else None,
+            teams=coached.get(user.id, []) if "coach" in user.roles else [],
         )
         for user in db.scalars(select(User).order_by(User.first_name, User.id))
         if (functions := [function for function in FUNCTIONS if function in user.roles])

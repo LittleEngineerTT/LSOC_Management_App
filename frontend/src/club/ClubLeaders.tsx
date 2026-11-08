@@ -17,9 +17,12 @@ export interface StaffMember {
   functions: (keyof typeof functionNames)[];
   /** Photo facultative ; à défaut, un emplacement vide. */
   photo?: string | null;
+  /** Équipes qu’entraîne un entraîneur, par nom ; absentes d’une API antérieure. */
+  teams?: string[];
 }
 
-/** Sous-onglet « Dirigeants » des infos du club : le bureau et les entraîneurs, en trombinoscope. */
+/** Sous-onglet « Dirigeants » des infos du club : le bureau et les entraîneurs, en trombinoscope,
+ * avec en badges les équipes qu’entraîne chaque entraîneur. */
 export function ClubLeaders() {
   const { api } = useClub();
   const loader = useCallback(
@@ -55,6 +58,18 @@ export function ClubLeaders() {
                 {person.functions.map((name) => (
                   <span key={name}>{functionNames[name]}</span>
                 ))}
+                {(person.teams?.length ?? 0) > 0 && (
+                  <ul
+                    className="club-staff-teams"
+                    aria-label={`Équipes entraînées par ${person.first_name}`}
+                  >
+                    {person.teams!.map((team) => (
+                      <li key={team} className="admin-badge">
+                        {team}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </figcaption>
             </figure>
           </li>

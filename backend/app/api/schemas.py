@@ -376,6 +376,8 @@ class StaffView(View):
     functions: list[StaffFunction]
     # Photo d’un entraîneur ; nulle sans photo.
     photo: str | None = None
+    # Équipes qu’entraîne un entraîneur (rattachements coach), par nom.
+    teams: list[str] = []
 
 
 class PublicTeamView(SectionView):

@@ -138,6 +138,20 @@ it('présente le bureau et les entraîneurs avec toutes leurs fonctions, une pho
   expect(within(people[2]!).getByRole('img', { name: 'Alice' })).toHaveAttribute('src', '/notre-club/alice.jpg');
 });
 
+it('indique en badges les équipes qu’entraîne chaque entraîneur', async () => {
+  club.staff = [
+    { first_name: 'Yann', functions: ['president'], teams: [] },
+    { first_name: 'Alice', functions: ['coach'], teams: ['Loisir A', 'Régionale'] },
+  ];
+  render(<MemoryRouter><OurClubPage pages={pages} /></MemoryRouter>);
+  const staff = await screen.findByRole('region', { name: 'Le bureau et les entraîneurs' });
+  const teams = await within(staff).findByRole('list', { name: 'Équipes entraînées par Alice' });
+  expect(within(teams).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Loisir A', 'Régionale']);
+  expect(within(teams).getAllByRole('listitem')[0]).toHaveClass('admin-badge');
+  // Sans équipe entraînée, pas de liste.
+  expect(within(staff).queryByRole('list', { name: 'Équipes entraînées par Yann' })).not.toBeInTheDocument();
+});
+
 const row = (rank: number, team: string, points: number, played: number, won: number, scores: number[]) => ({
   rank, team, points, played, won, lost: played - won, forfeits: 0,
   wins_3_0: scores[0], wins_3_1: scores[1], wins_3_2: scores[2], losses_2_3: scores[3], losses_1_3: scores[4], losses_0_3: scores[5],
