@@ -16,7 +16,6 @@ import { PlanningPage } from '../club/PlanningPage';
 import { HomePage } from '../club/HomePage';
 import { PlanningApp } from '../club/PlanningApp';
 import { MessagingPage } from '../club/MessagingPage';
-import { MyPlanningPage } from '../club/MyPlanningPage';
 import { MyTeamsPage } from '../club/MyTeamsPage';
 import { OurClubPage } from '../club/OurClubPage';
 import { ContactPage } from '../club/ContactPage';
@@ -26,7 +25,6 @@ const clubSections = [
   'Accueil',
   'Planning',
   'Messagerie',
-  'Mon planning',
   'Mes équipes',
   'Notre club',
   'Demandes',
@@ -51,7 +49,6 @@ const guestSections = ['Accueil', 'Planning', 'Notre club', 'Contact'];
 const sectionTitles: Record<string, string> = {
   '/app': 'Accueil',
   ...Object.fromEntries(applications.map((item) => [item.path, item.title])),
-  '/app/mon-planning': 'Mon planning',
   '/app/equipes': 'Mes équipes',
   // Ancienne adresse de la page, conservée pour les favoris.
   '/app/sections': 'Mes équipes',
@@ -59,6 +56,7 @@ const sectionTitles: Record<string, string> = {
 };
 
 const GYMNASIUMS_PATH = '/app/gymnases';
+const MY_PLANNING_PATH = '/app/mon-planning';
 
 export function AppShell() {
   const session = useSession();
@@ -68,6 +66,13 @@ export function AppShell() {
   if (location.pathname === GYMNASIUMS_PATH) {
     const search = new URLSearchParams(location.search);
     search.set('onglet', 'gymnases');
+    return <Navigate to={`/app/planning?${search.toString()}`} replace />;
+  }
+  // Ancienne application « Mon planning », devenue un filtre du Planning.
+  if (location.pathname === MY_PLANNING_PATH) {
+    const search = new URLSearchParams(location.search);
+    for (const name of ['filtre', 'origine']) search.delete(name);
+    search.set('mon', '1');
     return <Navigate to={`/app/planning?${search.toString()}`} replace />;
   }
   if (session.state === 'idle' || session.state === 'loading')
@@ -258,10 +263,6 @@ function Workspace({ account, section }: { account: Account | null; section: str
           {account ? (
             <div className="account-tools">
               <NotificationsPanel />
-              <NavLink to="/app/mon-planning" className="header-link" aria-label="Mon planning">
-                <Icon name="calendar" />
-                <span>Mon planning</span>
-              </NavLink>
               <NavLink to="/app/equipes" className="header-link" aria-label="Mes équipes">
                 <Icon name="layers" />
                 <span>Mes équipes</span>
@@ -363,7 +364,6 @@ function ClubPage({ section }: { section: string }) {
       {section === 'Accueil' && <HomePage />}
       {section === 'Planning' && <PlanningApp club={<PlanningPage />} gyms={<GymnasiumsPage />} />}
       {section === 'Messagerie' && <MessagingPage />}
-      {section === 'Mon planning' && <MyPlanningPage />}
       {section === 'Mes équipes' && <MyTeamsPage />}
       {section === 'Notre club' && <OurClubPage />}
       {section === 'Demandes' && <InscriptionsPage />}

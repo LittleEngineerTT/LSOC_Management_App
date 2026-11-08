@@ -55,7 +55,7 @@ def test_deletion_email_keeps_the_event_card(admin: TestClient) -> None:
     assert member.post(f'/api/v1/events/{event}/follow').status_code == 201
     assert admin.delete(f'/api/v1/events/{event}').status_code == 204
     [sent] = queued('member')
-    assert sent['link'] == '/app/mon-planning'
+    assert sent['link'] == '/app/planning?mon=1'
     for line in ('Date : jeudi 15 octobre 2026', 'Horaire : 18 h 00 – 20 h 00', 'Lieu : Ambroise Paré', 'Référents : Admin'):
         assert line in sent['body']
 

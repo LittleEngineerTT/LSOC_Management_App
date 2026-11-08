@@ -43,8 +43,9 @@ test('connexion, accueil, menus, restauration et déconnexion CSRF', async ({ pa
   await noOverflow(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Accueil' })).toBeVisible();
-  await page.getByRole('link', { name: 'Mon planning', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Mon planning' })).toBeVisible();
+  await page.getByRole('link', { name: 'Tout mon planning', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Planning' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Mon planning' })).toBeChecked();
   await expect(page.getByText(/Rien de prévu/)).toBeVisible();
   await page.getByRole('button', { name: 'Options du profil de Camille' }).click();
   await page.getByRole('link', { name: 'Mon profil' }).click();

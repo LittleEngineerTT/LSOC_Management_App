@@ -85,7 +85,8 @@ def action_label(path: str) -> str:
         return "Traiter dans l’administration"
     if path.startswith("/app/gymnases") or "onglet=gymnases" in path:
         return "Voir les gymnases"
-    if path.startswith("/app/mon-planning"):
+    # « Mon planning » est devenu un filtre du Planning (?mon=1) ; l’ancienne adresse y mène.
+    if path.startswith("/app/mon-planning") or "mon=1" in path:
         return "Voir mon planning"
     if path.startswith("/app/planning"):
         return "Voir le planning"

@@ -224,9 +224,12 @@ function EventBody({
             {admin || event.direct_edit ? 'Modifier' : 'Proposer une modification'}
           </button>
         )}
-        <button type="button" className="admin-button" onClick={() => setHistory(!history)}>
-          {history ? 'Masquer l’historique' : 'Historique'}
-        </button>
+        {/* L’historique est réservé aux administrateurs et aux référents de l’événement. */}
+        {(admin || referent) && (
+          <button type="button" className="admin-button" onClick={() => setHistory(!history)}>
+            {history ? 'Masquer l’historique' : 'Historique'}
+          </button>
+        )}
         {staff && (
           <button
             type="button"
@@ -276,7 +279,7 @@ function EventBody({
         />
       )}
       <Questions event={event} />
-      {history && <History event={event} onChanged={onChanged} />}
+      {history && (admin || referent) && <History event={event} onChanged={onChanged} />}
     </>
   );
 }
@@ -338,8 +341,8 @@ function CancelEvent({
     >
       <p>
         {reopen
-          ? 'L’événement redevient actif. Les personnes qui le suivent ou y sont inscrites sont prévenues.'
-          : 'L’événement reste dans le planning, marqué « Annulé », avec son historique. Les personnes qui le suivent ou y sont inscrites sont prévenues.'}
+          ? 'L’événement redevient actif. Les personnes qui l’ont en favori ou y sont inscrites sont prévenues.'
+          : 'L’événement reste dans le planning, marqué « Annulé », avec son historique. Les personnes qui l’ont en favori ou y sont inscrites sont prévenues.'}
       </p>
       {!reopen && admin && !!event.gymnasium_id && (
         <label className="club-check">
@@ -400,9 +403,9 @@ function DeleteEvent({
         </fieldset>
       )}
       <p>
-        La suppression est définitive : historique, questions, suivis et inscriptions sont effacés.
-        Les personnes qui suivent l’événement ou y sont inscrites sont prévenues. Pour garder une
-        trace, préférez « Événement annulé » dans la modification.
+        La suppression est définitive : historique, questions, favoris et inscriptions sont effacés.
+        Les personnes qui l’ont en favori ou y sont inscrites sont prévenues. Pour garder une trace,
+        préférez « Événement annulé » dans la modification.
       </p>
     </Confirm>
   );
@@ -435,7 +438,7 @@ function FollowButtons({ event }: { event: Event }) {
         disabled={request.pending}
         onClick={() => toggle(`/events/${event.id}/follow`, own)}
       >
-        {own ? 'Ne plus suivre' : 'Suivre l’événement'}
+        {own ? 'Retirer des favoris' : 'Ajouter aux favoris'}
       </button>
       {event.series_id && (
         <button
@@ -445,7 +448,7 @@ function FollowButtons({ event }: { event: Event }) {
           disabled={request.pending}
           onClick={() => toggle(`/series/${event.series_id}/follow`, series)}
         >
-          {series ? 'Ne plus suivre la série' : 'Suivre la série'}
+          {series ? 'Retirer la série des favoris' : 'Ajouter la série aux favoris'}
         </button>
       )}
       {request.error && <ErrorNotice message={request.error} />}

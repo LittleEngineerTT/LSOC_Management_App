@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ErrorNotice } from '../auth/components';
 import { useSession } from '../auth/session';
+import { TeamOptions, teamOptions } from '../club/teamOrder';
 import { CoachPhotoPicker, photoError, usePreview } from './CoachPhoto';
 import { UserCredentials } from './UserCredentials';
 import { useAdmin, useResource } from './data';
@@ -46,6 +47,7 @@ const categories = ['adult', 'M21', 'M18', 'M15', 'M13', 'M11', 'M9'].map((value
 }));
 export function UsersPanel() {
   const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
+  const accountId = useSession().account?.id;
   const session = useSession();
   const [editing, setEditing] = useState<User | 'new' | null>(null);
   // Photo facultative choisie à la création d’un coach, déposée après la création du compte.
@@ -189,11 +191,7 @@ export function UsersPanel() {
           >
             <option value="">Toutes les équipes</option>
             <option value="none">Sans équipe</option>
-            {teamChoices.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            <TeamOptions teams={teamChoices} accountId={accountId} />
           </select>
         </label>
         <button
@@ -497,6 +495,7 @@ function Assignments({
   onChanged: () => void;
 }) {
   const { api, catalog } = useAdmin();
+  const accountId = useSession().account?.id;
   const resource = useResource<Assignment>(`/users/${user.id}/assignments`);
   const [removing, setRemoving] = useState<Assignment | null>(null);
   const [editing, setEditing] = useState<Assignment | null>(null);
@@ -588,7 +587,7 @@ function Assignments({
               label: 'Équipe',
               type: 'select',
               required: true,
-              options: catalog.teams.map((team) => ({ value: team.id, label: team.name })),
+              options: teamOptions(catalog.teams, accountId),
             },
             {
               name: 'kind',

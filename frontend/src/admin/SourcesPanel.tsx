@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useSession } from '../auth/session';
+import { teamOptions } from '../club/teamOrder';
 import { useAdmin, useResource } from './data';
 import type { Source } from './types';
 import {
@@ -53,6 +55,7 @@ export function SourcesPanel({
   configureClub: () => void;
 }) {
   const { api, catalog, reloadCatalog } = useAdmin();
+  const accountId = useSession().account?.id;
   const result = useResource<Source>('/ffvb/sources');
   const request = useRequest();
   const [editing, setEditing] = useState<Source | 'new' | null>(null);
@@ -75,7 +78,7 @@ export function SourcesPanel({
       label: 'Équipe locale',
       type: 'select',
       required: true,
-      options: catalog.teams.map((team) => ({ value: team.id, label: team.name })),
+      options: teamOptions(catalog.teams, accountId),
     },
     {
       name: 'season',
@@ -440,7 +443,7 @@ export function SourcesPanel({
         >
           <p>
             La source et tous les matchs importés depuis elle, passés comme à venir, sont supprimés
-            définitivement avec leur historique, leurs suivis et leurs inscriptions. Les personnes
+            définitivement avec leur historique, leurs favoris et leurs inscriptions. Les personnes
             concernées sont prévenues. Cette action est irréversible.
           </p>
         </Confirm>

@@ -60,8 +60,8 @@ it('affiche la semaine, ouvre le détail, suit l’événement et pose une quest
   const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   expect(within(dialog).getByText('Gymnase Ambroise Paré')).toBeInTheDocument();
   expect(within(dialog).getByText('Équipes organisatrices').nextElementSibling).toHaveTextContent('Loisir 1');
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Suivre l’événement' }));
-  expect(await within(dialog).findByRole('button', { name: 'Ne plus suivre' })).toHaveAttribute('aria-pressed', 'true');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Ajouter aux favoris' }));
+  expect(await within(dialog).findByRole('button', { name: 'Retirer des favoris' })).toHaveAttribute('aria-pressed', 'true');
   await userEvent.type(within(dialog).getByLabelText('Poser une question aux administrateurs'), 'Faut-il apporter un ballon ?');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Envoyer la question' }));
   expect(await within(dialog).findByText('Question envoyée.')).toBeInTheDocument();
@@ -441,7 +441,7 @@ const license = (user_id: string, first_name: string, status: string, team_id: s
 
 it('l’onglet Demandes montre d’abord les joueurs non inscrits, par équipe, section et étape', async () => {
   account = admin;
-  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }, { id: 's3', name: 'Jeunes' }];
   routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: [] }, { id: 't2', name: 'Régionale', section_id: 's2', referent_ids: [] }];
   routes['/licenses'] = [license('u1', 'Andréa', 'none', 't1'), license('u2', 'Bao', 'payment_pending', 't2'), license('u3', 'Chloé', 'active', 't1'), { ...license('u4', 'Dominique', 'none', 't1'), teams: [{ team_id: 't1', kind: 'coach' }] }];
   open('/app/inscriptions');
@@ -936,4 +936,64 @@ it('un adhérent ne voit que le formulaire de contact, adresse de son compte pr�
   expect(within(form).getByLabelText('Adresse e-mail')).toHaveValue('camille@example.org');
   expect(screen.queryByRole('group', { name: 'Vue du contact' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Demandes de contact' })).not.toBeInTheDocument();
+});
+
+it('le filtre Mon planning du Planning garde mes équipes, mes favoris, ce dont je suis référent et mes inscriptions', async () => {
+  const other = { ...training, referent_ids: ['a1'], section_ids: ['s2'] };
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }, { id: 't2', name: 'Compétition 1', section_id: 's2', referent_ids: ['m1'] }];
+  routes['/events'] = [
+    { ...training, id: 'e1', title: 'Je suis référent' },
+    { ...other, id: 'e2', title: 'Autre section', section_ids: ['s3'] },
+    { ...other, id: 'e3', title: 'Événement favori' },
+    { ...other, id: 'e4', title: 'Séance de mon équipe', section_ids: ['s1'], team_ids: ['t1'] },
+    { ...other, id: 'e5', title: 'Équipe dont je suis référent', team_ids: ['t2'] },
+    { ...other, id: 'e6', title: 'Je suis inscrit' },
+  ];
+  routes['/follows'] = [{ id: 'f1', user_id: 'm1', event_id: 'e3', series_id: null }];
+  routes['/registrations'] = [{ event_id: 'e6', user_id: 'm1', status: 'accepted' }];
+  open('/app/mon-planning');
+  // L’ancienne application mène au Planning, filtre coché.
+  expect(await screen.findByRole('heading', { level: 1, name: 'Planning' })).toBeInTheDocument();
+  const mine = await screen.findByRole('checkbox', { name: 'Mon planning' });
+  expect(mine).toBeChecked();
+  expect(screen.queryByLabelText('Origine des événements')).not.toBeInTheDocument();
+  for (const title of ['Je suis référent', 'Événement favori', 'Séance de mon équipe', 'Équipe dont je suis référent', 'Je suis inscrit'])
+    expect(await screen.findByRole('link', { name: new RegExp(title) })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Autre section/ })).not.toBeInTheDocument();
+  await userEvent.click(mine);
+  expect(await screen.findByRole('link', { name: /Autre section/ })).toBeInTheDocument();
+});
+
+it('place en tête, d’une autre couleur, les équipes dont je suis référent', async () => {
+  routes['/sections'] = [{ id: 's1', name: 'Loisir' }, { id: 's2', name: 'Compétition' }];
+  routes['/teams'] = [{ id: 't1', name: 'Loisir 1', section_id: 's1', referent_ids: ['a1'] }, { id: 't2', name: 'Compétition 1', section_id: 's2', referent_ids: ['m1'] }];
+  routes['/users/m1/assignments'] = [{ id: 'as1', user_id: 'm1', team_id: 't1', kind: 'player' }, { id: 'as2', user_id: 'm1', team_id: 't2', kind: 'coach' }];
+  open('/app/planning');
+  const select = await screen.findByLabelText('Équipe');
+  const group = within(select).getByRole('group', { name: 'Mes équipes (référent)' });
+  expect(within(group).getAllByRole('option').map((option) => option.textContent)).toEqual(['Compétition 1']);
+  expect(within(group).getByRole('option')).toHaveClass('team-referent');
+  expect(within(select).getAllByRole('option').map((option) => option.textContent)).toEqual(['Toutes les équipes', 'Compétition 1', 'Loisir 1']);
+  cleanup();
+  open('/app/equipes');
+  const cards = await screen.findAllByRole('heading', { level: 3 });
+  expect(cards.map((card) => card.textContent)).toEqual(['Compétition 1 Référent', 'Loisir 1']);
+  expect(cards[0]!.closest('section')).toHaveClass('team-referent-card');
+  expect(cards[1]!.closest('section')).toHaveClass('team-other-card');
+});
+
+it('réserve l’historique d’un événement aux administrateurs et à ses référents', async () => {
+  routes['/events'] = [{ ...training, referent_ids: ['a1'] }];
+  routes['/events/e1'] = { ...training, referent_ids: ['a1'], team_ids: ['t1'] };
+  open('/app/planning?event=e1');
+  const dialog = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  expect(await within(dialog).findByRole('button', { name: 'Ajouter aux favoris' })).toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: 'Historique' })).not.toBeInTheDocument();
+  cleanup();
+  // Référent de l’événement : l’historique est proposé.
+  routes['/events/e1'] = { ...training, team_ids: ['t1'] };
+  open('/app/planning?event=e1');
+  const own = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
+  expect(await within(own).findByRole('button', { name: 'Historique' })).toBeInTheDocument();
 });

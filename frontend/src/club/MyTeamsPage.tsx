@@ -4,18 +4,24 @@ import { dayLabel, horizonLabel, parisDay, timeRange } from './calendar';
 import { PersonNames, useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { concernsTeam, useEventLink } from './events';
-import { useMyEvents } from './MyPlanningPage';
+import { useMyEvents } from './myEvents';
+import { isReferentOf } from './teamOrder';
 
 const roles = { player: 'Joueur', coach: 'Coach' } as const;
 
 export function MyTeamsPage() {
-  const { assignments, teams, sections, positions, admin } = useClub();
+  const { account, assignments, teams, sections, positions, admin } = useClub();
   const { result, events } = useMyEvents();
   const link = useEventLink();
-  const mine = assignments.flatMap((assignment) => {
+  const linked = assignments.flatMap((assignment) => {
     const team = teams.find((item) => item.id === assignment.team_id);
     return team ? [{ assignment, team }] : [];
   });
+  // Les équipes dont je suis référent d’abord, mises en avant.
+  const mine = [
+    ...linked.filter(({ team }) => isReferentOf(team, account.id)),
+    ...linked.filter(({ team }) => !isReferentOf(team, account.id)),
+  ];
   return (
     <>
       <PanelHeading
@@ -40,8 +46,19 @@ export function MyTeamsPage() {
             .filter((event) => concernsTeam(event, team))
             .slice(0, 5);
           return (
-            <section className="admin-card club-section" key={assignment.id}>
-              <h3>{team.name}</h3>
+            <section
+              className={`admin-card club-section ${isReferentOf(team, account.id) ? 'team-referent-card' : 'team-other-card'}`}
+              key={assignment.id}
+            >
+              <h3>
+                {team.name}
+                {isReferentOf(team, account.id) && (
+                  <>
+                    {' '}
+                    <Badge tone="referent">Référent</Badge>
+                  </>
+                )}
+              </h3>
               <p>
                 <Badge>{roles[assignment.kind]}</Badge>{' '}
                 <span className="admin-hint">

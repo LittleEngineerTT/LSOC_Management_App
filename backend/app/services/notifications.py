@@ -501,7 +501,7 @@ def event_deleted(db: Session, event: Event, actor_id: str | None) -> None:
             f"Événement supprimé : {event.title} du {day}",
             None,
             email_wanted,
-            link="/app/mon-planning",
+            link="/app/planning?mon=1",
             blocks=card,
         )
 

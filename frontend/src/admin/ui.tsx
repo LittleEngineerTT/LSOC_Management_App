@@ -7,6 +7,52 @@ import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 export interface Option {
   value: string;
   label: string;
+  /** Groupe de la liste déroulante (`optgroup`) ; les options d’un groupe se suivent. */
+  group?: string;
+  /** Mise en avant (équipe dont le compte est référent…), d’une autre couleur. */
+  highlight?: boolean;
+}
+
+/** Options d’une liste déroulante, réunies par groupe quand elles en ont un. */
+function SelectOptions({ options }: { options: Option[] }) {
+  const render = (option: Option) => (
+    <option
+      key={option.value}
+      value={option.value}
+      className={option.highlight ? 'option-highlight' : undefined}
+    >
+      {option.label}
+    </option>
+  );
+  if (!options.some((option) => option.group)) return <>{options.map(render)}</>;
+  const groups: { label: string; options: Option[] }[] = [];
+  for (const option of options) {
+    const label = option.group ?? '';
+    const last = groups.at(-1);
+    if (last && last.label === label) last.options.push(option);
+    else groups.push({ label, options: [option] });
+  }
+  return (
+    <>
+      {groups.map((group) =>
+        group.label ? (
+          <optgroup
+            key={group.label}
+            label={group.label}
+            className={
+              group.options.every((option) => option.highlight)
+                ? 'option-highlight-group'
+                : undefined
+            }
+          >
+            {group.options.map(render)}
+          </optgroup>
+        ) : (
+          group.options.map(render)
+        ),
+      )}
+    </>
+  );
 }
 export interface FormField {
   name: string;
@@ -279,7 +325,10 @@ export function EntityForm({
                   </label>
                 )}
                 {field.options?.map((option) => (
-                  <label key={option.value}>
+                  <label
+                    key={option.value}
+                    className={option.highlight ? 'option-highlight' : undefined}
+                  >
                     <input
                       type="checkbox"
                       checked={Array.isArray(value) && value.includes(option.value)}
@@ -354,11 +403,7 @@ export function EntityForm({
                       onChange={(event) => update(event.target.value)}
                     >
                       <option value="">Choisir…</option>
-                      {field.options?.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      <SelectOptions options={field.options ?? []} />
                     </select>
                   ) : field.type === 'textarea' ? (
                     <textarea

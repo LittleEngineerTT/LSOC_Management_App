@@ -97,7 +97,7 @@ export function EventRow({ event }: { event: Event }) {
           {!guest && event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
           {!guest && event.referent_ids.includes(account.id) && <Badge tone="good">Référent</Badge>}
           {!guest && !event.referent_ids.length && <Badge tone="warning">Sans référent</Badge>}
-          {isFollowed(follows, event) && <Badge>Suivi</Badge>}
+          {isFollowed(follows, event) && <Badge>Favori</Badge>}
           {registrationOpen(event) && (
             <Badge tone={atLimit(event) ? 'warning' : 'good'}>
               {atLimit(event) ? 'Complet' : 'Ouvert'} · {event.registration_count}/

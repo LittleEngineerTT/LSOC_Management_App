@@ -325,7 +325,7 @@ it('inclut les ouvertures de mes équipes sans ouvrir toute leur section dans mo
       registration_section_ids: ['s1'],
     },
   ];
-  open(`/app/mon-planning?vue=mois&semaine=${day}`);
+  open(`/app/planning?mon=1&vue=mois&semaine=${day}`);
   const selected = await screen.findByRole('region', { name: `Événements du ${dayLabel(day)}` });
   expect(await within(selected).findByRole('link', { name: /Séance équipe/ })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Autre équipe uniquement/ })).not.toBeInTheDocument();

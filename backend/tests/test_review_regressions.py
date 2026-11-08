@@ -49,9 +49,11 @@ def test_change_decision_has_actor_and_history(admin: TestClient) -> None:
     history=admin.get(f'/api/v1/events/{event}/history').json()
     assert history[-1]['action']=='request_reject' and history[-1]['actor_id']=='admin'
     assert history[-1]['decision_reason']=='Autre créneau nécessaire'
-    # The reason is addressed to the requester, not to every member reading the history.
+    # Le motif s’adresse au demandeur : le référent lit l’historique sans le motif.
+    assert member.get(f'/api/v1/events/{event}/history').json()[-1]['decision_reason']==''
+    # L’historique est réservé aux administrateurs et aux référents de l’événement.
     add_user('other')
-    assert login('other').get(f'/api/v1/events/{event}/history').json()[-1]['decision_reason']==''
+    assert login('other').get(f'/api/v1/events/{event}/history').status_code==403
     assert member.get('/api/v1/change-requests?status=rejected').json()[0]['decision']=='Autre créneau nécessaire'
 
 

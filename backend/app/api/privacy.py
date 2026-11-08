@@ -74,7 +74,7 @@ def export(db: DB, actor: Actor) -> dict[str, Any]:
         "inscriptions": [
             plain(v) for v in db.scalars(select(Registration).where(Registration.user_id == me))
         ],
-        "suivis": [plain(v) for v in db.scalars(select(Follow).where(Follow.user_id == me))],
+        "favoris": [plain(v) for v in db.scalars(select(Follow).where(Follow.user_id == me))],
         "dossiers_d_inscription": [
             plain(v) for v in db.scalars(select(Dossier).where(Dossier.user_id == me))
         ],

@@ -1,6 +1,7 @@
 import type { EventRequest } from '../admin/types';
 import { choices, EntityForm, num, str, type FormField, type FormValues } from '../admin/ui';
 import { sectionGroups, useClub } from './context';
+import { teamOptions } from './teamOrder';
 import { kindLabels } from './events';
 import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
 
@@ -30,7 +31,7 @@ export function EventProposalForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { api, sections, teams, gymnasiums } = useClub();
+  const { api, account, sections, teams, gymnasiums } = useClub();
   const coached = useCoachedTeams();
   const fields: FormField[] = [
     {
@@ -38,7 +39,7 @@ export function EventProposalForm({
       label: 'Équipes organisatrices',
       type: 'choices',
       all: true,
-      options: coached.map((team) => ({ value: team.id, label: team.name })),
+      options: teamOptions(coached, account.id),
       hint: 'Une ou plusieurs équipes que vous entraînez ; leurs sections sont concernées. Vous serez le référent.',
     },
     { name: 'title', label: 'Titre', required: true, maxLength: 200 },

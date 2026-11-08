@@ -11,7 +11,7 @@ import type { Notification } from '../club/context';
 import { CountBadge, useLiveReload, useUnread } from './unread';
 
 // Pages qui ouvrent la fiche d’un événement passé en `?event=` ; ailleurs, le planning s’en charge.
-const DETAIL_PAGES = ['/app', '/app/planning', '/app/mon-planning', '/app/equipes'];
+const DETAIL_PAGES = ['/app', '/app/planning', '/app/equipes'];
 
 /** Action proposée par une notification, d’après l’écran où elle se traite. */
 export function actionLabel(item: Notification): string | null {

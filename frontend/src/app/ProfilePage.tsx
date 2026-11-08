@@ -43,7 +43,7 @@ export function ProfilePage({ account }: { account: Account }) {
           },
           {
             name: 'followed_email',
-            label: 'Modifications des événements suivis',
+            label: 'Modifications des événements favoris',
             type: 'checkbox',
           },
           {
@@ -345,7 +345,7 @@ function MyData() {
           }}
         >
           <p>
-            Vos inscriptions, suivis, messages, notifications et préférences sont effacés
+            Vos inscriptions, favoris, messages, notifications et préférences sont effacés
             immédiatement. Les événements dont vous êtes référent devront être réattribués par un
             administrateur. Cette action est irréversible.
           </p>

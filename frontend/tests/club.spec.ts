@@ -78,15 +78,15 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
-test('planning, détail, suivi et question depuis un événement', async ({ page }) => {
+test('planning, détail, favori et question depuis un événement', async ({ page }) => {
   const mutations = await prepare(page);
   await page.goto(`/app/planning?jour=${day(2)}`);
   await page.getByRole('link', { name: /Entraînement loisir du mercredi soir/ }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Entraînement loisir du mercredi soir' });
   await expect(dialog).toBeVisible();
   await noOverflow(page);
-  await dialog.getByRole('button', { name: 'Suivre l’événement' }).click();
-  await expect(dialog.getByRole('button', { name: 'Ne plus suivre' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Ajouter aux favoris' }).click();
+  await expect(dialog.getByRole('button', { name: 'Retirer des favoris' })).toBeVisible();
   await dialog.getByLabel('Poser une question aux administrateurs').fill('Le créneau est-il maintenu ?');
   await dialog.getByRole('button', { name: 'Envoyer la question' }).click();
   await expect(dialog.getByText('Question envoyée.')).toBeVisible();
@@ -107,7 +107,7 @@ test('sections du club utilisables de 320 à 2560 px sans débordement', async (
     ['/app/planning?event=event-1', 'Inscriptions'],
     ['/app/planning?onglet=gymnases', 'Planning des gymnases'],
     ['/app/messagerie?thread=thread-1', 'Entraînement loisir du mercredi soir'],
-    ['/app/mon-planning', 'Mon planning'],
+    ['/app/planning?mon=1', 'Planning du club'],
     ['/app/equipes', 'Loisir 1'],
   ];
   for (const [width, height] of [[320, 568], [390, 844], [768, 1024], [1024, 768], [1440, 900], [2560, 1440]] as const) {

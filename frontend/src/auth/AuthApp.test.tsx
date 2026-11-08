@@ -150,11 +150,11 @@ describe('session et connexion', () => {
       if (String(input).endsWith('/auth/login')) return reply({ user, csrf_token: 'csrf' });
       return reply([]);
     });
-    open('/app/mon-planning');
+    open('/app/equipes');
     await userEvent.type(await screen.findByLabelText('Identifiant'), 'camille');
     await userEvent.type(screen.getByLabelText('Mot de passe'), 'valid-password-12345');
     await userEvent.click(screen.getByRole('button', { name: 'Se connecter' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Mon planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mes équipes' })).toBeInTheDocument();
   });
 
   it('affiche les menus demandés et le contenu de chaque section', async () => {
@@ -163,11 +163,14 @@ describe('session et connexion', () => {
     await screen.findByRole('heading', { name: 'Accueil' });
     expect(screen.getByRole('navigation', { name: 'Applications' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: /Bonjour/ })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('link', { name: 'Mon planning' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Mon planning' })).toBeInTheDocument();
+    // « Mon planning » n’est plus une application : c’est un filtre du Planning.
+    expect(screen.queryByRole('link', { name: 'Mon planning' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: 'Tout mon planning' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Planning' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Mon planning' })).toBeChecked();
     expect(await screen.findByText(/Rien de prévu/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mes équipes' })).toBeInTheDocument();
-    // Mon planning et Mes équipes restent dans la barre du haut, plus dans le menu du compte.
+    // Mes équipes reste dans la barre du haut, plus dans le menu du compte.
     await userEvent.click(screen.getByRole('button', { name: /Options du profil/ }));
     const options = document.getElementById('profile-options')!;
     expect(within(options).getByRole('link', { name: 'Mon profil' })).toBeInTheDocument();

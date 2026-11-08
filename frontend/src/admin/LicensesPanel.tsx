@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ErrorNotice } from '../auth/components';
 import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
+import { useSession } from '../auth/session';
+import { TeamOptions } from '../club/teamOrder';
 import { useAdmin, useResource } from './data';
 import { dateLabel } from './time';
 import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from './ui';
@@ -47,6 +49,7 @@ const field: Record<Kind, 'status' | 'coach_status'> = { player: 'status', coach
 /** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. */
 export function LicensesPanel() {
   const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
+  const accountId = useSession().account?.id;
   const [kind, setKind] = useState<Kind>('player');
   const [section, setSection] = useState('');
   const [team, setTeam] = useState('');
@@ -120,11 +123,7 @@ export function LicensesPanel() {
           Équipe
           <select value={team} onChange={(change) => setTeam(change.target.value)}>
             <option value="">Toutes les équipes</option>
-            {teams.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            <TeamOptions teams={teams} accountId={accountId} />
           </select>
         </label>
         <label className="admin-check">

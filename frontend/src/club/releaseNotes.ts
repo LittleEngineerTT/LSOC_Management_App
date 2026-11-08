@@ -54,6 +54,21 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Mon planning dans le Planning',
+      text: 'L’application Mon planning devient un filtre du Planning : cochez « Mon planning » pour ne voir que les séances de vos équipes, vos favoris, les événements dont vous êtes référent ou coach et ceux où vous êtes inscrit.',
+    },
+    {
+      kind: 'feature',
+      title: 'Favoris',
+      text: 'On ne « suit » plus un événement : on l’ajoute à ses favoris, seul ou avec toute sa série.',
+    },
+    {
+      kind: 'feature',
+      title: 'Vos équipes en tête',
+      text: 'Dans les listes d’équipes, celles dont vous êtes référent apparaissent en premier, d’une autre couleur.',
+    },
+    {
+      kind: 'feature',
       title: 'Contact',
       text: 'Une nouvelle application pour écrire au club, avec ou sans compte : un e-mail ou un téléphone pour la réponse, la question et les équipes concernées. Les administrateurs y suivent les demandes, les prennent en charge et les marquent comme résolues.',
       link: { to: '/app/contact', label: 'Nous contacter' },

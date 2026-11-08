@@ -6,7 +6,7 @@ import { dayLabel, parisDay, timeRange } from './calendar';
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
-import { useMyEvents } from './MyPlanningPage';
+import { useMyEvents } from './myEvents';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 
@@ -52,7 +52,7 @@ export function HomePage() {
               </li>
             ))}
           </ul>
-          <Link className="admin-button" to="/app/mon-planning">
+          <Link className="admin-button" to="/app/planning?mon=1">
             Tout mon planning
           </Link>
         </section>

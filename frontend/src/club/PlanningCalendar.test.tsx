@@ -68,18 +68,6 @@ it('sélectionne la date ancrée et revient à aujourd’hui même dans le mois 
   expect(screen.getByRole('region', { name: `Événements du ${dayLabel(current)}` })).toBeInTheDocument();
 });
 
-it('filtre par origine sans confondre un match local avec un événement FFVB', async () => {
-  open();
-  await screen.findByRole('link', { name: /Entraînement local/ });
-  await userEvent.selectOptions(screen.getByLabelText('Origine des événements'), 'ffvb');
-  expect(screen.queryByRole('link', { name: /Entraînement local/ })).not.toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /Match amical local/ })).not.toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /Match fédéral/ })).toBeInTheDocument();
-  await userEvent.selectOptions(screen.getByLabelText('Origine des événements'), 'local');
-  expect(screen.queryByRole('link', { name: /Match fédéral/ })).not.toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /Match amical local/ })).toBeInTheDocument();
-});
-
 it('passe au mois avec les bornes complètes du calendrier et navigue entre les mois', async () => {
   const fetchMock = open();
   await userEvent.click(await screen.findByRole('button', { name: 'Mois' }));

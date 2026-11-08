@@ -11,6 +11,7 @@ import { Badge, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from '
 import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
 import { useClub } from './context';
+import { TeamOptions } from './teamOrder';
 import type { StaffRequest } from './StaffRequests';
 import { DossierCard, DossierRequestForm, MyDossier, progress, type Dossier } from './dossiers';
 
@@ -85,7 +86,7 @@ export function InscriptionsPage() {
 
 /** Suivi de l’inscription des joueurs, par équipe ou section et par étape. */
 function PlayersTracking() {
-  const { api, admin, sections, teams } = useClub();
+  const { api, admin, account, sections, teams } = useClub();
   const loader = useCallback(
     (signal: AbortSignal) =>
       Promise.all([
@@ -198,11 +199,7 @@ function PlayersTracking() {
           Équipe
           <select value={team} onChange={(change) => setTeam(change.target.value)}>
             <option value="">Toutes les équipes</option>
-            {teamOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            <TeamOptions teams={teamOptions} accountId={account.id} />
           </select>
         </label>
         <label>

@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLoad } from '../admin/data';
-import type { Event } from '../admin/types';
+import type { Event, Registration } from '../admin/types';
 import { LoadState, Notice, PanelHeading } from '../admin/ui';
 import { addDays, mondayOf, rangeQuery, today, validDay, weekLabel } from './calendar';
-import { useClub } from './context';
+import { isFollowed, useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
@@ -12,6 +12,8 @@ import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './Calenda
 import { CoachEventRequests } from './CoachEventRequests';
 import { concernsTeam } from './events';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
+import { MyRequests } from './MyRequests';
+import { TeamOptions } from './teamOrder';
 
 /** Navigation par semaine, partagée par le planning et les gymnases. */
 export function WeekNavigation({ monday }: { monday: string }) {
@@ -45,7 +47,7 @@ export function useWeek(): string {
 }
 
 export function PlanningPage() {
-  const { api, admin, account, sections, teams, gymnasiums } = useClub();
+  const { api, admin, account, sections, teams, gymnasiums, follows, assignments } = useClub();
   const coached = useCoachedTeams();
   // Un coach voit toujours le bouton ; le formulaire exige une équipe dont il est référent
   // ou à laquelle il est rattaché comme coach. Un référent d’équipe le voit aussi.
@@ -65,7 +67,9 @@ export function PlanningPage() {
   const selectedTeam = teams.find((item) => item.id === team);
   // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
   const cancelled = search.get('annules') !== '0';
-  const origin = search.get('origine') ?? '';
+  // « Mon planning » : séances de mes équipes ou ouvertes à leur inscription, favoris,
+  // ceux dont je suis référent ou que j’encadre comme coach, et ceux où je suis inscrit.
+  const mine = search.get('mon') === '1';
   const [creating, setCreating] = useState(false);
   const [proposing, setProposing] = useState(false);
   const [requestRevision, setRequestRevision] = useState(0);
@@ -83,6 +87,32 @@ export function PlanningPage() {
     [api, firstDay, days.length, section, gym, cancelled],
   );
   const result = useLoad(loader);
+  const registrationsLoader = useCallback(
+    (signal: AbortSignal) =>
+      mine ? api.list<Registration>('/registrations', true, signal) : Promise.resolve([]),
+    [api, mine],
+  );
+  const registrations = useLoad(registrationsLoader);
+  // Mes équipes : celles où je joue ou que j’encadre, et celles dont je suis référent.
+  const assigned = new Set(assignments.map((assignment) => assignment.team_id));
+  const myTeams = teams.filter(
+    (item) => assigned.has(item.id) || item.referent_ids.includes(account.id),
+  );
+  const registered = new Set(
+    (registrations.data ?? [])
+      .filter((item) => item.status === 'accepted')
+      .map((item) => item.event_id),
+  );
+  const myTeamIds = new Set(myTeams.map((item) => item.id));
+  const mySectionIds = new Set(myTeams.map((item) => item.section_id));
+  const isMine = (event: Event) =>
+    registered.has(event.id) ||
+    event.registration_team_ids?.some((id) => myTeamIds.has(id)) ||
+    event.registration_section_ids.some((id) => mySectionIds.has(id)) ||
+    event.registration_quotas?.some((quota) => mySectionIds.has(quota.section_id)) ||
+    isFollowed(follows, event) ||
+    event.referent_ids.includes(account.id) ||
+    myTeams.some((item) => concernsTeam(event, item));
   function filter(name: string, value: string) {
     setSearch((previous) => {
       const next = new URLSearchParams(previous);
@@ -155,6 +185,14 @@ export function PlanningPage() {
       )}
       {notice && <Notice>{notice}</Notice>}
       <div className="admin-toolbar">
+        <label className="club-check">
+          <input
+            type="checkbox"
+            checked={mine}
+            onChange={(change) => filter('mon', change.target.checked ? '1' : '')}
+          />
+          Mon planning
+        </label>
         <label>
           Section
           <select value={section} onChange={(change) => filter('section', change.target.value)}>
@@ -170,11 +208,7 @@ export function PlanningPage() {
           Équipe
           <select value={team} onChange={(change) => filter('equipe', change.target.value)}>
             <option value="">Toutes les équipes</option>
-            {teamChoices.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            <TeamOptions teams={teamChoices} accountId={account.id} />
           </select>
         </label>
         <label>
@@ -196,36 +230,29 @@ export function PlanningPage() {
           />
           Afficher les annulations
         </label>
-        <label>
-          Origine des événements
-          <select value={origin} onChange={(change) => filter('origine', change.target.value)}>
-            <option value="">Toutes les origines</option>
-            <option value="ffvb">FFVB</option>
-            <option value="local">Locale</option>
-          </select>
-        </label>
       </div>
       <CalendarLegend />
       <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
-      {result.data && (
+      {mine && <LoadState result={registrations} />}
+      {result.data && (!mine || registrations.data) && (
         <CalendarView
           events={result.data.filter(
             (event) =>
-              (origin === 'ffvb'
-                ? !!event.ffvb_match_id
-                : origin === 'local'
-                  ? !event.ffvb_match_id
-                  : true) &&
-              (!selectedTeam || concernsTeam(event, selectedTeam)),
+              (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam)),
           )}
           days={days}
           mode={mode}
           anchor={anchor}
-          empty="Aucun événement sur cette période avec ces filtres."
+          empty={
+            mine
+              ? 'Rien de prévu pour vous sur cette période. Changez de période ou retirez le filtre Mon planning.'
+              : 'Aucun événement sur cette période avec ces filtres.'
+          }
         />
       )}
       <CoachEventRequests revision={requestRevision} />
+      {mine && <MyRequests />}
       <DetailHost onChanged={result.reload} />
     </>
   );

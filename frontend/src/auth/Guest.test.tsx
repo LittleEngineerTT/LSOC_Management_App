@@ -69,7 +69,7 @@ it('montre au planning les seuls matchs FFVB, en lecture seule', async () => {
   expect(await within(dialog).findByText('Ambroise Paré')).toBeInTheDocument();
   expect(within(dialog).getByText('Seniors')).toBeInTheDocument();
   expect(within(dialog).getByText('Seniors M1')).toBeInTheDocument();
-  expect(within(dialog).queryByRole('button', { name: /Modifier|Suivre|Poser une question/ })).not.toBeInTheDocument();
+  expect(within(dialog).queryByRole('button', { name: /Modifier|favoris|Poser une question/ })).not.toBeInTheDocument();
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/public/events?starts_at='))).toBe(true);
 });
 

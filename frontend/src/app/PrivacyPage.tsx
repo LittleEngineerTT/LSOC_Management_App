@@ -43,7 +43,7 @@ export function PrivacyPage() {
             Identité : identifiant (numéro de licence), prénom, initiale du nom, catégorie et rôles
             dans le club.
           </li>
-          <li>Vie sportive : équipes, statut de licence, inscriptions, événements suivis.</li>
+          <li>Vie sportive : équipes, statut de licence, inscriptions, événements favoris.</li>
           <li>Licence : le PDF de votre licence de la saison, déposé par un administrateur.</li>
           <li>
             Échanges : questions privées aux administrateurs, demandes de modification ou

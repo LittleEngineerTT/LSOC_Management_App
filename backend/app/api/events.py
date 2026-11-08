@@ -182,7 +182,10 @@ def history(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[EventRevision] | list[RevisionView]:
-    get(db, Event, event_id)
+    """Historique d’un événement, réservé aux administrateurs et à ses référents."""
+    event = get(db, Event, event_id)
+    if "admin" not in actor.roles and actor.id not in event.referent_ids:
+        raise HTTPException(403, "Historique réservé aux administrateurs et aux référents")
     revisions = list(
         db.scalars(
             select(EventRevision)
