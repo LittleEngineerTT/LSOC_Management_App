@@ -9,7 +9,7 @@ import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
 import { NotificationsPanel } from './NotificationsPanel';
 import { CountBadge, UnreadProvider, useUnread } from './unread';
-import { ClubProvider, GuestClubProvider } from '../club/context';
+import { ClubProvider, GuestClubProvider, useClub } from '../club/context';
 import { GuestGymnasiums, GuestHome, GuestPlanning } from '../club/GuestPages';
 import { GymnasiumsPage } from '../club/GymnasiumsPage';
 import { PlanningPage } from '../club/PlanningPage';
@@ -360,11 +360,17 @@ function Workspace({ account, section }: { account: Account | null; section: str
 }
 
 function ClubPage({ section }: { section: string }) {
+  // La recherche de créneau est réservée aux administrateurs.
+  const { admin } = useClub();
   return (
     <>
       {section === 'Accueil' && <HomePage />}
       {section === 'Planning' && (
-        <PlanningApp club={<PlanningPage />} gyms={<GymnasiumsPage />} finder={<SlotFinder />} />
+        <PlanningApp
+          club={<PlanningPage />}
+          gyms={<GymnasiumsPage />}
+          finder={admin ? <SlotFinder /> : undefined}
+        />
       )}
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mes équipes' && <MyTeamsPage />}

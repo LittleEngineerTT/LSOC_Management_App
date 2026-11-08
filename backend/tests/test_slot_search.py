@@ -24,8 +24,10 @@ def test_slot_search_lists_the_days_where_the_event_fits_without_conflict(admin:
     # Mardi : 2 terrains pris de 19 h à 21 h ; il n’en reste qu’un.
     assert admin.post('/api/v1/events', json=payload(section, gym, start=at(tuesday, 19), end=at(tuesday, 21), courts=2)).status_code == 201
     add_user('member')
-    member = login()
     exact = {'weekdays': [1], 'start': '19:00', 'duration_minutes': 120, 'gymnasium_ids': [gym], 'courts': 2}
+    # Réservée aux administrateurs.
+    assert login().post('/api/v1/slot-search', json=exact).status_code == 403
+    member = admin
     found = member.post('/api/v1/slot-search', json=exact)
     assert found.status_code == 200, found.text
     days = [item['day'] for item in found.json()]

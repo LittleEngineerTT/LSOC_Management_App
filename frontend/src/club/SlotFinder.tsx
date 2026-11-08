@@ -7,7 +7,6 @@ import { toLocal } from '../admin/time';
 import { Empty, PanelHeading } from '../admin/ui';
 import { dayLabel, mondayOf, timeLabel } from './calendar';
 import { useClub } from './context';
-import { useCoachedTeams } from './EventProposalForm';
 
 /** Recherche envoyée à \`/slot-search\` : sans \`end\`, l’heure de début est précise. */
 export interface SlotQuery {
@@ -55,14 +54,11 @@ function durationLabel(minutes: number) {
   return hours ? `${hours} h${rest ? ` ${String(rest).padStart(2, '0')}` : ''}` : `${rest} min`;
 }
 
-/** Recherche de créneau : jours d’ici au 31 juillet où un événement de la durée et du nombre
+/** Recherche de créneau, réservée aux administrateurs : jours d’ici au 31 juillet où un événement de la durée et du nombre
  * de terrains voulus tient sans conflit dans un gymnase. Un créneau trouvé ouvre la création
  * de l’événement, préremplie ; les trois dernières recherches se relancent d’un clic. */
 export function SlotFinder() {
-  const { api, account, admin, gymnasiums } = useClub();
-  const coached = useCoachedTeams();
-  // Un administrateur crée l’événement ; un coach ou un référent d’équipe le demande.
-  const canCreate = admin || account.roles.includes('coach') || coached.length > 0;
+  const { api, account, gymnasiums } = useClub();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [weekdays, setWeekdays] = useState<number[]>([]);
@@ -316,18 +312,9 @@ export function SlotFinder() {
                   {slot.last_start !== slot.first_start &&
                     ` (début possible jusqu’à ${timeLabel(slot.last_start)})`}
                 </span>
-                {canCreate ? (
-                  <Link className="admin-button primary" to={createLink(slot)}>
-                    {admin ? 'Créer l’événement' : 'Demander l’événement'}
-                  </Link>
-                ) : (
-                  <Link
-                    className="admin-button"
-                    to={`/app/planning?onglet=gymnases&gymnase=${slot.gymnasium_id}&jour=${slot.day}&semaine=${mondayOf(slot.day)}`}
-                  >
-                    Voir le gymnase
-                  </Link>
-                )}
+                <Link className="admin-button primary" to={createLink(slot)}>
+                  Créer l’événement
+                </Link>
               </li>
             ))}
           </ul>

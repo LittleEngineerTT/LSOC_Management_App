@@ -98,9 +98,9 @@ def events(
 
 
 @router.post("/slot-search", response_model=list[SlotView])
-def slot_search(body: SlotSearchInput, db: DB, actor: Actor) -> list[SlotView]:
-    """Recherche de créneau : jours d’ici au 31 juillet où l’événement décrit tient sans
-    conflit dans un des gymnases choisis. Lecture seule, réservée aux adhérents connectés."""
+def slot_search(body: SlotSearchInput, db: DB, actor: Admin) -> list[SlotView]:
+    """Recherche de créneau : jours de la période où l’événement décrit tient sans conflit dans
+    un des gymnases choisis. Lecture seule, réservée aux administrateurs."""
     return search_slots(db, body, datetime.now(UTC))
 
 

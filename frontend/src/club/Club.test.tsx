@@ -1055,3 +1055,10 @@ it('cherche un créneau sur une période choisie', async () => {
   expect(mutations[0]?.body).toMatchObject({ from_date: '2099-12-01', to_date: '2099-12-15' });
   expect(screen.getByRole('region', { name: 'Dernières recherches' })).toHaveTextContent('du 01/12 au 15/12');
 });
+
+it('réserve la recherche de créneau aux administrateurs', async () => {
+  open('/app/planning?onglet=recherche');
+  const tabs = await screen.findByRole('navigation', { name: 'Planning' });
+  expect(within(tabs).queryByRole('link', { name: 'Recherche de créneau' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('form', { name: 'Recherche de créneau' })).not.toBeInTheDocument();
+});
