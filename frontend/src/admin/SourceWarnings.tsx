@@ -1,8 +1,16 @@
-import { Link } from 'react-router-dom';
 import { ErrorNotice } from '../auth/components';
 import { useRequest } from '../auth/useRequest';
 import { useAdmin } from './data';
-import type { Team } from './types';
+import type { Catalog, Team } from './types';
+
+/** Équipes sans source FFVB dont l’avertissement n’a pas été ignoré : sources à configurer. */
+export function missingSources(catalog: Pick<Catalog, 'teams' | 'sources'>): Team[] {
+  return catalog.teams.filter(
+    (team) =>
+      !team.ffvb_source_warning_ignored &&
+      !catalog.sources.some((source) => source.team_id === team.id),
+  );
+}
 
 export function TeamSourceWarningPreference({ team, ignored }: { team: Team; ignored: boolean }) {
   const { api, reloadCatalog } = useAdmin();
@@ -34,13 +42,11 @@ export function TeamSourceWarningPreference({ team, ignored }: { team: Team; ign
   );
 }
 
-export function SourceWarnings() {
+/** Encadrés des sources FFVB manquantes, affichés dans l’onglet FFVB seulement ; « Créer une
+ * source » ouvre la sous-vue Sources. */
+export function SourceWarnings({ onCreate }: { onCreate: () => void }) {
   const { catalog } = useAdmin();
-  const missing = catalog.teams.filter(
-    (team) =>
-      !team.ffvb_source_warning_ignored &&
-      !catalog.sources.some((source) => source.team_id === team.id),
-  );
+  const missing = missingSources(catalog);
   if (!missing.length) return null;
   return (
     <section className="admin-notice" aria-label="Équipes sans source FFVB">
@@ -49,9 +55,9 @@ export function SourceWarnings() {
         <div key={team.id} className="admin-row">
           <p className="admin-row-copy">Aucune source FFVB créée pour l’équipe {team.name}.</p>
           <div className="admin-actions">
-            <Link className="admin-button" to="?tab=ffvb">
+            <button type="button" className="admin-button" onClick={onCreate}>
               Créer une source
-            </Link>
+            </button>
             <TeamSourceWarningPreference team={team} ignored={false} />
           </div>
         </div>

@@ -89,8 +89,13 @@ it('ignore un conflit jusqu’à ce qu’il change, et le rétablit depuis les c
   }));
   render(<MemoryRouter initialEntries={['/app/administration?tab=conflicts']}><AuthApp /></MemoryRouter>);
   const row = (await screen.findByRole('heading', { name: 'Entraînement loisir' })).closest('article')!;
+  // Pastille rouge de l’onglet : les conflits ni résolus ni ignorés.
+  const tab = within(screen.getByRole('navigation', { name: 'Administration' })).getByRole('link', { name: 'Conflits' });
+  await waitFor(() => expect(tab).toHaveAccessibleDescription('1 conflit à traiter'));
+  expect(within(tab).getByText('1')).toHaveClass('admin-tab-count', 'danger');
   await userEvent.click(within(row).getByRole('button', { name: 'Ignorer' }));
   expect(await screen.findByText('Aucun événement en conflit.')).toBeInTheDocument();
+  await waitFor(() => expect(tab).not.toHaveAccessibleDescription());
   expect(screen.getByText('Conflit de Entraînement loisir ignoré ; il réapparaîtra s’il change.')).toBeInTheDocument();
   expect(calls).toEqual([{ path: '/api/v1/event-conflicts/e1/ignore', method: 'POST', body: { signature: 'sig-e1' } }]);
   await userEvent.click(screen.getByRole('checkbox', { name: 'Afficher les conflits ignorés' }));
@@ -99,6 +104,7 @@ it('ignore un conflit jusqu’à ce qu’il change, et le rétablit depuis les c
   await userEvent.click(within(shown).getByRole('button', { name: 'Ne plus ignorer' }));
   await waitFor(() => expect(calls.at(-1)).toEqual({ path: '/api/v1/event-conflicts/e1/ignore', method: 'DELETE' }));
   expect(await within(shown).findByRole('button', { name: 'Ignorer' })).toBeInTheDocument();
+  await waitFor(() => expect(tab).toHaveAccessibleDescription('1 conflit à traiter'));
 });
 
 it('renvoie l’ancienne vue FFVB « Conflits » vers l’onglet Conflits', async () => {

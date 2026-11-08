@@ -1185,3 +1185,30 @@
   background: #dbe6ee;
   color: #a64141;
 }
+/* Pastille d’un onglet de l’administration : orange pour ce qui reste à configurer. */
+.admin-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.admin-tab-count.warning {
+  background: #e8892c;
+  color: #fff;
+}
+.admin-tabs a.active .admin-tab-count.warning {
+  box-shadow: 0 0 0 2px #142c40;
+}
+.admin-tab-count.danger {
+  background: #d94040;
+  color: #fff;
+}
+.admin-tabs a.active .admin-tab-count.danger {
+  box-shadow: 0 0 0 2px #142c40;
+}

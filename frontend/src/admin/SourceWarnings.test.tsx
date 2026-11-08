@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -21,12 +21,22 @@ it('affiche les équipes sans source et mémorise le choix d’ignorer ou réact
   });
   vi.stubGlobal('fetch', fetchMock); document.cookie = 'lsoc_csrf=csrf; path=/';
   render(<MemoryRouter initialEntries={['/app/administration?tab=teams']}><AuthApp /></MemoryRouter>);
+  // Hors de l’onglet FFVB : pas d’encadré, mais une pastille orange sur l’onglet FFVB.
+  const tabs = await screen.findByRole('navigation', { name: 'Administration' });
+  const ffvb = within(tabs).getByRole('link', { name: 'FFVB' });
+  await waitFor(() => expect(ffvb).toHaveAccessibleDescription('1 source FFVB à configurer'));
+  expect(within(ffvb).getByText('1')).toHaveClass('admin-tab-count', 'warning');
+  expect(screen.queryByRole('region', { name: 'Équipes sans source FFVB' })).not.toBeInTheDocument();
+  await userEvent.click(ffvb);
   expect(await screen.findByText('Aucune source FFVB créée pour l’équipe Loisir A.')).toBeInTheDocument();
   expect(screen.queryByText('Aucune source FFVB créée pour l’équipe Compétition.')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Ignorer pour Loisir A' }));
   await waitFor(() => expect(screen.queryByText('Aucune source FFVB créée pour l’équipe Loisir A.')).not.toBeInTheDocument());
-  await userEvent.click(screen.getByRole('button', { name: 'Réactiver l’avertissement pour Loisir A' }));
-  expect(await screen.findByText('Aucune source FFVB créée pour l’équipe Loisir A.')).toBeInTheDocument();
+  expect(within(tabs).getByRole('link', { name: 'FFVB' })).not.toHaveAccessibleDescription();
+  // L’avertissement se réactive depuis les équipes : la pastille revient.
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Sections et équipes' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Réactiver l’avertissement pour Loisir A' }));
+  await waitFor(() => expect(within(tabs).getByRole('link', { name: 'FFVB' })).toHaveAccessibleDescription('1 source FFVB à configurer'));
   const mutations = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/ffvb-warning'));
   expect(mutations).toHaveLength(2);
   expect(new Headers(mutations[0]?.[1]?.headers).get('X-CSRF-Token')).toBe('csrf');

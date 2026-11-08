@@ -185,14 +185,21 @@ test('sources et associations FFVB, conflits et réactivation', async ({ page })
 
 test('création par URL et avertissement des équipes sans source', async ({ page }) => {
   const { mutations } = await prepare(page);
+  // Hors de l’onglet FFVB : une pastille orange, pas d’encadré.
+  const ffvb = page.getByRole('navigation', { name: 'Administration', exact: true }).getByRole('link', { name: 'FFVB', exact: true });
+  await expect(ffvb).toHaveAccessibleDescription('1 source FFVB à configurer');
+  await expect(page.getByText('Aucune source FFVB créée pour l’équipe Compétition A.')).toHaveCount(0);
+  await tab(page, 'FFVB');
   await expect(page.getByText('Aucune source FFVB créée pour l’équipe Compétition A.')).toBeVisible();
   await page.getByRole('button', { name: 'Ignorer pour Compétition A' }).click();
   await expect(page.getByText('Aucune source FFVB créée pour l’équipe Compétition A.')).toHaveCount(0);
+  await expect(ffvb).toHaveAccessibleDescription('');
   await tab(page, 'Sections et équipes');
   await openSection(page, 'Compétition');
   await page.getByRole('button', { name: 'Réactiver l’avertissement pour Compétition A' }).click();
-  await expect(page.getByText('Aucune source FFVB créée pour l’équipe Compétition A.')).toBeVisible();
+  await expect(ffvb).toHaveAccessibleDescription('1 source FFVB à configurer');
   await tab(page, 'FFVB');
+  await expect(page.getByText('Aucune source FFVB créée pour l’équipe Compétition A.')).toBeVisible();
   await page.getByLabel('URL du calendrier FFVB').fill('https://www.ffvbbeach.org/ffvbapp/resu/vbspo_calendrier.php?saison=2026/2027&codent=PTIDF92&poule=BRC');
   await page.getByLabel('Fréquence de la nouvelle source (jours)').fill('7');
   await page.getByRole('button', { name: 'Créer depuis l’URL' }).click();

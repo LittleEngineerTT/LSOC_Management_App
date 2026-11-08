@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { mondayOf, parisDay } from '../club/calendar';
 import { Changes, fieldLabels } from './changes';
@@ -45,7 +45,12 @@ function has(conflict: EventConflict, ...codes: EventProblem['code'][]) {
 /** Onglet « Conflits » : les événements à venir en conflit de capacité ou erronés, divergences
  * avec le calendrier FFVB comprises, qui s’y tranchent. Un événement terminé n’y figure plus. Un
  * conflit ignoré est masqué tant que ses problèmes ne changent pas. */
-export function ConflictsPanel() {
+export function ConflictsPanel({
+  onChanged,
+}: {
+  /** La liste a été relue (action, actualisation) : la pastille de l’onglet se met à jour. */
+  onChanged?: () => void;
+} = {}) {
   const { api, catalog } = useAdmin();
   const [showIgnored, setShowIgnored] = useState(false);
   const loader = useCallback(
@@ -89,6 +94,9 @@ export function ConflictsPanel() {
   }
 
   const items = result.data ?? [];
+  useEffect(() => {
+    if (result.data) onChanged?.();
+  }, [result.data, onChanged]);
   return (
     <>
       <PanelHeading

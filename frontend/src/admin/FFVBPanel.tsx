@@ -14,6 +14,7 @@ import {
   str,
 } from './ui';
 import { SourcesPanel, ClubPanel } from './SourcesPanel';
+import { SourceWarnings } from './SourceWarnings';
 
 export function FFVBPanel() {
   const [search] = useSearchParams();
@@ -34,8 +35,9 @@ export function FFVBPanel() {
     <>
       <PanelHeading
         title="FFVB"
-        description="Configurez les imports, associez les gymnases et traitez les divergences avec le calendrier officiel."
+        description="Configurez les imports, associez les gymnases et réglez les marges des matchs. Les divergences avec le calendrier officiel se traitent dans l’onglet Conflits."
       />
+      <SourceWarnings onCreate={() => setView('sources')} />
       <div className="admin-subtabs" aria-label="Gestion FFVB">
         {[
           { id: 'sources', label: 'Sources' },
