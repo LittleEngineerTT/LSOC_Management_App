@@ -53,3 +53,28 @@ it('présente la catégorie Sénior dans le formulaire et la liste', async () =>
   expect(screen.getByText(/Sénior ·/)).toBeInTheDocument();
   expect(screen.queryByText(/Adulte/)).not.toBeInTheDocument();
 });
+
+it('signale en rouge sur l’onglet FFVB les sources indisponibles', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    const admin = { id: 'a', first_name: 'Admin', category: 'adult', roles: ['admin'], active: true };
+    const team = { id: 't', name: 'Loisir A', section_id: 's', referent_ids: [], ffvb_source_warning_ignored: false };
+    let value: unknown = [];
+    if (path.endsWith('/auth/me')) value = admin;
+    if (path.endsWith('/users')) value = [admin];
+    if (path.endsWith('/teams')) value = [team, { ...team, id: 'u', name: 'Loisir B' }];
+    if (path.endsWith('/sections')) value = [{ id: 's', name: 'Loisir' }];
+    // Une source en erreur, une source désactivée en erreur (ignorée) ; Loisir B sans source.
+    if (path.endsWith('/sources')) value = [
+      { id: 'src', team_id: 't', enabled: true, last_error: 'La source FFVB est indisponible ou inexploitable' },
+      { id: 'off', team_id: 't', enabled: false, last_error: 'La source FFVB est indisponible ou inexploitable' },
+    ];
+    return new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
+  }));
+  document.cookie = 'lsoc_csrf=csrf; path=/';
+  render(<MemoryRouter initialEntries={['/app/administration?tab=users']}><AuthApp /></MemoryRouter>);
+  const tabs = await screen.findByRole('navigation', { name: 'Administration' });
+  const ffvb = within(tabs).getByRole('link', { name: 'FFVB' });
+  await waitFor(() => expect(ffvb).toHaveAccessibleDescription('1 source FFVB indisponible, 1 source FFVB à configurer'));
+  expect([...ffvb.querySelectorAll('.admin-tab-count')].map((badge) => [badge.textContent, badge.classList.contains('danger')])).toEqual([['1', true], ['1', false]]);
+});

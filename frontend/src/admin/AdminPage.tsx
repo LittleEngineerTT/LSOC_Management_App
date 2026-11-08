@@ -56,17 +56,34 @@ function Administration() {
   const { refresh: refreshConflicts } = conflicts;
   useEffect(() => refreshConflicts(), [tab, refreshConflicts]);
   const unresolved = (conflicts.data ?? []).filter((item) => !item.ignored).length;
-  const badges: Record<string, { count: number; tone: string; text: (count: number) => string }> = {
-    ffvb: {
-      count: unconfigured,
-      tone: 'warning',
-      text: (count) => `${count} source${count > 1 ? 's' : ''} FFVB à configurer`,
-    },
-    conflicts: {
-      count: unresolved,
-      tone: 'danger',
-      text: (count) => `${count} conflit${count > 1 ? 's' : ''} à traiter`,
-    },
+  // Pastille rouge de l’onglet FFVB : sources activées en erreur (« indisponible ou
+  // inexploitable », référent manquant…), relues avec le catalogue.
+  const failing = admin
+    ? catalog.sources.filter((source) => source.enabled && source.last_error).length
+    : 0;
+  type Badge = { count: number; tone: string; text: string };
+  const plural = (count: number) => (count > 1 ? 's' : '');
+  // Pastilles de chaque onglet, la plus urgente (rouge) d’abord ; une pastille à zéro disparaît.
+  const badges: Record<string, Badge[]> = {
+    ffvb: [
+      {
+        count: failing,
+        tone: 'danger',
+        text: `${failing} source${plural(failing)} FFVB indisponible${plural(failing)}`,
+      },
+      {
+        count: unconfigured,
+        tone: 'warning',
+        text: `${unconfigured} source${plural(unconfigured)} FFVB à configurer`,
+      },
+    ].filter((badge) => badge.count > 0),
+    conflicts: [
+      {
+        count: unresolved,
+        tone: 'danger',
+        text: `${unresolved} conflit${plural(unresolved)} à traiter`,
+      },
+    ].filter((badge) => badge.count > 0),
   };
   return (
     <>
@@ -93,22 +110,20 @@ function Administration() {
             to={`?tab=${item.id}`}
             className={item.id === tab ? 'active' : ''}
             aria-current={item.id === tab ? 'page' : undefined}
-            aria-describedby={
-              (badges[item.id]?.count ?? 0) > 0 ? `admin-tab-${item.id}-count` : undefined
-            }
+            aria-describedby={badges[item.id]?.length ? `admin-tab-${item.id}-count` : undefined}
           >
             {item.title}
-            {(badges[item.id]?.count ?? 0) > 0 && (
-              <>
-                {/* Le nombre ne change pas le nom de l’onglet : il en est la description. */}
-                <span className={`admin-tab-count ${badges[item.id]!.tone}`} aria-hidden="true">
-                  {badges[item.id]!.count}
-                </span>
-                <span id={`admin-tab-${item.id}-count`} hidden>
-                  {badges[item.id]!.text(badges[item.id]!.count)}
-                </span>
-              </>
-            )}
+            {/* Les nombres ne changent pas le nom de l’onglet : ils en sont la description. */}
+            {badges[item.id]?.map((badge) => (
+              <span key={badge.tone} className={`admin-tab-count ${badge.tone}`} aria-hidden="true">
+                {badge.count}
+              </span>
+            ))}
+            {badges[item.id]?.length ? (
+              <span id={`admin-tab-${item.id}-count`} hidden>
+                {badges[item.id]!.map((badge) => badge.text).join(', ')}
+              </span>
+            ) : null}
           </Link>
         ))}
       </nav>
