@@ -59,7 +59,8 @@ def test_licenses_reset_every_august_first_once(admin: TestClient) -> None:
     with SessionFactory.begin() as db:
         license = db.get(License, 'member')
         assert license is not None
-        license.status, license.coach_status = 'active', 'active'
+        # La licence coach active a son propre numéro (ici le même que la licence joueur).
+        license.status, license.coach_status, license.coach_number = 'active', 'active', 'member'
     with SessionFactory.begin() as db:
         # Première exécution : la saison en cours est déjà considérée comme commencée.
         assert reset_licenses(db, datetime(2026, 10, 11, tzinfo=UTC)) is False
@@ -72,7 +73,8 @@ def test_licenses_reset_every_august_first_once(admin: TestClient) -> None:
     with SessionFactory() as db:
         license = db.get(License, 'member')
         assert license is not None
-        assert (license.status, license.coach_status, license.number) == ('none', 'none', 'member')
+        # Les statuts repartent de zéro ; les deux numéros sont conservés.
+        assert (license.status, license.coach_status, license.number, license.coach_number) == ('none', 'none', 'member', 'member')
         club = db.get(ClubSettings, 1)
         assert club is not None and str(club.licenses_reset_on) == '2027-08-01'
     # Le numéro conservé garde l’accès ; l’adhérent est invité à renouveler.
