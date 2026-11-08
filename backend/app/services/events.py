@@ -592,7 +592,8 @@ def reassign_team_events(db: Session, team: Team, previous: list[str], actor: Us
     """Reporte les nouveaux référents d’équipe sur ses événements, passés compris.
 
     Un événement confié par un admin à d’autres référents que ceux de l’équipe garde
-    ce choix explicite.
+    ce choix explicite. Un changement de coach (ou de référent d’équipe) ne compte pas comme
+    une modification des événements : il est historisé, sans notification ni e-mail.
     """
     for event in team_events(db, team):
         if event.referent_ids not in (previous, []) or event.referent_ids == team.referent_ids:
@@ -603,7 +604,6 @@ def reassign_team_events(db: Session, team: Team, previous: list[str], actor: Us
         event.version += 1
         db.flush()
         revision(db, event, actor, before, "update")
-        event_changed(db, event, actor.id, before)
 
 
 def series_days(start: datetime, until: date, weekdays: list[int] | None) -> list[date]:

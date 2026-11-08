@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
 from app.persistence.database import SessionFactory
-from app.persistence.models import Event, FFVBMatchState, FFVBSource, Team
+from app.persistence.models import EmailJob, Event, FFVBMatchState, FFVBSource, Team
 from conftest import add_user, login, set_referents
 from test_ffvb import configure, sync
 from test_migrations import run
@@ -101,7 +101,10 @@ def test_changing_team_referent_updates_its_events_past_included(admin: TestClie
     assert history[-1]['after']['referent_ids'] == ['special']
     moved = next(e for e in admin.get('/api/v1/events?include_cancelled=true&limit=500').json() if e['ffvb_match_id'] and e['referent_ids'] == ['next'])
     assert admin.get(f"/api/v1/events/{moved['id']}/history").json()[-1]['before']['referent_ids'] == ['admin', 'coach']
-    assert any(n['event_id'] == moved['id'] for n in login('next').get('/api/v1/notifications').json())
+    # Un changement de coach ne compte pas comme une modification : ni notification ni e-mail.
+    assert not any(n['event_id'] == moved['id'] for n in login('next').get('/api/v1/notifications').json())
+    with SessionFactory() as db:
+        assert not db.scalars(select(EmailJob).where(EmailJob.dedupe_key.like(f"event:{moved['id']}:%"))).first()
 
 
 def test_migration_realigns_ffvb_matches_left_with_the_former_referent(admin: TestClient) -> None:
