@@ -81,6 +81,8 @@ test('les calendriers Début et Fin d’une indisponibilité : date française e
   await pickDate(page, 'Fin', '2026-10-20');
   await expect(page.getByLabel('Fin (Europe/Paris)', { exact: true })).toHaveValue('20/10/2026');
   await page.getByLabel('Heure de Fin', { exact: true }).selectOption('21');
+  // La fin reprend les minutes du début : on les remet à zéro.
+  await page.getByLabel('Minutes de Fin', { exact: true }).selectOption('00');
   await page.getByRole('button', { name: 'Créer', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Travaux' })).toBeVisible();
   expect(calls.find((item) => item.path === '/availability-blocks' && item.method === 'POST')?.body).toMatchObject({ starts_at: '2026-10-20T17:45:00.000Z', ends_at: '2026-10-20T19:00:00.000Z' });
