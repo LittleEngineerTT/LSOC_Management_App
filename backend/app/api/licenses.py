@@ -2,7 +2,7 @@ import secrets
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import DB, Actor, Admin, coached_teams, get
@@ -28,6 +28,12 @@ LABELS = {
 }
 # Directive du 11 octobre : « active » se choisit directement, sans étape préalable.
 MAX_FILE_BYTES = 10 * 1024 * 1024
+Kind = Literal["player", "coach"]
+# Colonnes du PDF de chaque licence : clé dans le stockage et date de dépôt.
+FILE_KEYS: dict[str, tuple[str, str]] = {
+    "player": ("file_key", "file_uploaded_at"),
+    "coach": ("coach_file_key", "coach_file_uploaded_at"),
+}
 
 
 def lock_licenses(db: DB) -> None:
@@ -55,6 +61,7 @@ def view(
             "first_name": user.first_name,
             "username": user.username,
             "number": record.number if record else None,
+            "coach_number": record.coach_number if record else None,
             "status": status,
             "coach_status": coach_status,
             "updated_at": record.updated_at if record else None,
@@ -65,6 +72,10 @@ def view(
             "missing": missing_coach if kind == "coach" else missing_player,
             "file_url": s3.public_url(record.file_key) if record and record.file_key else None,
             "file_uploaded_at": record.file_uploaded_at if record else None,
+            "coach_file_url": (
+                s3.public_url(record.coach_file_key) if record and record.coach_file_key else None
+            ),
+            "coach_file_uploaded_at": record.coach_file_uploaded_at if record else None,
         }
     )
 
@@ -145,16 +156,29 @@ def update_license(user_id: str, body: LicenseInput, db: DB, actor: Admin) -> Li
         "status": body.status or current["status"],
         "coach_status": body.coach_status or current["coach_status"],
     }
-    if "active" in wanted.values() and not body.number:
-        raise HTTPException(422, "Un numéro de licence est requis pour une licence active")
-    if body.number and db.scalar(
-        select(License.user_id).where(License.number == body.number, License.user_id != user_id)
-    ):
-        raise HTTPException(409, "Ce numéro de licence est déjà attribué")
+    # Chaque licence a son numéro ; un numéro absent de la requête reste inchangé.
+    given = body.model_fields_set
+    number = body.number if "number" in given else (value.number if value else None)
+    coach_number = (
+        body.coach_number if "coach_number" in given else (value.coach_number if value else None)
+    )
+    if wanted["status"] == "active" and not number:
+        raise HTTPException(422, "Un numéro de licence joueur est requis pour une licence active")
+    if wanted["coach_status"] == "active" and not coach_number:
+        raise HTTPException(422, "Un numéro de licence coach est requis pour une licence active")
+    # Un numéro n’appartient qu’à une personne, pour l’une ou l’autre de ses licences.
+    for candidate in {item for item in (number, coach_number) if item}:
+        if db.scalar(
+            select(License.user_id).where(
+                or_(License.number == candidate, License.coach_number == candidate),
+                License.user_id != user_id,
+            )
+        ):
+            raise HTTPException(409, "Ce numéro de licence est déjà attribué")
     if value is None:
         value = License(user_id=user_id)
         db.add(value)
-    value.number = body.number
+    value.number, value.coach_number = number, coach_number
     value.status, value.coach_status = wanted["status"], wanted["coach_status"]
     value.updated_at, value.updated_by = now(), actor.id
     db.flush()
@@ -219,8 +243,9 @@ def upload_file(
     body: Annotated[bytes, Depends(admin_pdf_body)],
     tasks: BackgroundTasks,
     db: DB,
+    kind: Kind = "player",
 ) -> LicenseView:
-    """Dépose le PDF de la licence et remplace le précédent."""
+    """Dépose le PDF de la licence joueur, ou coach (`kind=coach`), et remplace le précédent."""
     if not s3.configured():
         raise HTTPException(503, "Stockage des licences non configuré")
     get(db, User, user_id)
@@ -236,8 +261,9 @@ def upload_file(
     if value is None:
         value = License(user_id=user.id, updated_at=now(), updated_by=actor.id)
         db.add(value)
-    previous = value.file_key
-    value.file_key, value.file_uploaded_at = key, now()
+    previous = getattr(value, FILE_KEYS[kind][0])
+    setattr(value, FILE_KEYS[kind][0], key)
+    setattr(value, FILE_KEYS[kind][1], now())
     db.flush()
     # L’ancien PDF disparaît après la validation de la transaction.
     tasks.add_task(s3.discard, previous)
@@ -245,14 +271,19 @@ def upload_file(
 
 
 @router.delete("/licenses/{user_id}/file", response_model=LicenseView)
-def delete_file(user_id: str, tasks: BackgroundTasks, db: DB, actor: Admin) -> LicenseView:
+def delete_file(
+    user_id: str, tasks: BackgroundTasks, db: DB, actor: Admin, kind: Kind = "player"
+) -> LicenseView:
+    """Supprime le PDF de la licence joueur, ou coach (`kind=coach`)."""
     lock_licenses(db)
     user = get(db, User, user_id)
     value = db.get(License, user.id)
-    if value is None or value.file_key is None:
+    key_field, date_field = FILE_KEYS[kind]
+    if value is None or getattr(value, key_field) is None:
         raise HTTPException(404, "Aucun PDF de licence")
-    previous = value.file_key
-    value.file_key, value.file_uploaded_at = None, None
+    previous = getattr(value, key_field)
+    setattr(value, key_field, None)
+    setattr(value, date_field, None)
     db.flush()
     tasks.add_task(s3.discard, previous)
     return license_view(db, user)

@@ -84,6 +84,23 @@ def test_admin_uploads_replaces_and_removes_the_pdf(admin: TestClient, bucket: d
     assert admin.delete('/api/v1/licenses/alice/file').status_code == 404
 
 
+def test_player_and_coach_licenses_have_their_own_pdf(admin: TestClient, bucket: dict[str, bytes]) -> None:
+    setup(admin)
+    assert upload(admin, 'alice').status_code == 200
+    coach = admin.put('/api/v1/licenses/alice/file?kind=coach', content=PDF + b'coach', headers={'Content-Type': 'application/pdf'})
+    assert coach.status_code == 200, coach.text
+    stored = record(License, user_id='alice')
+    assert stored.file_key and stored.coach_file_key and stored.file_key != stored.coach_file_key
+    view = coach.json()
+    assert view['file_url'] == f'https://{HOST}/{stored.file_key}'
+    assert view['coach_file_url'] == f'https://{HOST}/{stored.coach_file_key}'
+    # Supprimer le PDF coach laisse le PDF joueur.
+    assert admin.delete('/api/v1/licenses/alice/file?kind=coach').json()['coach_file_url'] is None
+    assert list(bucket) == [stored.file_key]
+    assert admin.delete('/api/v1/licenses/alice/file?kind=coach').status_code == 404
+    assert row(admin, 'alice')['file_url'] == view['file_url']
+
+
 def test_upload_accepts_only_a_pdf(admin: TestClient, bucket: dict[str, bytes]) -> None:
     setup(admin)
     assert upload(admin, 'alice', b'not a pdf').status_code == 415

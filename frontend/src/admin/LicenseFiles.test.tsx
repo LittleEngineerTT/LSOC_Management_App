@@ -67,13 +67,15 @@ it('affiche le PDF directement depuis le stockage S3', async () => {
 
 it('dépose un PDF brut et refuse un autre type de fichier', async () => {
   open('/app/administration?tab=licenses');
-  const bob = (await screen.findByRole('heading', { name: /Bob/ })).closest('article')!;
+  // Le dépôt se fait dans la fiche des licences de Bob.
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Bob' }));
+  const bob = screen.getByRole('region', { name: 'Licences de Bob' });
   const input = within(bob).getByLabelText('PDF de la licence de Bob');
   await userEvent.upload(input, new File(['image'], 'photo.png', { type: 'image/png' }), { applyAccept: false });
   expect(await screen.findByText('La licence doit être un fichier PDF.')).toBeInTheDocument();
   expect(calls('/licenses/b/file')).toHaveLength(0);
   await userEvent.upload(input, new File(['%PDF-1.7'], 'licence.pdf', { type: 'application/pdf' }));
-  expect(await screen.findByText('PDF de la licence de Bob déposé.')).toBeInTheDocument();
+  expect(await screen.findByText('PDF de la licence joueur de Bob déposé.')).toBeInTheDocument();
   const init = calls('/licenses/b/file')[0]?.[1];
   expect(init?.method).toBe('PUT');
   expect(init?.body).toBeInstanceOf(Blob);
@@ -120,4 +122,32 @@ it('filtre les utilisateurs par section et par équipe', async () => {
   await waitFor(() => expect(names()).toEqual(['Alice']));
   await userEvent.selectOptions(screen.getByLabelText('Équipe'), 'none');
   await waitFor(() => expect(names()).toEqual(['Admin', 'Zoé']));
+});
+
+it('ouvre en lecture seule la fiche des licences pour un coach, PDF consultable', async () => {
+  account = coach;
+  open('/app/administration?tab=licenses');
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Alice' }));
+  const card = screen.getByRole('region', { name: 'Licences de Alice' });
+  expect(within(card).getByLabelText('Numéro de licence')).toBeDisabled();
+  expect(within(card).getByLabelText('Statut')).toBeDisabled();
+  expect(within(card).queryByRole('button', { name: 'Enregistrer' })).not.toBeInTheDocument();
+  expect(within(card).queryByLabelText('PDF de la licence de Alice')).not.toBeInTheDocument();
+  await userEvent.click(within(card).getByRole('button', { name: 'Voir la licence de Alice' }));
+  expect(screen.getByRole('dialog', { name: 'Licence de Alice' })).toBeInTheDocument();
+});
+
+it('dépose dans l’onglet coach un PDF et un numéro propres à la licence coach', async () => {
+  licenses = licenses.map((item) => (item.user_id === 'b' ? { ...item, coach: true, coach_status: 'in_progress', coach_number: 'C-9' } : item));
+  open('/app/administration?tab=licenses');
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Bob' }));
+  const card = screen.getByRole('region', { name: 'Licences de Bob' });
+  await userEvent.click(within(card).getByRole('tab', { name: 'Licence coach' }));
+  expect(within(card).getByLabelText('Numéro de licence')).toHaveValue('C-9');
+  expect(within(card).getByText('PDF de la licence coach')).toBeInTheDocument();
+  await userEvent.upload(within(card).getByLabelText('PDF de la licence coach de Bob'), new File(['%PDF-1.7'], 'coach.pdf', { type: 'application/pdf' }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/licenses/b/file?kind=coach') && init?.method === 'PUT')).toBe(true));
+  // L’onglet joueur garde son propre numéro.
+  await userEvent.click(within(card).getByRole('tab', { name: 'Licence joueur' }));
+  expect(within(card).getByLabelText('Numéro de licence')).not.toHaveValue('C-9');
 });

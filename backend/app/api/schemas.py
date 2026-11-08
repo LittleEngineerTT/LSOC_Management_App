@@ -762,13 +762,14 @@ class DossierView(View):
 
 
 class LicenseInput(Input):
-    """Numéro commun aux deux licences ; un statut absent reste inchangé."""
+    """Numéros et statuts des licences joueur et coach ; un champ absent reste inchangé."""
 
     number: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9-]+$")
     status: LicenseStatus | None = None
+    coach_number: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9-]+$")
     coach_status: CoachLicenseStatus | None = None
 
-    @field_validator("number", mode="before")
+    @field_validator("number", "coach_number", mode="before")
     @classmethod
     def blank(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
@@ -790,8 +791,11 @@ class LicenseView(View):
     user_id: str
     first_name: str
     username: str | None
+    # Numéro de la licence joueur, qui sert d’identifiant au compte.
     number: str | None
     status: LicenseStatus
+    # Numéro de la licence coach, éventuellement le même.
+    coach_number: str | None = None
     coach_status: CoachLicenseStatus
     updated_at: datetime | None
     teams: list[LicenseTeamView]
@@ -804,6 +808,9 @@ class LicenseView(View):
     # URL publique du PDF déposé, lue directement par le navigateur.
     file_url: str | None = None
     file_uploaded_at: datetime | None = None
+    # PDF de la licence coach.
+    coach_file_url: str | None = None
+    coach_file_uploaded_at: datetime | None = None
 
 
 class FollowView(View):

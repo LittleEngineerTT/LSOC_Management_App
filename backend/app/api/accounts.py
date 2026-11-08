@@ -201,6 +201,7 @@ def erase_account(db: Session, user: User) -> None:
     record = db.get(License, user_id)
     if record is not None:
         s3.discard(record.file_key)
+        s3.discard(record.coach_file_key)
     s3.discard(user.photo_key)
     # Les pièces des dossiers d’inscription quittent le stockage avec le compte.
     for key in db.scalars(

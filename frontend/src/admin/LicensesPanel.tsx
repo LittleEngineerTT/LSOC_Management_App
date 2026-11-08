@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ErrorNotice } from '../auth/components';
 import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
 import { useSession } from '../auth/session';
 import { TeamOptions } from '../club/teamOrder';
 import { useAdmin, useResource } from './data';
 import { dateLabel } from './time';
-import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, PanelHeading, str } from './ui';
+import { Badge, Confirm, Empty, LoadState, Notice, PanelHeading } from './ui';
 
 export type LicenseStatus = 'none' | 'in_progress' | 'payment_pending' | 'active';
 type Kind = 'player' | 'coach';
@@ -13,9 +13,11 @@ export interface License {
   user_id: string;
   first_name: string;
   username: string | null;
-  /** Numéro unique de la personne, commun aux licences joueur et coach. */
+  /** Numéro de la licence joueur, qui sert d’identifiant au compte. */
   number: string | null;
   status: LicenseStatus;
+  /** Numéro de la licence coach, éventuellement le même ; absent d’une API antérieure. */
+  coach_number?: string | null;
   coach_status: LicenseStatus;
   updated_at: string | null;
   teams: { team_id: string; kind: Kind }[];
@@ -24,6 +26,9 @@ export interface License {
   /** URL publique du PDF, lue directement dans le stockage S3. */
   file_url?: string | null;
   file_uploaded_at?: string | null;
+  /** PDF de la licence coach. */
+  coach_file_url?: string | null;
+  coach_file_uploaded_at?: string | null;
 }
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -46,7 +51,22 @@ const steps: Record<Kind, LicenseStatus[]> = {
 };
 const field: Record<Kind, 'status' | 'coach_status'> = { player: 'status', coach: 'coach_status' };
 
-/** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. */
+// Chaque licence a son numéro et son PDF.
+const numberOf = (item: License, kind: Kind) =>
+  (kind === 'coach' ? item.coach_number : item.number) ?? null;
+const fileOf = (item: License, kind: Kind) =>
+  kind === 'coach'
+    ? { url: item.coach_file_url ?? null, at: item.coach_file_uploaded_at ?? null }
+    : { url: item.file_url ?? null, at: item.file_uploaded_at ?? null };
+const fileLabel = (item: License, kind: Kind) => {
+  const file = fileOf(item, kind);
+  return file.url ? `PDF déposé${file.at ? ` le ${dateLabel(file.at)}` : ''}` : 'Aucun PDF déposé';
+};
+const kindLabel = (kind: Kind) => (kind === 'coach' ? 'coach' : 'joueur');
+type FileTarget = { license: License; kind: Kind };
+
+/** Gestion des licences : numéros, statuts et licences manquantes par section ou équipe. Un clic
+ * sur un adhérent ouvre sa fiche, avec un onglet par licence (joueur, et coach s’il l’est). */
 export function LicensesPanel() {
   const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
   const accountId = useSession().account?.id;
@@ -54,12 +74,11 @@ export function LicensesPanel() {
   const [section, setSection] = useState('');
   const [team, setTeam] = useState('');
   const [missing, setMissing] = useState(false);
-  const [editing, setEditing] = useState<License | null>(null);
+  // Fiche ouverte, par compte : elle prend la place de sa ligne dans la liste.
+  const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const [viewing, setViewing] = useState<License | null>(null);
-  const [removing, setRemoving] = useState<License | null>(null);
-  const [uploading, setUploading] = useState('');
-  const [uploadError, setUploadError] = useState('');
+  const [viewing, setViewing] = useState<FileTarget | null>(null);
+  const [removing, setRemoving] = useState<FileTarget | null>(null);
   const query = new URLSearchParams();
   if (kind === 'coach') query.set('kind', 'coach');
   if (section) query.set('section_id', section);
@@ -75,6 +94,10 @@ export function LicensesPanel() {
   const teamName = (id: string) => catalog.teams.find((item) => item.id === id)?.name ?? 'Équipe';
   const rows = result.data ?? [];
   const missingCount = rows.filter((item) => item.missing).length;
+  function open(item: License) {
+    setNotice('');
+    setEditing(item.user_id);
+  }
   return (
     <>
       <PanelHeading
@@ -91,9 +114,9 @@ export function LicensesPanel() {
             key={value}
             className={`admin-button${kind === value ? ' selected' : ''}`}
             aria-pressed={kind === value}
+            // Ces boutons ne font que filtrer les adhérents affichés.
             onClick={() => {
               setKind(value);
-              setEditing(null);
               setNotice('');
             }}
           >
@@ -152,56 +175,7 @@ export function LicensesPanel() {
         </p>
       )}
       {notice && <Notice>{notice}</Notice>}
-      <ErrorNotice message={uploadError} />
       <LoadState result={result} />
-      {editing && (
-        <EntityForm
-          key={editing.user_id}
-          title={`Licence ${kind === 'coach' ? 'coach' : 'joueur'} de ${editing.first_name}`}
-          fields={[
-            {
-              name: 'number',
-              label: 'Numéro de licence',
-              maxLength: 40,
-              pattern: '[A-Za-z0-9\\-]+',
-              hint: 'Commun aux licences joueur et coach ; obligatoire pour une licence active.',
-            },
-            {
-              name: 'status',
-              label: 'Statut',
-              type: 'select',
-              required: true,
-              // Tout statut, « Active » compris, peut être choisi directement.
-              options: steps[kind].map((status) => ({
-                value: status,
-                label: licenseLabels[status],
-              })),
-              hint:
-                kind === 'coach'
-                  ? 'Licence coach : pas d’étape de paiement. « Active » exige un numéro.'
-                  : '« Active » peut être choisi directement ; un numéro de licence est alors requis.',
-            },
-          ]}
-          initial={{ number: editing.number ?? '', status: editing[field[kind]] }}
-          onCancel={() => setEditing(null)}
-          onSave={async (values, signal) => {
-            const status = str(values, 'status') as LicenseStatus;
-            if (status === 'active' && !str(values, 'number'))
-              throw new Error('Indiquez le numéro de licence pour l’activer.');
-            await api.request(
-              `/licenses/${editing.user_id}`,
-              'PUT',
-              { number: str(values, 'number') || null, [field[kind]]: status },
-              signal,
-            );
-            setNotice(`Licence de ${editing.first_name} : ${licenseLabels[status]}.`);
-            setEditing(null);
-            result.reload();
-            // Le numéro de licence devient l’identifiant du compte.
-            reloadCatalog();
-          }}
-        />
-      )}
       {result.loaded && !rows.length && (
         <Empty>
           {admin || scope?.length
@@ -214,153 +188,121 @@ export function LicensesPanel() {
         </Empty>
       )}
       <div className="admin-list">
-        {rows.map((item) => (
-          <article className="admin-row" key={item.user_id}>
-            <div className="admin-row-copy">
-              <h3>
-                {item.first_name}
-                {item.username && <span className="admin-hint"> · {item.username}</span>}
-              </h3>
-              <p>
-                {item.teams.length
-                  ? item.teams
-                      .map(
-                        (entry) =>
-                          `${teamName(entry.team_id)} (${entry.kind === 'coach' ? 'coach' : 'joueur'})`,
-                      )
-                      .join(', ')
-                  : 'Aucune équipe'}
-              </p>
-              <p>
-                <Badge tone={licenseTones[item[field[kind]]]}>
-                  {licenseLabels[item[field[kind]]]}
-                </Badge>
-                {item.missing && <Badge tone="danger">Licence manquante</Badge>}
-                {item.number ? ` N° ${item.number}` : ' Sans numéro'}
-                {kind === 'player' && item.coach && (
-                  <span className="admin-hint">
-                    {' · '}licence coach : {licenseLabels[item.coach_status].toLowerCase()}
-                  </span>
-                )}
-                {kind === 'coach' && (
-                  <span className="admin-hint">
-                    {' · '}licence joueur : {licenseLabels[item.status].toLowerCase()}
-                  </span>
-                )}
-                {item.updated_at && (
-                  <span className="admin-hint"> · mise à jour {dateLabel(item.updated_at)}</span>
-                )}
-              </p>
-              <p className="admin-hint">
-                {item.file_url
-                  ? `PDF déposé${item.file_uploaded_at ? ` le ${dateLabel(item.file_uploaded_at)}` : ''}`
-                  : 'Aucun PDF déposé'}
-              </p>
+        {rows.map((item) =>
+          editing === item.user_id ? (
+            <div key={item.user_id} className="user-row-card">
+              <LicenseCard
+                license={item}
+                initialTab={kind}
+                editable={admin}
+                teamName={teamName}
+                onView={(kind) => setViewing({ license: item, kind })}
+                onRemoveFile={(kind) => setRemoving({ license: item, kind })}
+                onClose={() => setEditing(null)}
+                onSaved={(message) => {
+                  setNotice(message);
+                  setEditing(null);
+                  result.reload();
+                  // Le numéro de licence devient l’identifiant du compte.
+                  reloadCatalog();
+                }}
+                onFile={(message) => {
+                  setNotice(message);
+                  result.reload();
+                }}
+              />
             </div>
-            <div className="admin-actions">
-              {item.file_url && (
-                <button
-                  className="admin-button"
-                  aria-label={`Voir la licence de ${item.first_name}`}
-                  onClick={() => setViewing(item)}
-                >
-                  Voir licence
-                </button>
-              )}
-              {admin && (
-                <>
-                  <label
-                    className={`admin-button admin-file${uploading ? ' disabled' : ''}`}
-                    aria-disabled={uploading ? true : undefined}
+          ) : (
+            <article
+              className="admin-row user-row"
+              key={item.user_id}
+              // Toute la ligne ouvre la fiche ; le bouton du nom le permet au clavier.
+              onClick={(event) => {
+                if (!(event.target as HTMLElement).closest('button, a, label')) open(item);
+              }}
+            >
+              <div className="admin-row-copy">
+                <h3>
+                  <button
+                    type="button"
+                    className="user-row-open"
+                    aria-label={`Ouvrir les licences de ${item.first_name}`}
+                    onClick={() => open(item)}
                   >
-                    {uploading === item.user_id
-                      ? 'Dépôt…'
-                      : item.file_url
-                        ? 'Remplacer le PDF'
-                        : 'Déposer le PDF'}
-                    <input
-                      type="file"
-                      accept="application/pdf,.pdf"
-                      disabled={Boolean(uploading)}
-                      aria-label={`PDF de la licence de ${item.first_name}`}
-                      onChange={(change) => {
-                        const file = change.target.files?.[0];
-                        change.target.value = '';
-                        if (!file) return;
-                        setNotice('');
-                        setUploadError('');
-                        if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
-                          setUploadError('La licence doit être un fichier PDF.');
-                          return;
-                        }
-                        if (file.size > MAX_FILE_BYTES) {
-                          setUploadError('Le PDF dépasse 10 Mo.');
-                          return;
-                        }
-                        setUploading(item.user_id);
-                        api
-                          .request(
-                            `/licenses/${encodeURIComponent(item.user_id)}/file`,
-                            'PUT',
-                            file.slice(0, file.size, 'application/pdf'),
-                          )
-                          .then(() => {
-                            setNotice(`PDF de la licence de ${item.first_name} déposé.`);
-                            result.reload();
-                          })
-                          .catch((error: unknown) =>
-                            setUploadError(
-                              error instanceof Error ? error.message : 'Dépôt impossible.',
-                            ),
-                          )
-                          .finally(() => setUploading(''));
-                      }}
-                    />
-                  </label>
-                  {item.file_url && (
-                    <button
-                      className="admin-button danger"
-                      aria-label={`Supprimer le PDF de ${item.first_name}`}
-                      onClick={() => setRemoving(item)}
-                    >
-                      Supprimer le PDF
-                    </button>
+                    {item.first_name}
+                  </button>
+                  {item.username && <span className="admin-hint"> · {item.username}</span>}
+                </h3>
+                <p>
+                  {item.teams.length
+                    ? item.teams
+                        .map(
+                          (entry) =>
+                            `${teamName(entry.team_id)} (${entry.kind === 'coach' ? 'coach' : 'joueur'})`,
+                        )
+                        .join(', ')
+                    : 'Aucune équipe'}
+                </p>
+                <p>
+                  <Badge tone={licenseTones[item[field[kind]]]}>
+                    {licenseLabels[item[field[kind]]]}
+                  </Badge>
+                  {item.missing && <Badge tone="danger">Licence manquante</Badge>}
+                  {numberOf(item, kind) ? ` N° ${numberOf(item, kind)}` : ' Sans numéro'}
+                  {kind === 'player' && item.coach && (
+                    <span className="admin-hint">
+                      {' · '}licence coach : {licenseLabels[item.coach_status].toLowerCase()}
+                    </span>
                   )}
+                  {kind === 'coach' && (
+                    <span className="admin-hint">
+                      {' · '}licence joueur : {licenseLabels[item.status].toLowerCase()}
+                    </span>
+                  )}
+                  {item.updated_at && (
+                    <span className="admin-hint"> · mise à jour {dateLabel(item.updated_at)}</span>
+                  )}
+                </p>
+                <p className="admin-hint">{fileLabel(item, kind)}</p>
+              </div>
+              {fileOf(item, kind).url && (
+                <div className="admin-actions">
                   <button
                     className="admin-button"
-                    onClick={() => {
-                      setNotice('');
-                      setEditing(item);
-                    }}
+                    aria-label={`Voir la licence${kind === 'coach' ? ' coach' : ''} de ${item.first_name}`}
+                    onClick={() => setViewing({ license: item, kind })}
                   >
-                    Gérer la licence
+                    Voir licence
                   </button>
-                </>
+                </div>
               )}
-            </div>
-          </article>
-        ))}
+            </article>
+          ),
+        )}
       </div>
-      {viewing?.file_url && (
+      {viewing && fileOf(viewing.license, viewing.kind).url && (
         <LicenseViewer
-          name={viewing.first_name}
-          url={viewing.file_url}
+          name={viewing.license.first_name}
+          kind={viewing.kind}
+          url={fileOf(viewing.license, viewing.kind).url!}
           onClose={() => setViewing(null)}
         />
       )}
       {removing && (
         <Confirm
-          title={`Supprimer le PDF de ${removing.first_name} ?`}
+          title={`Supprimer le PDF de la licence ${kindLabel(removing.kind)} de ${removing.license.first_name} ?`}
           label="Supprimer le PDF"
           onClose={() => setRemoving(null)}
           onConfirm={async (signal) => {
             await api.request(
-              `/licenses/${encodeURIComponent(removing.user_id)}/file`,
+              `/licenses/${encodeURIComponent(removing.license.user_id)}/file${removing.kind === 'coach' ? '?kind=coach' : ''}`,
               'DELETE',
               undefined,
               signal,
             );
-            setNotice(`PDF de la licence de ${removing.first_name} supprimé.`);
+            setNotice(
+              `PDF de la licence ${kindLabel(removing.kind)} de ${removing.license.first_name} supprimé.`,
+            );
             result.reload();
           }}
         >
@@ -373,8 +315,268 @@ export function LicensesPanel() {
   );
 }
 
+/** Fiche des licences d’un adhérent : un onglet par licence (joueur, et coach pour un coach),
+ * chacun avec son numéro, son PDF et son statut. Le PDF se dépose aussitôt ; numéros et statuts
+ * s’enregistrent ensemble. */
+function LicenseCard({
+  license,
+  initialTab,
+  editable,
+  teamName,
+  onView,
+  onRemoveFile,
+  onClose,
+  onSaved,
+  onFile,
+}: {
+  license: License;
+  initialTab: Kind;
+  editable: boolean;
+  teamName: (id: string) => string;
+  onView: (kind: Kind) => void;
+  onRemoveFile: (kind: Kind) => void;
+  onClose: () => void;
+  onSaved: (message: string) => void;
+  onFile: (message: string) => void;
+}) {
+  const { api } = useAdmin();
+  const id = useId();
+  const kinds: Kind[] = license.coach ? ['player', 'coach'] : ['player'];
+  const [tab, setTab] = useState<Kind>(kinds.includes(initialTab) ? initialTab : 'player');
+  const [numbers, setNumbers] = useState<Record<Kind, string>>({
+    player: license.number ?? '',
+    coach: license.coach_number ?? '',
+  });
+  const [statuses, setStatuses] = useState<Record<Kind, LicenseStatus>>({
+    player: license.status,
+    coach: license.coach_status,
+  });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const title = `Licences de ${license.first_name}`;
+  const file = fileOf(license, tab);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    for (const kind of kinds) {
+      const value = numbers[kind].trim();
+      if (value && !/^[A-Za-z0-9-]+$/.test(value)) {
+        setTab(kind);
+        return setError('Le numéro ne contient que des lettres, des chiffres et des tirets.');
+      }
+      if (statuses[kind] === 'active' && !value) {
+        setTab(kind);
+        return setError(`Indiquez le numéro de la licence ${kindLabel(kind)} pour l’activer.`);
+      }
+    }
+    const changed = kinds.filter((kind) => statuses[kind] !== license[field[kind]]);
+    setError('');
+    setPending(true);
+    try {
+      await api.request(`/licenses/${encodeURIComponent(license.user_id)}`, 'PUT', {
+        number: numbers.player.trim() || null,
+        ...(license.coach ? { coach_number: numbers.coach.trim() || null } : {}),
+        ...Object.fromEntries(changed.map((kind) => [field[kind], statuses[kind]])),
+      });
+      onSaved(
+        changed.length === 1
+          ? `Licence de ${license.first_name} : ${licenseLabels[statuses[changed[0]!]]}.`
+          : `Licences de ${license.first_name} enregistrées.`,
+      );
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Enregistrement impossible.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function upload(kind: Kind, picked: File) {
+    setError('');
+    if (picked.type !== 'application/pdf' && !/\.pdf$/i.test(picked.name))
+      return setError('La licence doit être un fichier PDF.');
+    if (picked.size > MAX_FILE_BYTES) return setError('Le PDF dépasse 10 Mo.');
+    setUploading(true);
+    api
+      .request(
+        `/licenses/${encodeURIComponent(license.user_id)}/file${kind === 'coach' ? '?kind=coach' : ''}`,
+        'PUT',
+        picked.slice(0, picked.size, 'application/pdf'),
+      )
+      .then(() => onFile(`PDF de la licence ${kindLabel(kind)} de ${license.first_name} déposé.`))
+      .catch((failure: unknown) =>
+        setError(failure instanceof Error ? failure.message : 'Dépôt impossible.'),
+      )
+      .finally(() => setUploading(false));
+  }
+
+  // Libellés accessibles : la licence joueur garde ses anciens noms.
+  const fileName =
+    tab === 'coach' ? `licence coach de ${license.first_name}` : `licence de ${license.first_name}`;
+
+  return (
+    <section className="admin-card user-card" aria-labelledby={`${id}-title`}>
+      <header className="user-card-head">
+        <h3 id={`${id}-title`}>{title}</h3>
+        <button type="button" className="admin-button" onClick={onClose}>
+          Fermer
+        </button>
+      </header>
+      <p className="admin-hint">
+        {license.username && `${license.username} · `}
+        {license.teams.length
+          ? license.teams
+              .map((entry) => `${teamName(entry.team_id)} (${kindLabel(entry.kind)})`)
+              .join(', ')
+          : 'Aucune équipe'}
+      </p>
+      <div className="user-card-tabs" role="tablist" aria-label={title}>
+        {kinds.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            role="tab"
+            id={`${id}-${kind}`}
+            aria-selected={kind === tab}
+            aria-controls={`${id}-panel`}
+            className={kind === tab ? 'selected' : undefined}
+            onClick={() => setTab(kind)}
+          >
+            {kind === 'coach' ? 'Licence coach' : 'Licence joueur'}
+          </button>
+        ))}
+      </div>
+      <div
+        className="user-card-panel"
+        role="tabpanel"
+        id={`${id}-panel`}
+        aria-labelledby={`${id}-${tab}`}
+      >
+        <p>
+          <Badge tone={licenseTones[license[field[tab]]]}>
+            {licenseLabels[license[field[tab]]]}
+          </Badge>
+          {license.updated_at && (
+            <span className="admin-hint"> · mise à jour {dateLabel(license.updated_at)}</span>
+          )}
+        </p>
+        {/* Le PDF se consulte même en lecture seule : hors du formulaire désactivé. */}
+        <div
+          className="admin-field license-file"
+          role="group"
+          aria-label={`Fichier de la ${fileName}`}
+        >
+          <span className="license-file-title">PDF de la licence {kindLabel(tab)}</span>
+          <p className="admin-hint">{fileLabel(license, tab)}</p>
+          <div className="admin-actions">
+            {file.url && (
+              <button
+                type="button"
+                className="admin-button"
+                aria-label={`Voir la ${fileName}`}
+                onClick={() => onView(tab)}
+              >
+                Voir licence
+              </button>
+            )}
+            {editable && (
+              <>
+                <label className={`admin-button admin-file${uploading ? ' disabled' : ''}`}>
+                  {uploading ? 'Dépôt…' : file.url ? 'Remplacer le PDF' : 'Déposer le PDF'}
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    disabled={uploading}
+                    aria-label={`PDF de la ${fileName}`}
+                    onChange={(change) => {
+                      const picked = change.target.files?.[0];
+                      change.target.value = '';
+                      if (picked) upload(tab, picked);
+                    }}
+                  />
+                </label>
+                {file.url && (
+                  <button
+                    type="button"
+                    className="admin-button danger"
+                    aria-label={`Supprimer le PDF de la ${fileName}`}
+                    onClick={() => onRemoveFile(tab)}
+                  >
+                    Supprimer le PDF
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        <form onSubmit={(event) => void save(event)} aria-label={title}>
+          <fieldset disabled={!editable || pending} className="user-card-body">
+            <div className="admin-fields">
+              <div className="admin-field">
+                <label htmlFor={`${id}-${tab}-number`}>Numéro de licence</label>
+                <input
+                  id={`${id}-${tab}-number`}
+                  maxLength={40}
+                  value={numbers[tab]}
+                  onChange={(change) => setNumbers({ ...numbers, [tab]: change.target.value })}
+                />
+                <p className="admin-hint">
+                  {tab === 'coach'
+                    ? 'Propre à la licence coach, éventuellement le même que la licence joueur ; obligatoire pour l’activer.'
+                    : 'Sert d’identifiant au compte ; obligatoire pour activer la licence joueur.'}
+                </p>
+              </div>
+              <div className="admin-field">
+                <label htmlFor={`${id}-${tab}-status`}>Statut</label>
+                <select
+                  id={`${id}-${tab}-status`}
+                  value={statuses[tab]}
+                  onChange={(change) =>
+                    setStatuses({ ...statuses, [tab]: change.target.value as LicenseStatus })
+                  }
+                >
+                  {/* Tout statut, « Active » compris, peut être choisi directement. */}
+                  {steps[tab].map((status) => (
+                    <option key={status} value={status}>
+                      {licenseLabels[status]}
+                    </option>
+                  ))}
+                </select>
+                <p className="admin-hint">
+                  {tab === 'coach'
+                    ? 'Licence coach : pas d’étape de paiement.'
+                    : '« Active » peut être choisi directement.'}
+                </p>
+              </div>
+            </div>
+            <ErrorNotice message={error} />
+            {editable && (
+              <div className="admin-actions user-card-actions">
+                <span />
+                <button type="submit" className="admin-button primary">
+                  {pending ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            )}
+          </fieldset>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 /** Affiche le PDF directement depuis le stockage S3 public. */
-function LicenseViewer({ name, url, onClose }: { name: string; url: string; onClose: () => void }) {
+function LicenseViewer({
+  name,
+  kind,
+  url,
+  onClose,
+}: {
+  name: string;
+  kind: Kind;
+  url: string;
+  onClose: () => void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const backdropDismiss = useDialogBackdropDismiss(onClose);
   const id = useId();
@@ -391,8 +593,11 @@ function LicenseViewer({ name, url, onClose }: { name: string; url: string; onCl
       aria-labelledby={id}
       onCancel={onClose}
     >
-      <h3 id={id}>Licence de {name}</h3>
-      <iframe src={url} title={`Licence de ${name}`} />
+      <h3 id={id}>{kind === 'coach' ? `Licence coach de ${name}` : `Licence de ${name}`}</h3>
+      <iframe
+        src={url}
+        title={kind === 'coach' ? `Licence coach de ${name}` : `Licence de ${name}`}
+      />
       <div className="admin-actions">
         <a className="admin-button" href={url} target="_blank" rel="noreferrer">
           Ouvrir dans un nouvel onglet

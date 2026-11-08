@@ -1212,3 +1212,15 @@
 .admin-tabs a.active .admin-tab-count.danger {
   box-shadow: 0 0 0 2px #142c40;
 }
+/* Licences : PDF commun dans la fiche. */
+.license-file-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #354d60;
+}
+.license-file p {
+  margin: 0;
+}
+.user-card-panel > .license-file {
+  margin: 4px 0 18px;
+}

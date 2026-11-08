@@ -55,9 +55,12 @@ it('liste les licences, filtre les manquantes et active une licence après paiem
   expect(within(screen.getByLabelText('Équipe')).getAllByRole('option').map((option) => option.textContent)).toEqual(['Toutes les équipes', 'Régionale']);
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/licenses?section_id=s2&missing=true', expect.anything());
   await userEvent.selectOptions(screen.getByLabelText('Section'), '');
-  await userEvent.click(await screen.findByRole('button', { name: 'Gérer la licence' }));
-  await userEvent.selectOptions(screen.getByLabelText('Statut'), 'active');
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // Un clic sur l’adhérent ouvre sa fiche à la place de sa ligne.
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Alice' }));
+  const card = screen.getByRole('region', { name: 'Licences de Alice' });
+  expect(within(card).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Licence joueur']);
+  await userEvent.selectOptions(within(card).getByLabelText('Statut'), 'active');
+  await userEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Licence de Alice : Active.')).toBeInTheDocument();
   const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/licenses/m') && init?.method === 'PUT');
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ number: 'A-1', status: 'active' });
@@ -65,9 +68,12 @@ it('liste les licences, filtre les manquantes et active une licence après paiem
 
 it('propose directement le statut actif, même sans étape préalable', async () => {
   open('/app/administration?tab=licenses');
-  const carla = (await screen.findByRole('heading', { name: /Carla/ })).closest('article')!;
-  await userEvent.click(within(carla).getByRole('button', { name: 'Gérer la licence' }));
-  const options = within(screen.getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);
+  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Carla' }));
+  const card = screen.getByRole('region', { name: 'Licences de Carla' });
+  // Un onglet par licence : Carla est aussi coach.
+  expect(within(card).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Licence joueur', 'Licence coach']);
+  expect(within(card).getByRole('tab', { name: 'Licence joueur' })).toHaveAttribute('aria-selected', 'true');
+  const options = within(within(card).getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);
   // Directive du 11 octobre : « Active » se choisit dès la création.
   expect(options).toContain('Active');
   expect(options).toContain('Paiement en attente');
@@ -82,23 +88,26 @@ it('l’adhérent voit seulement le statut de sa licence dans son profil', async
   expect(fetchMock).not.toHaveBeenCalledWith('/api/v1/licenses', expect.anything());
 });
 
-it('gère la licence coach sans étape de paiement, avec le numéro commun', async () => {
+it('gère la licence coach sans étape de paiement, avec son propre numéro', async () => {
   open('/app/administration?tab=licenses');
   await screen.findByText('Loisir 1 (joueur)');
   await userEvent.click(screen.getByRole('button', { name: 'Coachs' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/licenses?kind=coach', expect.anything()));
   const carla = (await screen.findByRole('heading', { name: /Carla/ })).closest('article')!;
   expect(within(carla).getByText('En cours')).toBeInTheDocument();
-  await userEvent.click(within(carla).getByRole('button', { name: 'Gérer la licence' }));
-  expect(screen.getByRole('heading', { name: 'Licence coach de Carla' })).toBeInTheDocument();
-  const options = within(screen.getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);
-  expect(options).toEqual(['Choisir…', 'Pas de licence', 'En cours', 'Active']);
-  await userEvent.type(screen.getByLabelText('Numéro de licence'), 'C-1');
-  await userEvent.selectOptions(screen.getByLabelText('Statut'), 'active');
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // Le filtre Coachs ouvre la fiche sur l’onglet de la licence coach.
+  await userEvent.click(within(carla).getByRole('button', { name: 'Ouvrir les licences de Carla' }));
+  const card = screen.getByRole('region', { name: 'Licences de Carla' });
+  expect(within(card).getByRole('tab', { name: 'Licence coach' })).toHaveAttribute('aria-selected', 'true');
+  const options = within(within(card).getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);
+  expect(options).toEqual(['Pas de licence', 'En cours', 'Active']);
+  await userEvent.type(within(card).getByLabelText('Numéro de licence'), 'C-1');
+  await userEvent.selectOptions(within(card).getByLabelText('Statut'), 'active');
+  await userEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));
   await screen.findByText('Licence de Carla : Active.');
   const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/licenses/c') && init?.method === 'PUT');
-  expect(JSON.parse(String(call?.[1]?.body))).toEqual({ number: 'C-1', coach_status: 'active' });
+  // La licence coach a son numéro ; Carla n’a pas de numéro joueur.
+  expect(JSON.parse(String(call?.[1]?.body))).toEqual({ number: null, coach_number: 'C-1', coach_status: 'active' });
 });
 
 it('un coach voit les statuts de ses deux licences dans son profil', async () => {

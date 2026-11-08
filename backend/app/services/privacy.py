@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.security import now
@@ -54,16 +54,23 @@ def reset_licenses(db: Session, at: datetime | None = None) -> bool:
         db.scalars(
             select(User)
             .join(License, License.user_id == User.id)
-            .where(License.number.is_not(None))
+            .where(or_(License.number.is_not(None), License.coach_number.is_not(None)))
         )
     )
-    files = list(db.scalars(select(License.file_key).where(License.file_key.is_not(None))))
+    files = [
+        key
+        for row in db.execute(select(License.file_key, License.coach_file_key))
+        for key in row
+        if key is not None
+    ]
     db.execute(
         update(License).values(
             status="none",
             coach_status="none",
             file_key=None,
             file_uploaded_at=None,
+            coach_file_key=None,
+            coach_file_uploaded_at=None,
             updated_at=now(),
             updated_by=None,
         )

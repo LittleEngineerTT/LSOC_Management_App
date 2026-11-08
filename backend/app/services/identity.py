@@ -59,8 +59,9 @@ def temporary_base(db: Session, user: User) -> str:
 
 def desired_id(db: Session, user: User) -> str:
     license = db.get(License, user.id)
-    if license is not None and license.number:
-        return license.number
+    # Le numéro de la licence joueur, à défaut celui de la licence coach.
+    if license is not None and (license.number or license.coach_number):
+        return license.number or license.coach_number or user.id
     base = temporary_base(db, user)
     # Un identifiant temporaire déjà attribué (avec ou sans suffixe) reste stable.
     if user.id == base or re.fullmatch(re.escape(base) + r"-[a-z]{3}", user.id):
@@ -161,4 +162,4 @@ def has_access(db: Session, user: User) -> bool:
     if "admin" in user.roles:
         return True
     license = db.get(License, user.id)
-    return license is not None and bool(license.number)
+    return license is not None and bool(license.number or license.coach_number)

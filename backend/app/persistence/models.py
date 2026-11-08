@@ -79,9 +79,10 @@ class User(Identity, Base):
 
 
 class License(Base):
-    """Licence d’un adhérent ; l’absence de ligne vaut « pas de licence ».
+    """Licences d’un adhérent ; l’absence de ligne vaut « pas de licence ».
 
-    Un seul numéro par personne ; le statut joueur et le statut coach évoluent séparément.
+    La licence joueur et la licence coach ont chacune leur numéro, leur statut et leur PDF. Le
+    numéro joueur, à défaut le numéro coach, sert d’identifiant au compte.
     """
 
     __tablename__ = "licenses"
@@ -95,7 +96,8 @@ class License(Base):
             "coach_status IN ('none','in_progress','active')", name="licenses_coach_status_check"
         ),
         CheckConstraint(
-            "coach_status <> 'active' OR number IS NOT NULL", name="licenses_coach_active_number"
+            "coach_status <> 'active' OR coach_number IS NOT NULL",
+            name="licenses_coach_active_number",
         ),
     )
     user_id: Mapped[str] = mapped_column(
@@ -112,6 +114,10 @@ class License(Base):
     # PDF de la licence dans le bucket S3 : clé « licences/ » + 64 caractères aléatoires.
     file_key: Mapped[str | None] = mapped_column(String(80))
     file_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Licence coach : son propre numéro (éventuellement le même) et son propre PDF.
+    coach_number: Mapped[str | None] = mapped_column(String(40), unique=True)
+    coach_file_key: Mapped[str | None] = mapped_column(String(80))
+    coach_file_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Dossier(Identity, Base):
