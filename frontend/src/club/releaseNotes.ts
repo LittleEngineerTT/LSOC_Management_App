@@ -15,36 +15,18 @@ export interface Release {
 }
 
 // Tenir cette liste à jour à chaque changement visible pour l’utilisateur. Elle se compare
-// toujours à la dernière version mineure précédente (`previous`) : en passant de 0.4.0 à 0.4.2,
-// on conserve donc les nouveautés de 0.4.0 et 0.4.1 par rapport à 0.2.0. Ne reprenez que les
+// toujours à la dernière version mineure précédente (`previous`) : en passant de 0.5.0 à 0.5.1,
+// on conserve donc les nouveautés de 0.5.0 par rapport à 0.4.0. Ne reprenez que les
 // nouveautés majeures et les correctifs visibles, reformulés simplement ; les détails restent
 // dans le CHANGELOG.
 export const release: Release = {
-  version: '0.4.2',
-  previous: '0.2.0',
+  version: '0.5.1',
+  previous: '0.4.0',
   notes: [
     {
       kind: 'feature',
-      title: 'Résultats des équipes',
-      text: 'Le classement, les prochains matchs et les résultats de chaque équipe, dans Notre club.',
-      link: { to: '/app/notre-club?onglet=resultats', label: 'Voir les résultats' },
-    },
-    {
-      kind: 'feature',
-      title: 'Photos des entraîneurs',
-      text: 'Les entraîneurs peuvent ajouter leur photo, présentée avec les dirigeants du club.',
-      link: { to: '/app/notre-club?onglet=infos', label: 'Voir les dirigeants' },
-    },
-    {
-      kind: 'feature',
-      title: 'Notifications instantanées',
-      text: 'Les pastilles de notifications et de messages se mettent à jour aussitôt, sans recharger la page.',
-    },
-    {
-      kind: 'feature',
-      title: 'Filtres du planning',
-      text: 'Filtrez le planning par section, équipe et gymnase, y compris sans être connecté.',
-      link: { to: '/app/planning', label: 'Voir le planning' },
+      title: 'Mon planning dans le Planning',
+      text: 'L’application Mon planning devient un filtre du Planning : cochez « Mon planning » pour ne voir que les séances de vos équipes, vos favoris, les événements dont vous êtes référent ou coach et ceux où vous êtes inscrit.',
     },
     {
       kind: 'feature',
@@ -54,8 +36,15 @@ export const release: Release = {
     },
     {
       kind: 'feature',
-      title: 'Mon planning dans le Planning',
-      text: 'L’application Mon planning devient un filtre du Planning : cochez « Mon planning » pour ne voir que les séances de vos équipes, vos favoris, les événements dont vous êtes référent ou coach et ceux où vous êtes inscrit.',
+      title: 'Plateaux FFVB',
+      text: 'Les matchs d’un même plateau (même jour, même lieu) n’apparaissent plus qu’une fois, à l’heure du premier match. Un match dont la FFVB ne donne pas encore l’heure s’affiche sur sa journée.',
+      link: { to: '/app/planning', label: 'Voir le planning' },
+    },
+    {
+      kind: 'feature',
+      title: 'Filtres du planning',
+      text: 'Filtrez le planning par section, équipe et gymnase, y compris sans être connecté.',
+      link: { to: '/app/planning', label: 'Voir le planning' },
     },
     {
       kind: 'feature',
@@ -64,18 +53,39 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Contact',
+      text: 'Une nouvelle application pour écrire au club, avec ou sans compte : un e-mail ou un téléphone pour la réponse, la question et les équipes concernées.',
+      link: { to: '/app/contact', label: 'Nous contacter' },
+    },
+    {
+      kind: 'feature',
+      title: 'Les équipes des entraîneurs',
+      text: 'Dans Notre club, chaque entraîneur est présenté avec les équipes qu’il entraîne.',
+      link: { to: '/app/notre-club?onglet=infos', label: 'Voir les dirigeants' },
+    },
+    {
+      kind: 'feature',
       title: 'Vos équipes en tête',
       text: 'Dans les listes d’équipes, celles dont vous êtes référent apparaissent en premier, d’une autre couleur.',
     },
     {
       kind: 'feature',
-      title: 'Contact',
-      text: 'Une nouvelle application pour écrire au club, avec ou sans compte : un e-mail ou un téléphone pour la réponse, la question et les équipes concernées. Les administrateurs y suivent les demandes, les prennent en charge et les marquent comme résolues.',
-      link: { to: '/app/contact', label: 'Nous contacter' },
+      title: 'Demandes de séances récurrentes',
+      text: 'Les coachs sont prévenus des dates en conflit d’une série avant de l’envoyer, et peuvent l’envoyer quand même.',
+    },
+    {
+      kind: 'feature',
+      title: 'Notifications instantanées',
+      text: 'Les pastilles de notifications et de messages se mettent à jour aussitôt, sans recharger la page.',
     },
     {
       kind: 'fix',
-      title: 'Correctif apporté sur la récupération des matchs FFVB de certaines équipes.',
+      title: 'Les matchs FFVB des poules en plateau ou sans horaire sont de nouveau récupérés.',
+    },
+    {
+      kind: 'fix',
+      title:
+        'Un changement de coach ne déclenche plus de notifications sur les événements de l’équipe.',
     },
   ],
 };

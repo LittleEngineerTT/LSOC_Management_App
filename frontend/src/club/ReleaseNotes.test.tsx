@@ -10,8 +10,8 @@ it('présente les nouveautés puis les correctifs de la version', () => {
   expect(card).toHaveTextContent(`Version ${release.version} · depuis la version ${release.previous}`);
   const features = within(card).getByRole('region', { name: 'Nouveautés' });
   expect(within(features).getAllByRole('listitem')).toHaveLength(release.notes.filter((note) => note.kind === 'feature').length);
-  expect(within(features).getByRole('link', { name: 'Voir les résultats' })).toHaveAttribute('href', '/app/notre-club?onglet=resultats');
-  expect(within(card).getByRole('region', { name: 'Correctifs' })).toHaveTextContent('Correctif apporté sur la récupération des matchs FFVB');
+  expect(within(features).getByRole('link', { name: 'Nous contacter' })).toHaveAttribute('href', '/app/contact');
+  expect(within(card).getByRole('region', { name: 'Correctifs' })).toHaveTextContent('Les matchs FFVB des poules en plateau ou sans horaire sont de nouveau récupérés.');
 });
 
 it('n’affiche que les groupes renseignés, et rien sans changement', () => {
