@@ -657,6 +657,11 @@ class FFVBMatchState(Identity, Base):
     suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     missing: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Plateau (même jour, même lieu) : les matchs suivants pointent vers le premier, seul à
+    # porter l’événement du planning ; nul pour un match seul ou le premier du plateau.
+    plateau_id: Mapped[str | None] = mapped_column(
+        ForeignKey("ffvb_matches.id", ondelete="SET NULL")
+    )
 
 
 class FFVBResult(Identity, Base):

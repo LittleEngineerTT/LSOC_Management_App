@@ -141,8 +141,15 @@ def test_matches_without_a_time_take_their_plateau_time_or_their_day() -> None:
 def test_matches_without_a_time_no_longer_break_the_page() -> None:
     # Poule BMA : des matchs ont une date mais pas d’heure (BMA005…) ; la page se lit.
     html = FIXTURES.joinpath('ffvb-ptidf92-bma.html').read_bytes()
-    codes = {match.code for match in parse_calendar(html, '2026/2027', 'PTIDF92', 'BMA', 'LSO COLOMBES')}
+    matches = {match.code: match for match in parse_calendar(html, '2026/2027', 'PTIDF92', 'BMA', 'LSO COLOMBES')}
+    codes = set(matches)
     assert 'BMA005' in codes
+    # Le premier match du plateau du 21/11 au Verhaeren (BMA004, 14:30) ne concerne pas LSO
+    # COLOMBES : le calendrier complet de la poule donne quand même son heure au plateau.
+    paris = ZoneInfo('Europe/Paris')
+    for code in ('BMA005', 'BMA006'):
+        assert matches[code].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '21/11 14:30'
+        assert not matches[code].time_unknown
     assert codes <= calendar_codes(html, 'BMA', 'LSO COLOMBES')
     # La recherche des équipes du club lit la page sans erreur.
     club_candidates(html, '2026/2027', 'PTIDF92', 'BMA', '0926620', None)

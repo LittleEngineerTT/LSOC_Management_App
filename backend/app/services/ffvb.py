@@ -31,14 +31,19 @@ from app.integrations.ffvb import (
     parse_standings,
 )
 from app.persistence.models import (
+    ChangeRequest,
     ClubSettings,
     Event,
+    EventRevision,
     FFVBConflict,
     FFVBMatchState,
     FFVBResult,
     FFVBSource,
+    Follow,
     GymMapping,
     Gymnasium,
+    QuestionThread,
+    Registration,
     Section,
     Team,
     User,
@@ -277,7 +282,10 @@ def apply_official(
             event.kickoff_at = datetime.fromisoformat(remote) if remote else None
         else:
             setattr(event, key, remote)
-    event.title = f"{official['home_team']} / {official['away_team']}"[:200]
+    teams = official.get("teams")
+    event.title = (
+        " vs ".join(teams) if teams else f"{official['home_team']} / {official['away_team']}"
+    )[:200]
     home = official["home"]
     # Local reservations follow the mapped location; unknown venues never select an arbitrary gym.
     event.occupancy_unknown = bool(home and event.gymnasium_id is None)
@@ -408,6 +416,131 @@ def record_standings(source: FFVBSource, html: bytes) -> None:
     source.standings_at = now()
 
 
+def official_of(match: Match, location: str, home: bool, gym: str | None) -> dict[str, Any]:
+    """Valeurs officielles d’un match : sans heure (même pour le plateau), la FFVB ne fixe que
+    la journée."""
+    return {
+        "kickoff_at": None if match.time_unknown else match.kickoff_at.isoformat(),
+        "day": match.kickoff_at.isoformat() if match.time_unknown else None,
+        "gymnasium_id": gym,
+        "location": location,
+        "home_team": match.home_team,
+        "away_team": match.away_team,
+        "home": home,
+    }
+
+
+def merge_event(db: Session, merged: Event, into: Event) -> None:
+    """Réunit l’événement d’un match dans celui de son plateau, sans prévenir personne : les
+    inscriptions, favoris et questions passent au plateau ; le reste disparaît avec lui."""
+    for model in (Registration, Follow):
+        for item in db.scalars(select(model).where(model.event_id == merged.id)):
+            duplicate = db.scalar(
+                select(model.id).where(model.event_id == into.id, model.user_id == item.user_id)
+            )
+            if duplicate is None:
+                item.event_id = into.id
+            else:
+                db.delete(item)
+    for thread in db.scalars(select(QuestionThread).where(QuestionThread.event_id == merged.id)):
+        thread.event_id = into.id
+    db.execute(delete(EventRevision).where(EventRevision.event_id == merged.id))
+    db.execute(delete(ChangeRequest).where(ChangeRequest.event_id == merged.id))
+    db.flush()
+    db.delete(merged)
+    db.flush()
+
+
+def sync_plateau(
+    db: Session,
+    source: FFVBSource,
+    team: Team,
+    venues: Venues,
+    items: list[tuple[Match, FFVBMatchState | None, str]],
+    settings_: tuple[int, int, int],
+) -> None:
+    """Un match seul, ou un plateau : ses matchs gardent chacun leur état FFVB (résultat,
+    absence), mais un seul événement, celui du premier match, les réunit. Le gymnase, et donc
+    l’alerte d’un gymnase FFVB à associer, se déduit du premier match uniquement."""
+    before, after, courts = settings_
+    first, _, location = items[0]
+    home, gym = venues.resolve(location, first.home_team, source.team_name)
+    states: list[FFVBMatchState] = []
+    for match, state, item_location in items:
+        official = official_of(match, item_location, home, gym)
+        if state is None:
+            state = FFVBMatchState(
+                source_id=source.id,
+                season=source.season,
+                entity=source.entity,
+                match_code=match.code,
+                official=official,
+            )
+            db.add(state)
+            db.flush()
+        states.append(state)
+    leader = states[0]
+    if leader.disabled or (leader.suspended_until is not None and leader.suspended_until > now()):
+        return
+    official = official_of(first, location, home, gym)
+    if len(items) > 1:
+        # « ÉQUIPE 1 vs ÉQUIPE 2 vs ÉQUIPE 3 » : chaque équipe du plateau, une fois.
+        official["teams"] = list(
+            dict.fromkeys(
+                team for match, _, _ in items for team in (match.home_team, match.away_team)
+            )
+        )
+    owned = {
+        state.id: db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
+        for state in states
+    }
+    # L’événement du plateau : celui du premier match, sinon celui d’un match déjà importé.
+    event = owned[leader.id] or next((item for item in owned.values() if item is not None), None)
+    if event is not None and event.ffvb_match_id != leader.id:
+        event.ffvb_match_id = leader.id
+        db.flush()
+    for state, (match, _, item_location) in zip(states[1:], items[1:], strict=True):
+        merged = owned[state.id]
+        if merged is not None and event is not None and merged.id != event.id:
+            merge_event(db, merged, event)
+        state.plateau_id = leader.id
+        state.official = official_of(match, item_location, home, gym)
+        state.last_verified_at = now()
+        state.missing = False
+    leader.plateau_id = None
+    initial = event is None
+    if event is None:
+        event = Event(
+            title=f"{first.home_team} / {first.away_team}"[:200],
+            kind="match",
+            section_ids=[team.section_id],
+            team_ids=[team.id],
+            gymnasium_id=gym,
+            location=location,
+            starts_at=first.kickoff_at,
+            ends_at=first.kickoff_at
+            + (timedelta(days=1) if first.time_unknown else timedelta(minutes=after)),
+            courts=courts if gym and not first.time_unknown else 0,
+            time_unknown=first.time_unknown,
+            referent_ids=list(team.referent_ids),
+            ffvb_match_id=leader.id,
+            kickoff_at=None if first.time_unknown else first.kickoff_at,
+            before_minutes=before,
+            after_minutes=after,
+            match_courts=courts,
+        )
+        db.add(event)
+        db.flush()
+    lock_gyms(db, [event.gymnasium_id, official["gymnasium_id"]])
+    leader.official = official
+    leader.last_verified_at = now()
+    leader.missing = False
+    leader.suspended_until = None
+    apply_official(db, event, leader, official, initial)
+    if initial:
+        ffvb_added(db, event)
+
+
 def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     fetch_started = now()
     identity = (source.team_id, source.season, source.entity, source.pool, source.team_name)
@@ -453,6 +586,9 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
         venues = Venues(db)
         seen: set[str] = set(listed)
         before, after, courts = match_settings(db, source)
+        # Les matchs de l’équipe le même jour au même lieu forment un plateau : un seul
+        # événement, à l’heure du premier match.
+        plateaus: dict[tuple[str, str], list[tuple[Match, FFVBMatchState | None, str]]] = {}
         for match in matches:
             seen.add(match.code)
             if match.result is not None:
@@ -464,11 +600,6 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                     FFVBMatchState.match_code == match.code,
                 )
             )
-            if state is not None and (
-                state.disabled
-                or (state.suspended_until is not None and state.suspended_until > now())
-            ):
-                continue
             if match.location is None and state is None:
                 # Match déjà joué jamais importé : passé et sans lieu connu, il n’est pas créé.
                 continue
@@ -479,62 +610,11 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                 if state is not None
                 else ""
             )
-            home, gym = venues.resolve(location, match.home_team, source.team_name)
-            official: dict[str, Any] = {
-                # Sans heure (même pour le plateau), la FFVB ne fixe que la journée.
-                "kickoff_at": None if match.time_unknown else match.kickoff_at.isoformat(),
-                "day": match.kickoff_at.isoformat() if match.time_unknown else None,
-                "gymnasium_id": gym,
-                "location": location,
-                "home_team": match.home_team,
-                "away_team": match.away_team,
-                "home": home,
-            }
-            initial = state is None
-            if state is None:
-                state = FFVBMatchState(
-                    source_id=source.id,
-                    season=source.season,
-                    entity=source.entity,
-                    match_code=match.code,
-                    official=official,
-                )
-                db.add(state)
-                db.flush()
-                event = Event(
-                    title=f"{match.home_team} / {match.away_team}"[:200],
-                    kind="match",
-                    section_ids=[team.section_id],
-                    team_ids=[team.id],
-                    gymnasium_id=official["gymnasium_id"],
-                    location=location,
-                    starts_at=match.kickoff_at,
-                    ends_at=match.kickoff_at
-                    + (timedelta(days=1) if match.time_unknown else timedelta(minutes=after)),
-                    courts=courts if official["gymnasium_id"] and not match.time_unknown else 0,
-                    time_unknown=match.time_unknown,
-                    referent_ids=list(team.referent_ids),
-                    ffvb_match_id=state.id,
-                    kickoff_at=None if match.time_unknown else match.kickoff_at,
-                    before_minutes=before,
-                    after_minutes=after,
-                    match_courts=courts,
-                )
-                db.add(event)
-                db.flush()
-            else:
-                existing_event = db.scalar(select(Event).where(Event.ffvb_match_id == state.id))
-                if existing_event is None:
-                    raise HTTPException(409, "État FFVB sans événement")
-                event = existing_event
-            lock_gyms(db, [event.gymnasium_id, official["gymnasium_id"]])
-            state.official = official
-            state.last_verified_at = now()
-            state.missing = False
-            state.suspended_until = None
-            apply_official(db, event, state, official, initial)
-            if initial:
-                ffvb_added(db, event)
+            day = match.kickoff_at.astimezone(PARIS).date().isoformat()
+            plateaus.setdefault((day, normalize(location)), []).append((match, state, location))
+        for items in plateaus.values():
+            items.sort(key=lambda item: (item[0].kickoff_at, item[0].code))
+            sync_plateau(db, source, team, venues, items, (before, after, courts))
         for state in db.scalars(
             select(FFVBMatchState).where(FFVBMatchState.source_id == source.id)
         ):
