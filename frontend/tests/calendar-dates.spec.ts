@@ -107,16 +107,14 @@ test('calendrier semaine et mois : couleurs, filtres, sélection et détail cons
   await expect(entry(/Entraînement local/).first()).toHaveClass(/origin-local/);
   await expect(entry(/Match fédéral/).first()).toHaveClass(/origin-ffvb/);
   await expect(entry(/Match amical local/).first()).toHaveClass(/origin-local/);
-  await page.getByLabel('Origine des événements').selectOption('ffvb');
-  await expect(entry(/Match amical local/)).toHaveCount(0);
-  await page.getByLabel('Origine des événements').selectOption('local');
-  await expect(entry(/Match fédéral/)).toHaveCount(0);
+  // Le filtre « Origine des événements » a été retiré : la couleur suffit à distinguer l’origine.
+  await expect(page.getByLabel('Origine des événements')).toHaveCount(0);
   await page.getByRole('button', { name: 'Mois', exact: true }).click();
   const month = page.getByRole('region', { name: 'Calendrier du mois' });
-  await month.getByRole('button', { name: 'Mercredi 14 octobre, 2 événements', exact: true }).click();
+  await month.getByRole('button', { name: /^Mercredi 14 octobre, \d+ événements$/ }).click();
   await page.locator('.calendar-selected-day').getByRole('link', { name: /Entraînement local/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page).toHaveURL(/origine=local/);
+  await expect(page).toHaveURL(/event=/);
   await expect(page).toHaveURL(/vue=mois/);
 });
 

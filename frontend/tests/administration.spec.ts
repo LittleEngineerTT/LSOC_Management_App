@@ -239,6 +239,7 @@ test('administration utilisable de 320 à 2560 px sans débordement', async ({ p
     await page.getByRole('button', { name: 'Ajouter un utilisateur' }).click();
     await expect(page.getByLabel('Prénom', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `Formulaire, ${width}px`).toBe(true);
-    await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+    // La fiche utilisateur se ferme par « Fermer ».
+    await page.getByRole('region', { name: 'Nouvel utilisateur' }).getByRole('button', { name: 'Fermer', exact: true }).click();
   }
 });

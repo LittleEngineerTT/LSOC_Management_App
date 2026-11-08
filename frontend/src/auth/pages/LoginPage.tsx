@@ -76,7 +76,10 @@ export function LoginPage() {
         <Link className="guest-button" to="/app">
           Retour au site du club
         </Link>
-        <p>Sans compte, l’accueil, les matchs FFVB et la présentation du club restent ouverts.</p>
+        <p>
+          Sans compte, l’accueil, les matchs FFVB, la présentation du club et le formulaire de
+          contact restent ouverts.
+        </p>
       </div>
       <p className="privacy-link">
         <Link to="/confidentialite">Confidentialité et données personnelles</Link>
