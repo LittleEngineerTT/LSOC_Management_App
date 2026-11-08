@@ -1,9 +1,18 @@
+import { useState } from 'react';
 import type { EventRequest } from '../admin/types';
+import { dayLabel, parisDay, timeRange } from './calendar';
 import { choices, EntityForm, num, str, type FormField, type FormValues } from '../admin/ui';
 import { sectionGroups, useClub } from './context';
 import { teamOptions } from './teamOrder';
 import { kindLabels } from './events';
 import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
+
+/** Occurrence d’une série qui dépasserait la capacité du gymnase (`/event-requests/conflicts`). */
+interface OccurrenceConflict {
+  starts_at: string;
+  ends_at: string;
+  missing: number;
+}
 
 /** Équipes pour lesquelles le compte peut demander un événement : référent ou coach rattaché. */
 export function useCoachedTeams() {
@@ -104,6 +113,11 @@ export function EventProposalForm({
       hint: 'Message pour les administrateurs, non publié avec l’événement.',
     },
   ];
+  // Occurrences d’une série qui dépasseraient la capacité du gymnase : un avertissement, que le
+  // demandeur confirme pour envoyer sa demande quand même, sans forcer le dépassement.
+  const [conflicts, setConflicts] = useState<OccurrenceConflict[]>([]);
+  const [warned, setWarned] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
   async function save(values: FormValues, signal: AbortSignal) {
     // Ordre du formulaire : la première équipe cochée porte la demande.
     const selected = coached
@@ -126,28 +140,44 @@ export function EventProposalForm({
     const courts = gymnasium_id ? num(values, 'courts') : 0;
     if (gymnasium_id && courts < 1)
       throw new Error('Réservez au moins un terrain dans un gymnase du club.');
-    await api.request<EventRequest>(
-      '/event-requests',
-      'POST',
-      {
-        team_id,
-        team_ids,
-        title: str(values, 'title'),
-        description: str(values, 'description'),
-        kind: str(values, 'kind'),
-        starts_at: when.starts_at,
-        ends_at: when.ends_at,
-        ...(when.recurrence ?? {}),
-        gymnasium_id,
-        location: str(values, 'location'),
-        courts,
-        registration_section_ids,
-        registration_team_ids,
-        registration_limit,
-        note: str(values, 'note'),
-      },
-      signal,
-    );
+    const body = {
+      team_id,
+      team_ids,
+      title: str(values, 'title'),
+      description: str(values, 'description'),
+      kind: str(values, 'kind'),
+      starts_at: when.starts_at,
+      ends_at: when.ends_at,
+      ...(when.recurrence ?? {}),
+      gymnasium_id,
+      location: str(values, 'location'),
+      courts,
+      registration_section_ids,
+      registration_team_ids,
+      registration_limit,
+      note: str(values, 'note'),
+    };
+    if (when.recurrence && gymnasium_id && courts > 0) {
+      const key = JSON.stringify(body);
+      // Demande modifiée depuis l’avertissement : les conflits sont relus.
+      if (!confirmed || key !== warned) {
+        const found = await api.request<OccurrenceConflict[]>(
+          '/event-requests/conflicts',
+          'POST',
+          body,
+          signal,
+        );
+        setConflicts(found);
+        setWarned(key);
+        if (found.length && !(confirmed && key === warned)) {
+          setConfirmed(false);
+          throw new Error(
+            'Certaines dates de la série sont en conflit avec d’autres événements : lisez l’avertissement et cochez « Envoyer quand même ».',
+          );
+        }
+      }
+    }
+    await api.request<EventRequest>('/event-requests', 'POST', body, signal);
     onDone();
   }
   return (
@@ -176,6 +206,36 @@ export function EventProposalForm({
       <p className="admin-hint club-wide">
         L’événement sera créé après acceptation par un administrateur.
       </p>
+      {conflicts.length > 0 && (
+        <div className="admin-notice club-wide proposal-conflicts" role="alert">
+          <strong>
+            {conflicts.length === 1
+              ? 'Une date de la série dépasse la capacité du gymnase'
+              : `${conflicts.length} dates de la série dépassent la capacité du gymnase`}
+          </strong>
+          <ul>
+            {conflicts.map((item) => (
+              <li key={item.starts_at}>
+                {dayLabel(parisDay(item.starts_at))}, {timeRange(item.starts_at, item.ends_at)} :{' '}
+                {item.missing} terrain{item.missing > 1 ? 's' : ''} manquant
+                {item.missing > 1 ? 's' : ''}
+              </li>
+            ))}
+          </ul>
+          <p>
+            Vous pouvez envoyer la demande quand même : l’administrateur décidera de ces dates à la
+            validation.
+          </p>
+          <label className="admin-check">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(change) => setConfirmed(change.target.checked)}
+            />
+            Envoyer quand même
+          </label>
+        </div>
+      )}
     </EntityForm>
   );
 }

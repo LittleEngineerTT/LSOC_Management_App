@@ -504,3 +504,27 @@ it('avertit l’administrateur d’une demande sur une indisponibilité, sans ex
   expect(warning).toHaveTextContent('Gymnase indisponible sur ce créneau.');
   expect(warning).toHaveTextContent('15/10/2026 : Travaux');
 });
+
+it('avertit des dates en conflit d’une série et l’envoie quand même, sans forcer', async () => {
+  const conflicts = [{ starts_at: `${day}T16:00:00Z`, ends_at: `${day}T18:00:00Z`, missing: 2 }];
+  const sent = mutation;
+  mutation = (path, body) => (path === '/event-requests/conflicts' ? reply(conflicts) : sent(path, body));
+  open();
+  await userEvent.click(await screen.findByRole('button', { name: 'Nouvel événement' }));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Équipes organisatrices' })).getByLabelText('Loisir 1'));
+  await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement jeunes');
+  await userEvent.selectOptions(screen.getByLabelText('Gymnase du club'), 'g1');
+  await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
+  await userEvent.click(within(screen.getByRole('group', { name: 'Jours de répétition' })).getByLabelText('Mardi'));
+  await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
+  // Premier envoi : l’avertissement liste la date en conflit ; rien n’est encore demandé.
+  const warning = await screen.findByText('Une date de la série dépasse la capacité du gymnase');
+  expect(warning.closest('div')).toHaveTextContent('2 terrains manquants');
+  expect(mutations.map((item) => item.path)).toEqual(['/event-requests/conflicts']);
+  // Confirmé, la demande part telle quelle : aucun forçage n’est envoyé.
+  await userEvent.click(screen.getByLabelText('Envoyer quand même'));
+  await userEvent.click(screen.getByRole('button', { name: 'Envoyer la demande' }));
+  expect(await screen.findByText(/Demande envoyée aux administrateurs/)).toBeInTheDocument();
+  expect(mutations.map((item) => item.path)).toEqual(['/event-requests/conflicts', '/event-requests']);
+  expect(mutations[1]!.body).not.toHaveProperty('force');
+});

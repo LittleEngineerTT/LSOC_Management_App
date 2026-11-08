@@ -98,3 +98,24 @@ def test_partial_overbooking_still_asks_the_admin_to_force(admin: TestClient) ->
     decision = f"/api/v1/event-requests/{request.json()['id']}/decision"
     assert admin.post(decision, json={'accept': True}).status_code == 409
     assert admin.post(decision, json={'accept': True, 'force': True}).status_code == 200
+
+
+def test_recurring_request_warns_of_conflicting_occurrences_but_is_still_sent(admin: TestClient) -> None:
+    coach, gym, body = coach_request(admin, capacity=3)
+    section = str(body.pop('section'))
+    # Le jeudi 22 : 2 terrains déjà pris, la séance en demande 2 de plus sur 3 ; le 29 : complet.
+    assert admin.post('/api/v1/events', json=payload(section, gym, courts=2, start='2099-10-22T18:00:00+02:00', end='2099-10-22T20:00:00+02:00')).status_code == 201
+    assert admin.post('/api/v1/events', json=payload(section, gym, courts=3, start='2099-10-29T19:00:00+01:00', end='2099-10-29T21:00:00+01:00')).status_code == 201
+    series = body | {'until': '2099-10-29', 'weekdays': [3]}
+    conflicts = coach.post('/api/v1/event-requests/conflicts', json=series)
+    assert conflicts.status_code == 200, conflicts.text
+    assert [(item['starts_at'][:10], item['missing']) for item in conflicts.json()] == [('2099-10-22', 1), ('2099-10-29', 2)]
+    # L’aperçu ne crée rien ; la demande récurrente part malgré ses conflits.
+    assert admin.get('/api/v1/event-requests').json() == []
+    request = coach.post('/api/v1/event-requests', json=series)
+    assert request.status_code == 201, request.text
+    # L’administrateur tranche à l’acceptation : il doit forcer le dépassement.
+    decision = f"/api/v1/event-requests/{request.json()['id']}/decision"
+    assert admin.post(decision, json={'accept': True}).status_code == 409
+    # Sans gymnase, aucun conflit à signaler.
+    assert coach.post('/api/v1/event-requests/conflicts', json=series | {'gymnasium_id': None, 'courts': 0}).json() == []

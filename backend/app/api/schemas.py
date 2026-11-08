@@ -611,6 +611,14 @@ class CapacitySegment(View):
     excess: int
 
 
+class OccurrenceConflict(View):
+    """Occurrence d’une demande qui dépasserait la capacité du gymnase : terrains manquants."""
+
+    starts_at: datetime
+    ends_at: datetime
+    missing: int
+
+
 class CapacityView(View):
     gymnasium_id: str
     capacity: int

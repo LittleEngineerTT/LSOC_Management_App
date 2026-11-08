@@ -1,17 +1,25 @@
 from datetime import date, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.common import DB, Actor, Admin, get, require_admin
-from app.api.schemas import CoachEventRequestInput, CoachEventRequestView, DecisionInput, EventInput
+from app.api.schemas import (
+    CoachEventRequestInput,
+    CoachEventRequestView,
+    DecisionInput,
+    EventInput,
+    OccurrenceConflict,
+)
 from app.core.security import now
 from app.persistence.models import Assignment, CoachEventRequest, Event, Team, User
 from app.services.events import (
     PARIS,
     REFERENT_ROLES,
     blocking,
+    capacity_conflicts,
     create_event,
     create_series_events,
     lock_planning,
@@ -94,9 +102,10 @@ def view(db: Session, value: CoachEventRequest) -> CoachEventRequestView:
     return result
 
 
-@router.post("/event-requests", response_model=CoachEventRequestView, status_code=201)
-def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventRequest:
-    lock_planning(db)
+def proposal_of(
+    db: Session, actor: User, body: CoachEventRequestInput
+) -> tuple[Team, EventInput, dict[str, Any]]:
+    """Événement proposé, validé sans être inséré, et sa forme enregistrée (récurrence comprise)."""
     team = coach_team(db, actor, body.team_id)
     # L’équipe principale vient en tête ; chaque équipe ajoutée doit aussi être coachée.
     team_ids = [team.id, *(i for i in dict.fromkeys(body.team_ids) if i != team.id)]
@@ -117,8 +126,30 @@ def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventReq
         stored |= {"until": body.until.isoformat(), "weekdays": sorted(body.weekdays or [])}
     elif body.weekdays:
         raise HTTPException(422, "Indiquez la fin de la récurrence")
-    # Gymnase déjà entièrement occupé par d’autres événements : refus immédiat au demandeur.
-    if proposal.gymnasium_id and proposal.courts > 0:
+    return team, proposal, stored
+
+
+@router.post("/event-requests/conflicts", response_model=list[OccurrenceConflict])
+def proposal_conflicts(
+    body: CoachEventRequestInput, db: DB, actor: Actor
+) -> list[OccurrenceConflict]:
+    """Occurrences de la demande qui dépasseraient la capacité du gymnase, sans rien créer : le
+    demandeur en est averti et peut envoyer sa demande quand même."""
+    _, proposal, _ = proposal_of(db, actor, body)
+    if not proposal.gymnasium_id or proposal.courts <= 0:
+        return []
+    slots = occurrences(proposal.starts_at, proposal.ends_at, body.until, body.weekdays)
+    return capacity_conflicts(db, proposal.gymnasium_id, proposal.courts, slots)
+
+
+@router.post("/event-requests", response_model=CoachEventRequestView, status_code=201)
+def propose(body: CoachEventRequestInput, db: DB, actor: Actor) -> CoachEventRequest:
+    lock_planning(db)
+    team, proposal, stored = proposal_of(db, actor, body)
+    # Gymnase déjà entièrement occupé par d’autres événements : refus immédiat d’une demande
+    # simple. Une demande récurrente part malgré ses conflits : son auteur en a été averti
+    # (/event-requests/conflicts) et l’administrateur tranche à l’acceptation.
+    if proposal.gymnasium_id and proposal.courts > 0 and body.until is None:
         for start, end in occurrences(
             proposal.starts_at, proposal.ends_at, body.until, body.weekdays
         ):

@@ -19,6 +19,7 @@ from app.api.schemas import (
     EventProblem,
     EventProblemCode,
     EventView,
+    OccurrenceConflict,
 )
 from app.core.security import token
 from app.domain.capacity import capacity_segments
@@ -639,6 +640,31 @@ def occurrences(
     for day in series_days(start, until, weekdays):
         cursor = datetime.combine(day, time(), tzinfo=PARIS)
         result.append((wall_time(start, cursor), wall_time(end, cursor + timedelta(days=span))))
+    return result
+
+
+def capacity_conflicts(
+    db: Session, gym_id: str, courts: int, slots: list[tuple[datetime, datetime]]
+) -> list[OccurrenceConflict]:
+    """Créneaux où `courts` terrains de plus dépasseraient la capacité du gymnase, avec le
+    nombre de terrains manquants. Seuls les événements comptent : une indisponibilité annule
+    l’événement au lieu de le mettre en conflit."""
+    gym = get(db, Gymnasium, gym_id)
+    result: list[OccurrenceConflict] = []
+    for start, end in slots:
+        events = db.scalars(
+            select(Event).where(
+                Event.gymnasium_id == gym_id,
+                Event.cancelled.is_(False),
+                Event.starts_at < end,
+                Event.ends_at > start,
+            )
+        )
+        reservations = [(e.starts_at, e.ends_at, e.courts) for e in events]
+        segments = capacity_segments(gym.capacity, start, end, reservations)
+        missing = max((s.occupied + courts - gym.capacity for s in segments), default=0)
+        if missing > 0:
+            result.append(OccurrenceConflict(starts_at=start, ends_at=end, missing=missing))
     return result
 
 
