@@ -68,9 +68,11 @@ it('garde la création, la modification et la suppression des sections et des é
   // Modification d’une équipe, dont le changement de section.
   // Plus de bouton « Modifier » : un clic sur l’équipe ouvre sa fiche à la place de sa ligne.
   expect(within(section('Loisir')).queryByRole('button', { name: 'Modifier Loisir 2' })).not.toBeInTheDocument();
-  await userEvent.click(within(section('Loisir')).getByRole('button', { name: 'Ouvrir Loisir 2' }));
+  // Le nom de l’équipe ouvre sa fiche ; son titre garde le nom de l’équipe.
+  expect(within(section('Loisir')).getByRole('heading', { name: 'Loisir 2' })).toBeInTheDocument();
+  await userEvent.click(within(section('Loisir')).getByRole('button', { name: 'Loisir 2' }));
   const card = within(section('Loisir')).getByRole('region', { name: 'Équipe Loisir 2' });
-  expect(within(section('Loisir')).queryByRole('button', { name: 'Ouvrir Loisir 2' })).not.toBeInTheDocument();
+  expect(within(section('Loisir')).queryByRole('button', { name: 'Loisir 2' })).not.toBeInTheDocument();
   expect(within(card).getByLabelText('Nom')).toHaveValue('Loisir 2');
   await userEvent.selectOptions(within(card).getByLabelText('Section'), 's3');
   await userEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));

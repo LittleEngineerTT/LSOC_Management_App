@@ -223,12 +223,7 @@ export function LicensesPanel() {
             >
               <div className="admin-row-copy">
                 <h3>
-                  <button
-                    type="button"
-                    className="user-row-open"
-                    aria-label={`Ouvrir les licences de ${item.first_name}`}
-                    onClick={() => open(item)}
-                  >
+                  <button type="button" className="user-row-open" onClick={() => open(item)}>
                     {item.first_name}
                   </button>
                   {item.username && <span className="admin-hint"> · {item.username}</span>}

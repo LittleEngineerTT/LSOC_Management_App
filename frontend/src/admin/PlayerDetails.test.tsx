@@ -72,7 +72,7 @@ it('attribue un numéro et un poste à un joueur depuis l’onglet de son rattac
   open('users');
   const row = (await screen.findByText('Bob M.', { selector: 'button' })).closest('article') as HTMLElement;
   expect(await within(row).findByText('Régionale · Joueur · n° 7 · Passeur — Régionale · Coach')).toBeInTheDocument();
-  await userEvent.click(within(row).getByRole('button', { name: 'Ouvrir la fiche de Bob' }));
+  await userEvent.click(within(row).getByRole('button', { name: 'Bob M.' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Bob' });
   await userEvent.click(await within(card).findByRole('tab', { name: 'Joueur · Régionale' }));
   expect(within(card).getByLabelText('Numéro de maillot')).toHaveValue(7);
@@ -88,7 +88,7 @@ it('attribue un numéro et un poste à un joueur depuis l’onglet de son rattac
 
 it('ajoute des onglets joueur et un rattachement coach sans onglet, puis les enregistre', async () => {
   open('users');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir la fiche de Ana' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Ana' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Ana' });
   await within(card).findByRole('tab', { name: 'Informations' });
   // Coach : pas d’onglet, une ligne dans les informations, et le rôle coché d’office.
@@ -135,7 +135,7 @@ it('renseigne facultativement le sexe d’un compte', async () => {
   open('users');
   const row = (await screen.findByText('Bob M.', { selector: 'button' })).closest('article') as HTMLElement;
   expect(within(row).getByText(/Sénior · M · Adhérent/)).toBeInTheDocument();
-  await userEvent.click(within(row).getByRole('button', { name: 'Ouvrir la fiche de Bob' }));
+  await userEvent.click(within(row).getByRole('button', { name: 'Bob M.' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Bob' });
   expect(within(card).getByLabelText('Sexe')).toHaveValue('M');
   await userEvent.selectOptions(within(card).getByLabelText('Sexe'), '');
@@ -147,7 +147,7 @@ it('garde la gestion du compte hors de la fiche : elle s’ouvre par Gérer, à 
   open('users');
   const row = (await screen.findByText('Bob M.', { selector: 'button' })).closest('article') as HTMLElement;
   expect(within(row).getAllByRole('button').map((button) => button.textContent)).toEqual(['Bob M.', 'Gérer', 'Supprimer']);
-  await userEvent.click(within(row).getByRole('button', { name: 'Ouvrir la fiche de Bob' }));
+  await userEvent.click(within(row).getByRole('button', { name: 'Bob M.' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Bob' });
   expect(within(card).queryByText(/Identifiant de connexion|Lien d’invitation|Régénérer/)).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Compte de Bob' })).not.toBeInTheDocument();
@@ -158,18 +158,18 @@ it('garde la gestion du compte hors de la fiche : elle s’ouvre par Gérer, à 
 
 it('ouvre la fiche à la place de la ligne du compte, jusqu’à sa fermeture', async () => {
   open('users');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir la fiche de Bob' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Bob M.' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Bob' });
   // La ligne de Bob est remplacée par sa fiche, entre les autres comptes.
-  expect(screen.queryByRole('button', { name: 'Ouvrir la fiche de Bob' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Bob M.' })).not.toBeInTheDocument();
   const list = card.closest('.admin-list') as HTMLElement;
   expect(list).not.toBeNull();
-  expect(within(list).getByRole('button', { name: 'Ouvrir la fiche de Ana' })).toBeInTheDocument();
+  expect(within(list).getByRole('button', { name: 'Ana' })).toBeInTheDocument();
   // Bob n’est pas coach : pas de section « Coach des équipes ».
   expect(within(card).queryByRole('region', { name: 'Rattachements coach' })).not.toBeInTheDocument();
   await userEvent.click(within(card).getByRole('button', { name: 'Fermer' }));
   expect(screen.queryByRole('region', { name: 'Fiche de Bob' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Ouvrir la fiche de Bob' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Bob M.' })).toBeInTheDocument();
 });
 
 it('confirme le retrait du coaching d’une équipe avant de l’enregistrer', async () => {
@@ -185,7 +185,7 @@ it('confirme le retrait du coaching d’une équipe avant de l’enregistrer', a
     return reply([]);
   });
   open('users');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir la fiche de Kim' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Kim' }));
   const card = await screen.findByRole('region', { name: 'Fiche de Kim' });
   const coached = await within(card).findByRole('list', { name: 'Équipes coachées' });
   await userEvent.click(within(coached).getByRole('button', { name: 'Retirer Régionale' }));

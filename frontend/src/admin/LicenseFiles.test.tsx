@@ -68,7 +68,7 @@ it('affiche le PDF directement depuis le stockage S3', async () => {
 it('dépose un PDF brut et refuse un autre type de fichier', async () => {
   open('/app/administration?tab=licenses');
   // Le dépôt se fait dans la fiche des licences de Bob.
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Bob' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Bob' }));
   const bob = screen.getByRole('region', { name: 'Licences de Bob' });
   const input = within(bob).getByLabelText('PDF de la licence de Bob');
   await userEvent.upload(input, new File(['image'], 'photo.png', { type: 'image/png' }), { applyAccept: false });
@@ -127,7 +127,7 @@ it('filtre les utilisateurs par section et par équipe', async () => {
 it('ouvre en lecture seule la fiche des licences pour un coach, PDF consultable', async () => {
   account = coach;
   open('/app/administration?tab=licenses');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Alice' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Alice' }));
   const card = screen.getByRole('region', { name: 'Licences de Alice' });
   expect(within(card).getByLabelText('Numéro de licence')).toBeDisabled();
   expect(within(card).getByLabelText('Statut')).toBeDisabled();
@@ -140,7 +140,7 @@ it('ouvre en lecture seule la fiche des licences pour un coach, PDF consultable'
 it('dépose dans l’onglet coach un PDF et un numéro propres à la licence coach', async () => {
   licenses = licenses.map((item) => (item.user_id === 'b' ? { ...item, coach: true, coach_status: 'in_progress', coach_number: 'C-9' } : item));
   open('/app/administration?tab=licenses');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Bob' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Bob' }));
   const card = screen.getByRole('region', { name: 'Licences de Bob' });
   await userEvent.click(within(card).getByRole('tab', { name: 'Licence coach' }));
   expect(within(card).getByLabelText('Numéro de licence')).toHaveValue('C-9');

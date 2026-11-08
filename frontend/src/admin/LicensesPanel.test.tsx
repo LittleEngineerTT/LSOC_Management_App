@@ -56,7 +56,7 @@ it('liste les licences, filtre les manquantes et active une licence après paiem
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/licenses?section_id=s2&missing=true', expect.anything());
   await userEvent.selectOptions(screen.getByLabelText('Section'), '');
   // Un clic sur l’adhérent ouvre sa fiche à la place de sa ligne.
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Alice' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Alice' }));
   const card = screen.getByRole('region', { name: 'Licences de Alice' });
   expect(within(card).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Licence joueur']);
   await userEvent.selectOptions(within(card).getByLabelText('Statut'), 'active');
@@ -68,7 +68,7 @@ it('liste les licences, filtre les manquantes et active une licence après paiem
 
 it('propose directement le statut actif, même sans étape préalable', async () => {
   open('/app/administration?tab=licenses');
-  await userEvent.click(await screen.findByRole('button', { name: 'Ouvrir les licences de Carla' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Carla' }));
   const card = screen.getByRole('region', { name: 'Licences de Carla' });
   // Un onglet par licence : Carla est aussi coach.
   expect(within(card).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Licence joueur', 'Licence coach']);
@@ -96,7 +96,7 @@ it('gère la licence coach sans étape de paiement, avec son propre numéro', as
   const carla = (await screen.findByRole('heading', { name: /Carla/ })).closest('article')!;
   expect(within(carla).getByText('En cours')).toBeInTheDocument();
   // Le filtre Coachs ouvre la fiche sur l’onglet de la licence coach.
-  await userEvent.click(within(carla).getByRole('button', { name: 'Ouvrir les licences de Carla' }));
+  await userEvent.click(within(carla).getByRole('button', { name: 'Carla' }));
   const card = screen.getByRole('region', { name: 'Licences de Carla' });
   expect(within(card).getByRole('tab', { name: 'Licence coach' })).toHaveAttribute('aria-selected', 'true');
   const options = within(within(card).getByLabelText('Statut')).getAllByRole('option').map((option) => option.textContent);

@@ -437,7 +437,6 @@ export function SectionsTeamsPanel() {
                             <button
                               type="button"
                               className="user-row-open"
-                              aria-label={`Ouvrir ${team.name}`}
                               onClick={() => start({ kind: 'team', item: team })}
                             >
                               {team.name}

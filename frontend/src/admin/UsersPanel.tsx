@@ -261,7 +261,6 @@ export function UsersPanel() {
                     <button
                       type="button"
                       className="user-row-open"
-                      aria-label={`Ouvrir la fiche de ${user.first_name}`}
                       aria-expanded={selected?.id === user.id}
                       onClick={() => open(user)}
                     >
