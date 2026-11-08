@@ -1,34 +1,12 @@
 import { useState } from 'react';
-import { ErrorNotice } from '../auth/components';
 import { useSession } from '../auth/session';
-import { TeamOptions, teamOptions } from '../club/teamOrder';
-import { CoachPhotoPicker, photoError, usePreview } from './CoachPhoto';
+import { TeamOptions } from '../club/teamOrder';
 import { UserCredentials } from './UserCredentials';
+import { InvitationLink, UserCard, roleNames } from './UserCard';
 import { useAdmin, useResource } from './data';
 import type { Assignment, Invitation, Role, User } from './types';
-import {
-  Badge,
-  checked,
-  choices,
-  Confirm,
-  Empty,
-  EntityForm,
-  LoadState,
-  Notice,
-  num,
-  PanelHeading,
-  playerDetails,
-  str,
-  type FormField,
-} from './ui';
+import { Badge, Confirm, Empty, LoadState, Notice, PanelHeading, playerDetails } from './ui';
 
-const roleNames: Record<Role, string> = {
-  member: 'Adhérent',
-  coach: 'Coach',
-  admin: 'Administrateur',
-  president: 'Président(e)',
-  vice_president: 'Vice-président(e)',
-};
 // Titres du bureau accordés au sexe du compte, quand il est renseigné.
 const titles: Partial<Record<Role, Record<string, string>>> = {
   president: { M: 'Président', F: 'Présidente' },
@@ -37,43 +15,49 @@ const titles: Partial<Record<Role, Record<string, string>>> = {
 function roleName(role: Role, sex: string | null | undefined): string {
   return (sex && titles[role]?.[sex]) || roleNames[role];
 }
-const sexes = [
-  { value: 'M', label: 'M' },
-  { value: 'F', label: 'F' },
-];
-const categories = ['adult', 'M21', 'M18', 'M15', 'M13', 'M11', 'M9'].map((value) => ({
-  value,
-  label: value === 'adult' ? 'Sénior' : value,
-}));
+
+/** Utilisateurs : la liste filtrable, et la fiche d’un compte ouverte d’un clic, avec ses
+ * informations et ses rattachements en onglets. */
 export function UsersPanel() {
   const { api, catalog, reloadCatalog, admin, scope } = useAdmin();
-  const accountId = useSession().account?.id;
   const session = useSession();
-  const [editing, setEditing] = useState<User | 'new' | null>(null);
-  // Photo facultative choisie à la création d’un coach, déposée après la création du compte.
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoProblem, setPhotoProblem] = useState('');
-  const photoPreview = usePreview(photo);
+  const accountId = session.account?.id;
+  // Fiche ouverte : un compte (par son identifiant) ou une création ; `revision` la relit.
+  const [editing, setEditing] = useState<{ id: string | null; revision: number } | null>(null);
+  // Dernière version connue du compte ouvert, le temps que la liste se recharge.
+  const [known, setKnown] = useState<User | null>(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [section, setSection] = useState('');
   const [team, setTeam] = useState('');
-  // Tous les rattachements, pour filtrer par section ou équipe.
+  // Tous les rattachements, pour filtrer par section ou équipe et résumer chaque compte.
   const assignments = useResource<Assignment>('/assignments', true);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
+  // Gestion du compte (identifiants, invitation), ouverte par « Gérer » dans la liste.
+  const [managing, setManaging] = useState<string | null>(null);
+  const managed =
+    managing != null
+      ? (catalog.users.find((user) => user.id === managing) ??
+        (known?.id === managing ? known : null))
+      : null;
   const [confirmation, setConfirmation] = useState<{
     user: User;
     action: 'delete' | 'regenerate' | 'revoke';
   } | null>(null);
   const [notice, setNotice] = useState('');
   const selected =
-    typeof editing === 'object' && editing
-      ? (catalog.users.find((user) => user.id === editing.id) ?? editing)
+    editing?.id != null
+      ? (catalog.users.find((user) => user.id === editing.id) ??
+        (known?.id === editing.id ? known : null))
       : null;
+  const assignmentsOf = (id: string) =>
+    (assignments.data ?? []).filter((item) => item.user_id === id);
   const teamsOf = new Map<string, string[]>();
   for (const item of assignments.data ?? [])
     teamsOf.set(item.user_id, [...(teamsOf.get(item.user_id) ?? []), item.team_id]);
   const sectionOf = (id: string) => catalog.teams.find((item) => item.id === id)?.section_id;
+  const teamName = (id: string) =>
+    catalog.teams.find((item) => item.id === id)?.name ?? 'Équipe supprimée';
   // Un coach ne filtre que parmi ses équipes et leurs sections.
   const reachable = catalog.teams.filter((item) => !scope || scope.includes(item.id));
   const sectionChoices = catalog.sections.filter((item) =>
@@ -92,59 +76,108 @@ export function UsersPanel() {
           : !section || mine.some((id) => sectionOf(id) === section))
     );
   });
-  const fields: FormField[] = [
-    { name: 'first_name', label: 'Prénom', required: true, maxLength: 80 },
-    {
-      name: 'last_name',
-      label: 'Nom',
-      required: !selected,
-      maxLength: 80,
-      hint: selected
-        ? `Seule l’initiale est conservée (actuellement ${selected.last_initial || '—'}.) ; laissez vide pour la garder.`
-        : 'Seule l’initiale est conservée.',
-    },
-    { name: 'category', label: 'Catégorie', type: 'select', required: true, options: categories },
-    { name: 'sex', label: 'Sexe', type: 'select', options: sexes, hint: 'Facultatif.' },
-    {
-      name: 'roles',
-      label: 'Rôles',
-      type: 'choices',
-      options: Object.entries(roleNames).map(([value, label]) => ({ value, label })),
-      hint: 'Les rôles se cumulent. Les adhérents doivent être M18 ou plus. Retirer un rôle supprime les rattachements correspondants. Président(e) et vice-président(e) sont des titres, sans droit particulier, tenus chacun par une seule personne.',
-    },
-    {
-      name: 'messaging_allowed',
-      label: 'Autoriser l’écriture dans la messagerie',
-      type: 'checkbox',
-      hint: 'Le retrait de ce droit laisse l’utilisateur lire ses échanges existants.',
-    },
-  ];
+  function open(user: User | null) {
+    setEditing((previous) => ({ id: user?.id ?? null, revision: (previous?.revision ?? 0) + 1 }));
+    setKnown(user);
+    setNotice('');
+  }
+  function manage(user: User) {
+    setManaging(user.id);
+    if (invitation?.user.id !== user.id) setInvitation(null);
+    setNotice('');
+  }
+
+  // La fiche prend la place de la ligne du compte dans la liste, jusqu’à sa fermeture.
+  const inList = !!selected && filtered.some((user) => user.id === selected.id);
+  const card = editing && (editing.id === null || selected) && (
+    <UserCard
+      key={`${editing.id ?? 'nouveau'}:${editing.revision}`}
+      user={selected}
+      assignments={selected ? assignmentsOf(selected.id) : []}
+      editable={admin}
+      onClose={() => setEditing(null)}
+      onSaved={(id, message, created) => {
+        setNotice(message);
+        if (created) {
+          // Le lien d’invitation n’est lisible qu’à la création : la gestion du compte s’ouvre.
+          setInvitation({ ...created, user: { ...created.user, id } });
+          setKnown({ ...created.user, id });
+          setManaging(id);
+        } else if (selected) {
+          setKnown({ ...selected, id });
+          if (managing === selected.id) setManaging(id);
+        }
+        setEditing((previous) => ({ id, revision: (previous?.revision ?? 0) + 1 }));
+        reloadCatalog();
+        assignments.reload();
+      }}
+    />
+  );
   return (
     <>
       <PanelHeading
         title="Utilisateurs"
         description={
           admin
-            ? 'Préparez les comptes, invitez les membres et attribuez leurs rôles et équipes.'
+            ? 'Préparez les comptes, invitez les membres et attribuez leurs rôles et équipes. Cliquez sur un utilisateur pour ouvrir sa fiche.'
             : 'Membres des équipes dont vous êtes référent ou coach, en consultation seule.'
         }
       >
         {admin && (
-          <button
-            className="admin-button primary"
-            onClick={() => {
-              setEditing('new');
-              setInvitation(null);
-              setNotice('');
-              setPhoto(null);
-              setPhotoProblem('');
-            }}
-          >
+          <button className="admin-button primary" onClick={() => open(null)}>
             Ajouter un utilisateur
           </button>
         )}
       </PanelHeading>
       {notice && <Notice>{notice}</Notice>}
+      {/* Une création, ou un compte absent de la liste filtrée : la fiche s’ouvre en tête. */}
+      {editing && (editing.id === null || selected) && !inList && card}
+      {admin && managed && (
+        <section
+          className="admin-card user-card-account"
+          aria-label={`Compte de ${managed.first_name}`}
+        >
+          <header className="user-card-head">
+            <h3>Compte de {displayName(managed)}</h3>
+            <button
+              type="button"
+              className="admin-button"
+              onClick={() => {
+                setManaging(null);
+                setInvitation(null);
+              }}
+            >
+              Fermer
+            </button>
+          </header>
+          {!managed.active && (
+            <>
+              <p className="admin-hint">
+                Le lien est valable 7 jours. La personne choisit son identifiant unique et son mot
+                de passe. Son compte est ensuite actif. Un lien existant ne peut pas être récupéré.
+              </p>
+              <div className="admin-actions">
+                <button
+                  className="admin-button"
+                  onClick={() => setConfirmation({ user: managed, action: 'regenerate' })}
+                >
+                  Régénérer l’invitation
+                </button>
+                <button
+                  className="admin-button danger"
+                  onClick={() => setConfirmation({ user: managed, action: 'revoke' })}
+                >
+                  Révoquer l’invitation
+                </button>
+              </div>
+            </>
+          )}
+          {invitation?.user.id === managed.id && (
+            <InvitationLink key={invitation.invitation_url} invitation={invitation} />
+          )}
+          {managed.active && <UserCredentials key={managed.id} user={managed} />}
+        </section>
+      )}
       <div className="admin-toolbar">
         <label>
           Rechercher un utilisateur
@@ -205,197 +238,80 @@ export function UsersPanel() {
         </button>
       </div>
       {(section || team) && <LoadState result={assignments} />}
-      {admin && editing && (
-        <EntityForm
-          key={selected?.id ?? 'new'}
-          title={selected ? `Compte de ${selected.first_name}` : 'Nouvel utilisateur'}
-          fields={fields}
-          initial={
-            selected
-              ? {
-                  first_name: selected.first_name,
-                  last_name: '',
-                  category: selected.category,
-                  sex: selected.sex ?? '',
-                  roles: selected.roles,
-                  messaging_allowed: selected.messaging_allowed,
-                }
-              : {
-                  first_name: '',
-                  last_name: '',
-                  category: 'adult',
-                  sex: '',
-                  roles: ['member'],
-                  messaging_allowed: true,
-                }
-          }
-          submit={selected ? 'Enregistrer' : 'Créer et inviter'}
-          onCancel={() => {
-            setEditing(null);
-            setInvitation(null);
-          }}
-          onSave={async (values, signal) => {
-            const roles = choices(values, 'roles');
-            if (!roles.length) throw new Error('Sélectionnez au moins un rôle.');
-            if (
-              roles.includes('member') &&
-              !['adult', 'M21', 'M18'].includes(str(values, 'category'))
-            )
-              throw new Error('Les adhérents doivent appartenir à M18 ou plus.');
-            const body = {
-              first_name: str(values, 'first_name'),
-              ...(str(values, 'last_name') ? { last_name: str(values, 'last_name') } : {}),
-              category: str(values, 'category'),
-              sex: str(values, 'sex') || null,
-              roles,
-              messaging_allowed: checked(values, 'messaging_allowed'),
-            };
-            if (selected) {
-              const updated = await api.request<User>(`/users/${selected.id}`, 'PUT', body, signal);
-              setEditing(updated);
-              setNotice('Compte mis à jour.');
-              reloadCatalog();
-              if (selected.id === session.account?.id) session.retry();
-            } else {
-              const result = await api.request<Invitation>('/users', 'POST', body, signal);
-              setInvitation(result);
-              setEditing(result.user);
-              let message = 'Compte créé. Transmettez le lien d’invitation à cette personne.';
-              if (photo && roles.includes('coach')) {
-                try {
-                  await api.request(
-                    `/users/${encodeURIComponent(result.user.id)}/photo`,
-                    'PUT',
-                    photo,
-                    signal,
-                  );
-                } catch (error) {
-                  // Le compte existe : seule la photo reste à déposer, depuis le profil du coach.
-                  message += ` La photo n’a pas pu être déposée : ${
-                    error instanceof Error ? error.message : 'erreur inconnue'
-                  }`;
-                }
-              }
-              setPhoto(null);
-              setNotice(message);
-              reloadCatalog();
-            }
-          }}
-        >
-          {(values) =>
-            !selected &&
-            choices(values, 'roles').includes('coach') && (
-              <div className="admin-field coach-photo-field">
-                <span className="coach-photo-title">Photo de l’entraîneur</span>
-                <CoachPhotoPicker
-                  label={photo ? 'Changer la photo' : 'Choisir une photo'}
-                  preview={photoPreview}
-                  onPick={(file) => {
-                    const problem = photoError(file);
-                    setPhotoProblem(problem ?? '');
-                    if (!problem) setPhoto(file);
-                  }}
-                />
-                {photo && (
-                  <p className="admin-hint">
-                    Photo choisie : {photo.name}.{' '}
-                    <button type="button" className="admin-button" onClick={() => setPhoto(null)}>
-                      Retirer la photo
-                    </button>
-                  </p>
-                )}
-                <ErrorNotice message={photoProblem} />
-              </div>
-            )
-          }
-        </EntityForm>
-      )}
-      {admin && selected && (
-        <section className="admin-card" aria-label={`Gestion de ${selected.first_name}`}>
-          <h3>Invitation et rattachements</h3>
-          {!selected.active && (
-            <>
-              <p className="admin-hint">
-                Le lien est valable 7 jours. La personne choisit son identifiant unique et son mot
-                de passe. Son compte est ensuite actif. Un lien existant ne peut pas être récupéré.
-              </p>
-              <div className="admin-actions">
-                <button
-                  className="admin-button"
-                  onClick={() => setConfirmation({ user: selected, action: 'regenerate' })}
-                >
-                  Régénérer l’invitation
-                </button>
-                <button
-                  className="admin-button danger"
-                  onClick={() => setConfirmation({ user: selected, action: 'revoke' })}
-                >
-                  Révoquer l’invitation
-                </button>
-              </div>
-            </>
-          )}
-          {invitation?.user.id === selected.id && (
-            <InvitationLink key={invitation.invitation_url} invitation={invitation} />
-          )}
-          {selected.active && <UserCredentials key={selected.id} user={selected} />}
-          <Assignments
-            key={`${selected.id}:${selected.roles.join(',')}`}
-            user={selected}
-            onRenamed={(id) => {
-              // Sans licence, l’identifiant suit la section : le compte sélectionné le suit aussi.
-              setEditing({ ...selected, id });
-              reloadCatalog();
-              assignments.reload();
-            }}
-            onChanged={assignments.reload}
-          />
-        </section>
-      )}
       {!filtered.length ? (
         <Empty>Aucun utilisateur ne correspond à ces critères.</Empty>
       ) : (
         <div className="admin-list">
-          {filtered.map((user) => (
-            <article className="admin-row" key={user.id}>
-              <div className="admin-row-copy">
-                <h3>{displayName(user)}</h3>
-                <p className="admin-hint">ID : {user.id}</p>
-                {user.username && <p>Identifiant : {user.username}</p>}
-                <p>
-                  {user.category === 'adult' ? 'Sénior' : user.category}
-                  {user.sex && ` · ${user.sex}`} ·{' '}
-                  {user.roles.map((role) => roleName(role, user.sex)).join(', ')}
-                </p>
-                <Badge tone={user.active ? 'good' : 'warning'}>
-                  {user.active ? 'Actif' : 'À activer'}
-                </Badge>
-                {!user.messaging_allowed && <Badge>Écriture désactivée</Badge>}
+          {filtered.map((user) =>
+            inList && selected?.id === user.id ? (
+              <div key={user.id} className="user-row-card">
+                {card}
               </div>
-              {admin && (
-                <div className="admin-actions">
-                  <button
-                    className="admin-button"
-                    aria-label={`Gérer ${user.first_name}`}
-                    onClick={() => {
-                      setEditing(user);
-                      setInvitation(null);
-                      setNotice('');
-                    }}
-                  >
-                    Gérer
-                  </button>
-                  <button
-                    className="admin-button danger"
-                    aria-label={`Supprimer ${user.first_name}`}
-                    onClick={() => setConfirmation({ user, action: 'delete' })}
-                  >
-                    Supprimer
-                  </button>
+            ) : (
+              <article
+                className={`admin-row user-row${selected?.id === user.id ? ' selected' : ''}`}
+                key={user.id}
+                // Toute la ligne ouvre la fiche ; le bouton du nom le permet au clavier.
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest('button, a')) open(user);
+                }}
+              >
+                <div className="admin-row-copy">
+                  <h3>
+                    <button
+                      type="button"
+                      className="user-row-open"
+                      aria-label={`Ouvrir la fiche de ${user.first_name}`}
+                      aria-expanded={selected?.id === user.id}
+                      onClick={() => open(user)}
+                    >
+                      {displayName(user)}
+                    </button>
+                  </h3>
+                  <p className="admin-hint">ID : {user.id}</p>
+                  {user.username && <p>Identifiant : {user.username}</p>}
+                  <p>
+                    {user.category === 'adult' ? 'Sénior' : user.category}
+                    {user.sex && ` · ${user.sex}`} ·{' '}
+                    {user.roles.map((role) => roleName(role, user.sex)).join(', ')}
+                  </p>
+                  {assignmentsOf(user.id).length > 0 && (
+                    <p className="user-row-teams">
+                      {assignmentsOf(user.id)
+                        .map((item) => {
+                          const details = playerDetails(item, catalog.positions);
+                          return `${teamName(item.team_id)} · ${item.kind === 'coach' ? 'Coach' : 'Joueur'}${details ? ` · ${details}` : ''}`;
+                        })
+                        .join(' — ')}
+                    </p>
+                  )}
+                  <Badge tone={user.active ? 'good' : 'warning'}>
+                    {user.active ? 'Actif' : 'À activer'}
+                  </Badge>
+                  {!user.messaging_allowed && <Badge>Écriture désactivée</Badge>}
                 </div>
-              )}
-            </article>
-          ))}
+                {admin && (
+                  <div className="admin-actions">
+                    <button
+                      className="admin-button"
+                      aria-label={`Gérer ${user.first_name}`}
+                      aria-expanded={managed?.id === user.id}
+                      onClick={() => manage(user)}
+                    >
+                      Gérer
+                    </button>
+                    <button
+                      className="admin-button danger"
+                      aria-label={`Supprimer ${user.first_name}`}
+                      onClick={() => setConfirmation({ user, action: 'delete' })}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )}
+              </article>
+            ),
+          )}
         </div>
       )}
       {confirmation && (
@@ -413,8 +329,9 @@ export function UsersPanel() {
             const { user, action } = confirmation;
             if (action === 'delete') {
               await api.request(`/users/${user.id}`, 'DELETE', undefined, signal);
-              if (selected?.id === user.id) {
-                setEditing(null);
+              if (selected?.id === user.id) setEditing(null);
+              if (managed?.id === user.id) {
+                setManaging(null);
                 setInvitation(null);
               }
               setNotice('Compte supprimé et données personnelles purgées.');
@@ -454,192 +371,7 @@ export function UsersPanel() {
     </>
   );
 }
-function InvitationLink({ invitation }: { invitation: Invitation }) {
-  const [copy, setCopy] = useState('');
-  return (
-    <div className="invitation-box">
-      <label htmlFor="invitation-link">Lien d’invitation</label>
-      <input
-        id="invitation-link"
-        readOnly
-        value={invitation.invitation_url}
-        onFocus={(event) => event.target.select()}
-      />
-      <button
-        className="admin-button"
-        onClick={() => {
-          void navigator.clipboard
-            ?.writeText(invitation.invitation_url)
-            .then(() => setCopy('Lien copié.'))
-            .catch(() => setCopy('Sélectionnez le lien et copiez-le manuellement.'));
-          if (!navigator.clipboard) setCopy('Sélectionnez le lien et copiez-le manuellement.');
-        }}
-      >
-        Copier le lien
-      </button>
-      {copy && <p role="status">{copy}</p>}
-    </div>
-  );
-}
+
 export function displayName(user: Pick<User, 'first_name' | 'last_initial'>) {
   return user.last_initial ? `${user.first_name} ${user.last_initial}.` : user.first_name;
-}
-function Assignments({
-  user,
-  onRenamed,
-  onChanged,
-}: {
-  user: User;
-  onRenamed: (id: string) => void;
-  /** Un rattachement ajouté ou retiré : la liste filtrée se met à jour. */
-  onChanged: () => void;
-}) {
-  const { api, catalog } = useAdmin();
-  const accountId = useSession().account?.id;
-  const resource = useResource<Assignment>(`/users/${user.id}/assignments`);
-  const [removing, setRemoving] = useState<Assignment | null>(null);
-  const [editing, setEditing] = useState<Assignment | null>(null);
-  const [revision, setRevision] = useState(0);
-  const kinds = [
-    { value: 'player', label: 'Joueur' },
-    { value: 'coach', label: 'Coach' },
-  ].filter((kind) => user.roles.includes(kind.value === 'coach' ? 'coach' : 'member'));
-  return (
-    <div className="admin-assignments">
-      <h4>Équipes rattachées</h4>
-      <LoadState result={resource} />
-      {resource.loaded && !resource.data?.length && <Empty>Aucun rattachement.</Empty>}
-      {resource.data?.map((assignment) => {
-        const team =
-          catalog.teams.find((item) => item.id === assignment.team_id)?.name ?? 'Équipe supprimée';
-        const details = playerDetails(assignment, catalog.positions);
-        return (
-          <div className="admin-inline-row" key={assignment.id}>
-            <span>
-              {team} · {assignment.kind === 'coach' ? 'Coach' : 'Joueur'}
-              {details && ` · ${details}`}
-            </span>
-            <div className="admin-actions">
-              {assignment.kind === 'player' && (
-                <button
-                  className="admin-button"
-                  aria-label={`Numéro et poste dans ${team}`}
-                  onClick={() => setEditing(assignment)}
-                >
-                  Numéro et poste
-                </button>
-              )}
-              <button className="admin-button danger" onClick={() => setRemoving(assignment)}>
-                Retirer
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      {editing && (
-        <EntityForm
-          key={editing.id}
-          title="Numéro et poste"
-          fields={[
-            { name: 'number', label: 'Numéro de maillot', type: 'number', min: 1, max: 99 },
-            {
-              name: 'position_id',
-              label: 'Poste',
-              type: 'select',
-              options: catalog.positions.map((position) => ({
-                value: position.id,
-                label: position.name,
-              })),
-              hint: catalog.positions.length
-                ? undefined
-                : 'Définissez les postes dans l’onglet Postes.',
-            },
-          ]}
-          initial={{
-            number: editing.number != null ? String(editing.number) : '',
-            position_id: editing.position_id ?? '',
-          }}
-          submit="Enregistrer"
-          onCancel={() => setEditing(null)}
-          onSave={async (values, signal) => {
-            await api.request<Assignment>(
-              `/users/${user.id}/assignments/${editing.id}`,
-              'PUT',
-              {
-                number: str(values, 'number') ? num(values, 'number') : null,
-                position_id: str(values, 'position_id') || null,
-              },
-              signal,
-            );
-            setEditing(null);
-            resource.reload();
-            onChanged();
-          }}
-        />
-      )}
-      {catalog.teams.length && kinds.length ? (
-        <EntityForm
-          key={revision}
-          title="Ajouter un rattachement"
-          fields={[
-            {
-              name: 'team_id',
-              label: 'Équipe',
-              type: 'select',
-              required: true,
-              options: teamOptions(catalog.teams, accountId),
-            },
-            {
-              name: 'kind',
-              label: 'Type de rattachement',
-              type: 'select',
-              required: true,
-              options: kinds,
-            },
-          ]}
-          initial={{ team_id: '', kind: kinds[0]?.value ?? '' }}
-          submit="Rattacher"
-          onSave={async (values, signal) => {
-            const created = await api.request<Assignment>(
-              `/users/${user.id}/assignments`,
-              'POST',
-              { team_id: str(values, 'team_id'), kind: str(values, 'kind') },
-              signal,
-            );
-            if (created?.user_id && created.user_id !== user.id) onRenamed(created.user_id);
-            else {
-              resource.reload();
-              onChanged();
-            }
-            setRevision((value) => value + 1);
-          }}
-        />
-      ) : (
-        <p className="admin-hint">
-          Créez une équipe et attribuez le rôle adhérent ou coach pour ajouter un rattachement.
-        </p>
-      )}
-      {removing && (
-        <Confirm
-          title="Retirer ce rattachement ?"
-          onClose={() => setRemoving(null)}
-          onConfirm={async (signal) => {
-            const updated = await api.request<User>(
-              `/users/${user.id}/assignments/${removing.id}`,
-              'DELETE',
-              undefined,
-              signal,
-            );
-            if (updated?.id && updated.id !== user.id) onRenamed(updated.id);
-            else {
-              resource.reload();
-              onChanged();
-            }
-          }}
-        >
-          <p>L’utilisateur ne sera plus rattaché à cette équipe pour ce rôle.</p>
-        </Confirm>
-      )}
-    </div>
-  );
 }

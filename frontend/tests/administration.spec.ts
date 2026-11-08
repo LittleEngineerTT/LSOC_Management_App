@@ -84,10 +84,17 @@ test('utilisateur, invitation, rôles et rattachement', async ({ page }) => {
   await page.getByRole('checkbox', { name: 'Coach', exact: true }).check();
   await page.getByRole('button', { name: 'Créer et inviter' }).click();
   await expect(page.getByLabel('Lien d’invitation')).toHaveValue(/private-link-token/);
-  await page.getByLabel('Équipe', { exact: true }).selectOption('team-1');
-  await page.getByLabel('Type de rattachement').selectOption('coach');
-  await page.getByRole('button', { name: 'Rattacher', exact: true }).click();
-  await expect(page.getByText('Compétition A · Coach', { exact: true })).toBeVisible();
+  // La fiche reste ouverte : un rattachement coach s’ajoute sans onglet, dans les informations.
+  const card = page.getByRole('region', { name: 'Fiche de Mina' });
+  await card.getByRole('button', { name: 'Ajouter un rattachement' }).click();
+  await card.getByRole('button', { name: 'Coach', exact: true }).click();
+  await expect(card.getByRole('tab')).toHaveCount(1);
+  await card.getByLabel('Équipe à coacher').selectOption('team-1');
+  await expect(card.getByRole('list', { name: 'Équipes coachées' })).toContainText('Compétition A');
+  await card.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Compte mis à jour.' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Fiche de Mina' }).getByRole('list', { name: 'Équipes coachées' })).toContainText('Compétition A');
+  expect(mutations.find((request) => request.path.endsWith('/assignments'))?.body).toEqual({ team_id: 'team-1', kind: 'coach' });
   await page.getByRole('button', { name: 'Régénérer l’invitation' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Confirmer', exact: true }).click();
   await expect(page.getByLabel('Lien d’invitation')).toHaveValue(/new-secret/);
