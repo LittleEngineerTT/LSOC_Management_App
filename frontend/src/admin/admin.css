@@ -1224,3 +1224,11 @@
 .user-card-panel > .license-file {
   margin: 4px 0 18px;
 }
+/* Fiche d’une équipe, ouverte dans sa section à la place de sa ligne. */
+.team-card .user-card-head h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.team-card .admin-form {
+  margin: 0 0 14px;
+}

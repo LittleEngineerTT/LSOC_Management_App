@@ -66,10 +66,14 @@ it('garde la création, la modification et la suppression des sections et des é
   await userEvent.click(screen.getByRole('button', { name: 'Créer' }));
   expect(await screen.findByText('Création enregistrée.')).toBeInTheDocument();
   // Modification d’une équipe, dont le changement de section.
-  await userEvent.click(within(section('Loisir')).getByRole('button', { name: 'Modifier Loisir 2' }));
-  expect(screen.getByLabelText('Nom')).toHaveValue('Loisir 2');
-  await userEvent.selectOptions(screen.getByLabelText('Section'), 's3');
-  await userEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  // Plus de bouton « Modifier » : un clic sur l’équipe ouvre sa fiche à la place de sa ligne.
+  expect(within(section('Loisir')).queryByRole('button', { name: 'Modifier Loisir 2' })).not.toBeInTheDocument();
+  await userEvent.click(within(section('Loisir')).getByRole('button', { name: 'Ouvrir Loisir 2' }));
+  const card = within(section('Loisir')).getByRole('region', { name: 'Équipe Loisir 2' });
+  expect(within(section('Loisir')).queryByRole('button', { name: 'Ouvrir Loisir 2' })).not.toBeInTheDocument();
+  expect(within(card).getByLabelText('Nom')).toHaveValue('Loisir 2');
+  await userEvent.selectOptions(within(card).getByLabelText('Section'), 's3');
+  await userEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));
   expect(await screen.findByText('Modification enregistrée.')).toBeInTheDocument();
   // Section : création, renommage et suppression confirmée.
   await userEvent.click(screen.getByRole('button', { name: 'Ajouter une section' }));

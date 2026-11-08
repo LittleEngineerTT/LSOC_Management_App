@@ -215,6 +215,26 @@ export function SectionsTeamsPanel() {
     const user = catalog.users.find((item) => item.id === id);
     return user ? displayName(user) : id;
   };
+  const rosterOf = (team: Team) =>
+    roster(team).length > 0 && (
+      <div className="admin-roster" aria-label={`Joueurs de ${team.name}`}>
+        {roster(team).map((group) => (
+          <div key={group.id}>
+            <h5>{group.name}</h5>
+            <ul aria-label={`${group.name} de ${team.name}`}>
+              {group.players.map((player) => (
+                <li key={player.id}>
+                  {playerName(player.user_id)}
+                  {player.number != null && (
+                    <span className="admin-hint"> · n° {player.number}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
   const [notice, setNotice] = useState('');
   const start = (value: Editing) => {
     setEditing(value);
@@ -251,6 +271,53 @@ export function SectionsTeamsPanel() {
       Number(!catalog.teams.some((team) => team.section_id === b.id)),
   );
   const path = (kind: 'section' | 'team') => (kind === 'section' ? '/sections' : '/teams');
+  // Formulaire d’une section ou d’une équipe : en haut de la liste pour une création ou une
+  // section, dans la fiche de l’équipe pour une équipe existante.
+  const formFor = (target: NonNullable<Editing>) => (
+    <EntityForm
+      key={`${target.kind}:${target.item?.id ?? 'new'}:${target.kind === 'team' ? (target.section ?? '') : ''}`}
+      title={
+        target.item
+          ? target.kind === 'team'
+            ? 'Informations de l’équipe'
+            : `Modifier ${target.item.name}`
+          : target.kind === 'section'
+            ? 'Ajouter une section'
+            : 'Ajouter une équipe'
+      }
+      fields={target.kind === 'section' ? [name] : teamFields}
+      initial={
+        target.kind === 'section'
+          ? { name: target.item?.name ?? '' }
+          : {
+              name: target.item?.name ?? '',
+              section_id: target.item?.section_id ?? target.section ?? '',
+              referent_ids: target.item?.referent_ids ?? [],
+            }
+      }
+      submit={target.item ? 'Enregistrer' : 'Créer'}
+      onCancel={() => setEditing(null)}
+      onSave={async (values, signal) => {
+        const body =
+          target.kind === 'section'
+            ? { name: str(values, 'name') }
+            : {
+                name: str(values, 'name'),
+                section_id: str(values, 'section_id'),
+                referent_ids: choices(values, 'referent_ids'),
+              };
+        await api.request(
+          target.item ? `${path(target.kind)}/${target.item.id}` : path(target.kind),
+          target.item ? 'PUT' : 'POST',
+          body,
+          signal,
+        );
+        setEditing(null);
+        setNotice(target.item ? 'Modification enregistrée.' : 'Création enregistrée.');
+        reloadCatalog();
+      }}
+    />
+  );
   return (
     <>
       <PanelHeading
@@ -278,49 +345,8 @@ export function SectionsTeamsPanel() {
         )}
       </PanelHeading>
       {notice && <Notice>{notice}</Notice>}
-      {editing && (
-        <EntityForm
-          key={`${editing.kind}:${editing.item?.id ?? 'new'}:${editing.kind === 'team' ? (editing.section ?? '') : ''}`}
-          title={
-            editing.item
-              ? `Modifier ${editing.item.name}`
-              : editing.kind === 'section'
-                ? 'Ajouter une section'
-                : 'Ajouter une équipe'
-          }
-          fields={editing.kind === 'section' ? [name] : teamFields}
-          initial={
-            editing.kind === 'section'
-              ? { name: editing.item?.name ?? '' }
-              : {
-                  name: editing.item?.name ?? '',
-                  section_id: editing.item?.section_id ?? editing.section ?? '',
-                  referent_ids: editing.item?.referent_ids ?? [],
-                }
-          }
-          submit={editing.item ? 'Enregistrer' : 'Créer'}
-          onCancel={() => setEditing(null)}
-          onSave={async (values, signal) => {
-            const body =
-              editing.kind === 'section'
-                ? { name: str(values, 'name') }
-                : {
-                    name: str(values, 'name'),
-                    section_id: str(values, 'section_id'),
-                    referent_ids: choices(values, 'referent_ids'),
-                  };
-            await api.request(
-              editing.item ? `${path(editing.kind)}/${editing.item.id}` : path(editing.kind),
-              editing.item ? 'PUT' : 'POST',
-              body,
-              signal,
-            );
-            setEditing(null);
-            setNotice(editing.item ? 'Modification enregistrée.' : 'Création enregistrée.');
-            reloadCatalog();
-          }}
-        />
-      )}
+      {/* Une équipe existante s’édite dans sa fiche, à la place de sa ligne. */}
+      {editing && !(editing.kind === 'team' && editing.item) && formFor(editing)}
       {!catalog.sections.length ? (
         <Empty>
           {admin
@@ -374,54 +400,72 @@ export function SectionsTeamsPanel() {
                   <span className="admin-hint">{teams.length} équipe(s)</span>
                 </summary>
                 {actions}
-                {teams.map((team) => (
-                  <article className="admin-row" key={team.id}>
-                    <div className="admin-row-copy">
-                      <h4>{team.name}</h4>
-                      <p>Référents : {referentNames(team)}</p>
-                      {roster(team).length > 0 && (
-                        <div className="admin-roster" aria-label={`Joueurs de ${team.name}`}>
-                          {roster(team).map((group) => (
-                            <div key={group.id}>
-                              <h5>{group.name}</h5>
-                              <ul aria-label={`${group.name} de ${team.name}`}>
-                                {group.players.map((player) => (
-                                  <li key={player.id}>
-                                    {playerName(player.user_id)}
-                                    {player.number != null && (
-                                      <span className="admin-hint"> · n° {player.number}</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
+                {teams.map((team) =>
+                  editing?.kind === 'team' && editing.item?.id === team.id ? (
+                    <div key={team.id} className="user-row-card">
+                      <section
+                        className="admin-card user-card team-card"
+                        aria-label={`Équipe ${team.name}`}
+                      >
+                        <header className="user-card-head">
+                          <h4>{team.name}</h4>
+                          <button
+                            type="button"
+                            className="admin-button"
+                            onClick={() => setEditing(null)}
+                          >
+                            Fermer
+                          </button>
+                        </header>
+                        {formFor(editing)}
+                        {rosterOf(team)}
+                      </section>
+                    </div>
+                  ) : (
+                    <article
+                      className={`admin-row${admin ? ' user-row' : ''}`}
+                      key={team.id}
+                      // Un clic sur l’équipe l’ouvre en modification (administrateurs).
+                      onClick={(event) => {
+                        if (admin && !(event.target as HTMLElement).closest('button, a, label'))
+                          start({ kind: 'team', item: team });
+                      }}
+                    >
+                      <div className="admin-row-copy">
+                        <h4>
+                          {admin ? (
+                            <button
+                              type="button"
+                              className="user-row-open"
+                              aria-label={`Ouvrir ${team.name}`}
+                              onClick={() => start({ kind: 'team', item: team })}
+                            >
+                              {team.name}
+                            </button>
+                          ) : (
+                            team.name
+                          )}
+                        </h4>
+                        <p>Référents : {referentNames(team)}</p>
+                        {rosterOf(team)}
+                        {admin && team.ffvb_source_warning_ignored && (
+                          <TeamSourceWarningPreference team={team} ignored />
+                        )}
+                      </div>
+                      {admin && (
+                        <div className="admin-actions">
+                          <button
+                            className="admin-button danger"
+                            aria-label={`Supprimer ${team.name}`}
+                            onClick={() => setRemoving({ kind: 'team', item: team })}
+                          >
+                            Supprimer
+                          </button>
                         </div>
                       )}
-                      {admin && team.ffvb_source_warning_ignored && (
-                        <TeamSourceWarningPreference team={team} ignored />
-                      )}
-                    </div>
-                    {admin && (
-                      <div className="admin-actions">
-                        <button
-                          className="admin-button"
-                          aria-label={`Modifier ${team.name}`}
-                          onClick={() => start({ kind: 'team', item: team })}
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          className="admin-button danger"
-                          aria-label={`Supprimer ${team.name}`}
-                          onClick={() => setRemoving({ kind: 'team', item: team })}
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    )}
-                  </article>
-                ))}
+                    </article>
+                  ),
+                )}
               </details>
             );
           })}
