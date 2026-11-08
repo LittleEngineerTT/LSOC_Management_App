@@ -14,6 +14,7 @@ import { concernsTeam } from './events';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
 import { MyRequests } from './MyRequests';
 import { TeamOptions } from './teamOrder';
+import type { SlotPreset } from './schedule';
 
 /** Navigation par semaine, partagée par le planning et les gymnases. */
 export function WeekNavigation({ monday }: { monday: string }) {
@@ -70,8 +71,28 @@ export function PlanningPage() {
   // « Mon planning » : séances de mes équipes ou ouvertes à leur inscription, favoris,
   // ceux dont je suis référent ou que j’encadre comme coach, et ceux où je suis inscrit.
   const mine = search.get('mon') === '1';
-  const [creating, setCreating] = useState(false);
-  const [proposing, setProposing] = useState(false);
+  // Créneau choisi dans la recherche de créneau : la création s’ouvre, préremplie.
+  const slotStart = search.get('creneau_debut');
+  const preset: SlotPreset | undefined = slotStart
+    ? {
+        starts_at: slotStart,
+        ends_at: search.get('creneau_fin') ?? slotStart,
+        gymnasium_id: search.get('creneau_gymnase') ?? '',
+        courts: Number(search.get('creneau_terrains') ?? 1) || 1,
+      }
+    : undefined;
+  const [creating, setCreating] = useState(admin && !!preset);
+  const [proposing, setProposing] = useState(coach && !!preset);
+  // Le créneau ne sert qu’une fois : il quitte l’adresse à la fermeture du formulaire.
+  function closeSlot() {
+    if (!slotStart) return;
+    setSearch((previous) => {
+      const next = new URLSearchParams(previous);
+      for (const name of ['creneau_debut', 'creneau_fin', 'creneau_gymnase', 'creneau_terrains'])
+        next.delete(name);
+      return next;
+    });
+  }
   const [requestRevision, setRequestRevision] = useState(0);
   const [notice, setNotice] = useState('');
   const loader = useCallback(
@@ -163,9 +184,14 @@ export function PlanningPage() {
       {proposing && coached.length > 0 && (
         <EventProposalForm
           defaultDay={selected}
-          onCancel={() => setProposing(false)}
+          preset={preset}
+          onCancel={() => {
+            setProposing(false);
+            closeSlot();
+          }}
           onDone={() => {
             setProposing(false);
+            closeSlot();
             setNotice('Demande envoyée aux administrateurs pour validation.');
             setRequestRevision((value) => value + 1);
           }}
@@ -174,9 +200,14 @@ export function PlanningPage() {
       {creating && (
         <EventEditor
           defaultDay={selected}
-          onCancel={() => setCreating(false)}
+          preset={preset}
+          onCancel={() => {
+            setCreating(false);
+            closeSlot();
+          }}
           onDone={(message, created) => {
             setCreating(false);
+            closeSlot();
             setNotice(message);
             result.reload();
             if (created) filter('event', created.id);

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal
 
 from pydantic import (
@@ -622,6 +622,48 @@ class OccurrenceConflict(View):
     starts_at: datetime
     ends_at: datetime
     missing: int
+
+
+class SlotSearchInput(Input):
+    """Recherche de créneau : période (par défaut d’aujourd’hui au 31 juillet), jours de la
+    semaine (0 = lundi ; vide : tous), heure de début précise (`end` absent) ou plage horaire,
+    durée, gymnases (vide : tous) et terrains."""
+
+    from_date: date | None = None
+    to_date: date | None = None
+    weekdays: list[int] = Field(default_factory=list, max_length=7)
+    start: time
+    end: time | None = None
+    duration_minutes: int = Field(ge=15, le=720)
+    gymnasium_ids: list[str] = Field(default_factory=list, max_length=50)
+    courts: int = Field(ge=1, le=100)
+
+    @model_validator(mode="after")
+    def window(self) -> "SlotSearchInput":
+        if any(day < 0 or day > 6 for day in self.weekdays):
+            raise ValueError("Jour de la semaine invalide")
+        if self.from_date and self.to_date:
+            if self.to_date < self.from_date:
+                raise ValueError("La date de fin précède la date de début")
+            if (self.to_date - self.from_date).days > 366:
+                raise ValueError("La période de recherche ne dépasse pas un an")
+        if self.end is not None:
+            span = (self.end.hour * 60 + self.end.minute) - (
+                self.start.hour * 60 + self.start.minute
+            )
+            if span < self.duration_minutes:
+                raise ValueError("La plage horaire est plus courte que la durée demandée")
+        return self
+
+
+class SlotView(View):
+    """Jour et gymnase où l’événement tient sans conflit : premières et dernières heures de début
+    possibles (les mêmes pour une heure précise)."""
+
+    day: date
+    gymnasium_id: str
+    first_start: datetime
+    last_start: datetime
 
 
 class CapacityView(View):

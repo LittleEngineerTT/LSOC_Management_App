@@ -15,6 +15,7 @@ import { GymnasiumsPage } from '../club/GymnasiumsPage';
 import { PlanningPage } from '../club/PlanningPage';
 import { HomePage } from '../club/HomePage';
 import { PlanningApp } from '../club/PlanningApp';
+import { SlotFinder } from '../club/SlotFinder';
 import { MessagingPage } from '../club/MessagingPage';
 import { MyTeamsPage } from '../club/MyTeamsPage';
 import { OurClubPage } from '../club/OurClubPage';
@@ -362,7 +363,9 @@ function ClubPage({ section }: { section: string }) {
   return (
     <>
       {section === 'Accueil' && <HomePage />}
-      {section === 'Planning' && <PlanningApp club={<PlanningPage />} gyms={<GymnasiumsPage />} />}
+      {section === 'Planning' && (
+        <PlanningApp club={<PlanningPage />} gyms={<GymnasiumsPage />} finder={<SlotFinder />} />
+      )}
       {section === 'Messagerie' && <MessagingPage />}
       {section === 'Mes équipes' && <MyTeamsPage />}
       {section === 'Notre club' && <OurClubPage />}

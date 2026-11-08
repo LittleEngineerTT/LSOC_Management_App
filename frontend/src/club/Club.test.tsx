@@ -1005,3 +1005,53 @@ it('présente un match FFVB sans heure sur sa journée, heure à compléter', as
   const dialog = await screen.findByRole('dialog', { name: 'LSO / Rueil' });
   expect(within(dialog).getByText('Journée · heure à compléter')).toBeInTheDocument();
 });
+
+it('cherche un créneau, garde la recherche dans l’historique et ouvre la création préremplie', async () => {
+  account = admin;
+  const later = addDays(day, 7);
+  const slots = [{ day: later, gymnasium_id: 'g1', first_start: new Date(`${later}T19:00:00+01:00`).toISOString(), last_start: new Date(`${later}T19:00:00+01:00`).toISOString() }];
+  mutation = (path) => (path === '/slot-search' ? reply(slots) : reply({}, 201));
+  open('/app/planning');
+  // Onglet loupe, à droite du planning des gymnases.
+  const tabs = await screen.findByRole('navigation', { name: 'Planning' });
+  expect(within(tabs).getAllByRole('link').map((link) => link.getAttribute('aria-label') ?? link.textContent)).toEqual(['Planning du club', 'Planning des gymnases', 'Recherche de créneau']);
+  await userEvent.click(within(tabs).getByRole('link', { name: 'Recherche de créneau' }));
+  const form = await screen.findByRole('form', { name: 'Recherche de créneau' });
+  // Heure en 24 h et minutes au quart d’heure, sans AM/PM.
+  const hour = within(form).getByLabelText('Heure de début');
+  expect(hour.tagName).toBe('SELECT');
+  expect(hour).toHaveValue('19');
+  expect(within(hour).getAllByRole('option').map((option) => option.textContent)).toContain('23');
+  expect(within(form).getByLabelText('Minutes de Heure de début')).toHaveValue('00');
+  await userEvent.click(within(form).getByLabelText('Mardi'));
+  await userEvent.clear(within(form).getByLabelText('Terrains nécessaires'));
+  await userEvent.type(within(form).getByLabelText('Terrains nécessaires'), '2');
+  await userEvent.click(within(form).getByRole('button', { name: 'Rechercher' }));
+  const results = await screen.findByRole('region', { name: 'Créneaux trouvés' });
+  expect(within(results).getByText(/Gymnase Ambroise Paré · à partir de 19:00/)).toBeInTheDocument();
+  expect(mutations[0]).toEqual({ path: '/slot-search', method: 'POST', body: { from_date: null, to_date: null, weekdays: [1], start: '19:00', end: null, duration_minutes: 120, gymnasium_ids: [], courts: 2 } });
+  // L’historique propose de relancer la recherche.
+  const history = screen.getByRole('region', { name: 'Dernières recherches' });
+  expect(history).toHaveTextContent('Mar à 19:00 · 2 h · 2 terrains · tous les gymnases');
+  await userEvent.click(within(history).getByRole('button', { name: 'Relancer' }));
+  await waitFor(() => expect(mutations.filter((item) => item.path === '/slot-search')).toHaveLength(2));
+  // Choisir le créneau ouvre la création de l’événement, préremplie.
+  await userEvent.click(within(await screen.findByRole('region', { name: 'Créneaux trouvés' })).getByRole('link', { name: 'Créer l’événement' }));
+  expect(await screen.findByLabelText('Gymnase du club')).toHaveValue('g1');
+  expect(screen.getByLabelText('Terrains occupés')).toHaveValue(2);
+});
+
+it('cherche un créneau sur une période choisie', async () => {
+  account = admin;
+  mutation = (path) => (path === '/slot-search' ? reply([]) : reply({}, 201));
+  open('/app/planning?onglet=recherche');
+  const form = await screen.findByRole('form', { name: 'Recherche de créneau' });
+  await userEvent.type(within(form).getByLabelText('Du'), '01/12/2099');
+  await userEvent.tab();
+  await userEvent.type(within(form).getByLabelText('Au'), '15/12/2099');
+  await userEvent.tab();
+  await userEvent.click(within(form).getByRole('button', { name: 'Rechercher' }));
+  expect(await screen.findByText('Aucun jour ne convient sur cette période.')).toBeInTheDocument();
+  expect(mutations[0]?.body).toMatchObject({ from_date: '2099-12-01', to_date: '2099-12-15' });
+  expect(screen.getByRole('region', { name: 'Dernières recherches' })).toHaveTextContent('du 01/12 au 15/12');
+});

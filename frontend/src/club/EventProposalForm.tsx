@@ -5,7 +5,14 @@ import { choices, EntityForm, num, str, type FormField, type FormValues } from '
 import { sectionGroups, useClub } from './context';
 import { teamOptions } from './teamOrder';
 import { kindLabels } from './events';
-import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
+import {
+  openToRegistrations,
+  schedule,
+  scheduleFields,
+  scheduleInitial,
+  presetValues,
+  type SlotPreset,
+} from './schedule';
 
 /** Occurrence d’une série qui dépasserait la capacité du gymnase (`/event-requests/conflicts`). */
 interface OccurrenceConflict {
@@ -33,10 +40,13 @@ export function useCoachedTeams() {
 
 export function EventProposalForm({
   defaultDay,
+  preset,
   onDone,
   onCancel,
 }: {
   defaultDay: string;
+  /** Créneau choisi dans la recherche de créneau. */
+  preset?: SlotPreset;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -198,6 +208,7 @@ export function EventProposalForm({
         registration_team_ids: [],
         registration_limit: '',
         note: '',
+        ...presetValues(preset),
       }}
       submit="Envoyer la demande"
       onCancel={onCancel}

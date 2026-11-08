@@ -5,7 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, true
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -20,6 +20,8 @@ from app.api.schemas import (
     EventProblemCode,
     EventView,
     OccurrenceConflict,
+    SlotSearchInput,
+    SlotView,
 )
 from app.core.security import token
 from app.domain.capacity import capacity_segments
@@ -668,6 +670,98 @@ def capacity_conflicts(
         if missing > 0:
             result.append(OccurrenceConflict(starts_at=start, ends_at=end, missing=missing))
     return result
+
+
+# Pas des heures de début essayées dans une plage horaire.
+SLOT_STEP = timedelta(minutes=15)
+
+
+def season_end(day: date) -> date:
+    """Prochain 31 juillet : fin de la saison et de la recherche de créneau."""
+    return date(day.year if day <= date(day.year, 7, 31) else day.year + 1, 7, 31)
+
+
+def search_slots(db: Session, query: SlotSearchInput, current: datetime) -> list[SlotView]:
+    """Jours de la période (par défaut d’aujourd’hui au 31 juillet) où un événement de la durée
+    et du nombre de terrains demandés tient dans un gymnase sans conflit : événements non
+    annulés et indisponibilités comptent. Dans une plage horaire, les débuts sont essayés tous
+    les quarts d’heure."""
+    today = current.astimezone(PARIS).date()
+    # Période choisie, jamais avant aujourd’hui ; sans fin, jusqu’au 31 juillet.
+    first_day = max(today, query.from_date or today)
+    last_day = query.to_date or season_end(first_day)
+    if last_day > first_day + timedelta(days=366):
+        last_day = first_day + timedelta(days=366)
+    if last_day < first_day:
+        return []
+    duration = timedelta(minutes=query.duration_minutes)
+    gyms = list(
+        db.scalars(
+            select(Gymnasium)
+            .where(Gymnasium.id.in_(query.gymnasium_ids) if query.gymnasium_ids else true())
+            .order_by(Gymnasium.name)
+        )
+    )
+    window_start = datetime.combine(first_day, time(), tzinfo=PARIS)
+    window_end = datetime.combine(last_day + timedelta(days=1), time(), tzinfo=PARIS)
+    result: list[SlotView] = []
+    for gym in gyms:
+        # Réservations de la saison, rangées par jour (heure de Paris) pour les essais.
+        by_day: dict[date, list[tuple[datetime, datetime, int]]] = {}
+        events = db.scalars(
+            select(Event).where(
+                Event.gymnasium_id == gym.id,
+                Event.cancelled.is_(False),
+                Event.courts > 0,
+                Event.starts_at < window_end,
+                Event.ends_at > window_start,
+            )
+        )
+        blocks = db.scalars(
+            select(AvailabilityBlock).where(
+                AvailabilityBlock.gymnasium_id == gym.id,
+                AvailabilityBlock.starts_at < window_end,
+                AvailabilityBlock.ends_at > window_start,
+            )
+        )
+        for item in [*events, *blocks]:
+            day = item.starts_at.astimezone(PARIS).date()
+            end = item.ends_at.astimezone(PARIS).date()
+            while day <= end:
+                by_day.setdefault(day, []).append((item.starts_at, item.ends_at, item.courts))
+                day += timedelta(days=1)
+        day = first_day
+        while day <= last_day:
+            if not query.weekdays or day.weekday() in query.weekdays:
+                start = datetime.combine(day, query.start, tzinfo=PARIS)
+                latest = (
+                    datetime.combine(day, query.end, tzinfo=PARIS) - duration
+                    if query.end is not None
+                    else start
+                )
+                reservations = by_day.get(day, [])
+                fitting: list[datetime] = []
+                candidate = start
+                while candidate <= latest:
+                    if candidate >= current and all(
+                        segment.occupied + query.courts <= gym.capacity
+                        for segment in capacity_segments(
+                            gym.capacity, candidate, candidate + duration, reservations
+                        )
+                    ):
+                        fitting.append(candidate)
+                    candidate += SLOT_STEP
+                if fitting:
+                    result.append(
+                        SlotView(
+                            day=day,
+                            gymnasium_id=gym.id,
+                            first_start=fitting[0],
+                            last_start=fitting[-1],
+                        )
+                    )
+            day += timedelta(days=1)
+    return sorted(result, key=lambda item: (item.day, item.first_start, item.gymnasium_id))
 
 
 def no_court_left(db: Session, gym_id: str, start: datetime, end: datetime) -> bool:

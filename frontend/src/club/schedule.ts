@@ -73,6 +73,26 @@ export function scheduleFields(): FormField[] {
   ];
 }
 
+/** Créneau choisi dans la recherche : heures locales (Paris), gymnase et terrains. */
+export interface SlotPreset {
+  starts_at: string;
+  ends_at: string;
+  gymnasium_id: string;
+  courts: number;
+}
+
+/** Valeurs de départ d’un formulaire de création, préremplies par un créneau trouvé. */
+export function presetValues(preset?: SlotPreset): FormValues {
+  return preset
+    ? {
+        starts_at: preset.starts_at,
+        ends_at: preset.ends_at,
+        gymnasium_id: preset.gymnasium_id,
+        courts: String(preset.courts),
+      }
+    : {};
+}
+
 export function scheduleInitial(defaultDay?: string): FormValues {
   return {
     repeat: false,

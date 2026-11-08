@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Icon } from '../auth/components';
 
 const tabs = [
   { id: 'club', title: 'Planning du club' },
   { id: 'gymnases', title: 'Planning des gymnases' },
+  // Recherche de créneau : un onglet loupe, réservé aux adhérents connectés.
+  { id: 'recherche', title: 'Recherche de créneau' },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
 
@@ -24,26 +27,39 @@ function tabLink(search: URLSearchParams, tab: Tab): string {
 /** Application « Planning » : le planning du club et celui des gymnases, chacun dans son
  * onglet (`?onglet=`). Les pages diffèrent pour un adhérent et pour un invité, qui ne voit
  * que les matchs FFVB. */
-export function PlanningApp({ club, gyms }: { club: ReactNode; gyms: ReactNode }) {
+export function PlanningApp({
+  club,
+  gyms,
+  finder,
+}: {
+  club: ReactNode;
+  gyms: ReactNode;
+  /** Recherche de créneau ; absente pour un invité. */
+  finder?: ReactNode;
+}) {
   const [search] = useSearchParams();
-  const tab: Tab = tabs.find((item) => item.id === search.get('onglet'))?.id ?? tabs[0].id;
+  const visible = tabs.filter((item) => item.id !== 'recherche' || finder);
+  const tab: Tab = visible.find((item) => item.id === search.get('onglet'))?.id ?? tabs[0].id;
   return (
     <>
       <nav className="admin-tabs" aria-label="Planning">
-        {tabs.map((item) => (
+        {visible.map((item) => (
           <Link
             key={item.id}
             to={tabLink(search, item.id)}
-            className={item.id === tab ? 'active' : undefined}
+            className={`${item.id === tab ? 'active' : ''}${item.id === 'recherche' ? ' planning-search-tab' : ''}`}
             aria-current={item.id === tab ? 'page' : undefined}
+            aria-label={item.id === 'recherche' ? item.title : undefined}
+            title={item.id === 'recherche' ? item.title : undefined}
           >
-            {item.title}
+            {item.id === 'recherche' ? <Icon name="search" /> : item.title}
           </Link>
         ))}
       </nav>
       <div key={tab}>
         {tab === 'club' && club}
         {tab === 'gymnases' && gyms}
+        {tab === 'recherche' && finder}
       </div>
     </>
   );

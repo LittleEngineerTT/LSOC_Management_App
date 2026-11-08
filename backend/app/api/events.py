@@ -24,6 +24,8 @@ from app.api.schemas import (
     RevisionView,
     SeriesChange,
     SeriesInput,
+    SlotSearchInput,
+    SlotView,
 )
 from app.persistence.models import (
     AvailabilityBlock,
@@ -49,6 +51,7 @@ from app.services.events import (
     lock_planning,
     permission,
     revision,
+    search_slots,
     set_cancellation,
     snapshot,
 )
@@ -92,6 +95,13 @@ def events(
     if section_id:
         query = query.where(cast(Event.section_ids, JSONB).contains([section_id]))
     return list(db.scalars(query.order_by(Event.starts_at, Event.id).offset(offset).limit(limit)))
+
+
+@router.post("/slot-search", response_model=list[SlotView])
+def slot_search(body: SlotSearchInput, db: DB, actor: Actor) -> list[SlotView]:
+    """Recherche de créneau : jours d’ici au 31 juillet où l’événement décrit tient sans
+    conflit dans un des gymnases choisis. Lecture seule, réservée aux adhérents connectés."""
+    return search_slots(db, body, datetime.now(UTC))
 
 
 @router.get("/event-conflicts", response_model=list[EventConflictView])

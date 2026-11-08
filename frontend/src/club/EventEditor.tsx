@@ -14,7 +14,14 @@ import {
   type FormValues,
 } from '../admin/ui';
 import { timeRange } from './calendar';
-import { openToRegistrations, schedule, scheduleFields, scheduleInitial } from './schedule';
+import {
+  openToRegistrations,
+  schedule,
+  scheduleFields,
+  scheduleInitial,
+  presetValues,
+  type SlotPreset,
+} from './schedule';
 import { sectionGroups, useClub } from './context';
 import { kindLabels } from './events';
 import { QuotaEditor, parseQuotas, quotaDrafts, sameQuotas, type QuotaDraft } from './QuotaEditor';
@@ -44,11 +51,14 @@ function sameList(left: string[], right: string[]) {
 export function EventEditor({
   event,
   defaultDay,
+  preset,
   onDone,
   onCancel,
 }: {
   event?: Event;
   defaultDay?: string;
+  /** Créneau choisi dans la recherche de créneau. */
+  preset?: SlotPreset;
   onDone: (message: string, event?: Event) => void;
   onCancel: () => void;
 }) {
@@ -276,6 +286,7 @@ export function EventEditor({
         registration_section_ids: [],
         registration_team_ids: [],
         registration_limit: '',
+        ...presetValues(preset),
       };
 
   function changes(values: FormValues, original: Event) {

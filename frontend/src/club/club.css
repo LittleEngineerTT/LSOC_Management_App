@@ -1247,3 +1247,45 @@ a.club-team-card:focus-visible {
   background: #dcebf5;
   color: #1d5f8a;
 }
+/* Recherche de créneau : onglet loupe du planning, historique et créneaux trouvés. */
+.planning-search-tab svg {
+  width: 18px;
+  height: 18px;
+}
+.slot-history ul,
+.slot-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slot-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.slot-history li span {
+  color: #354d60;
+  font-size: 13px;
+}
+.slot-form {
+  display: grid;
+  gap: 16px;
+}
+.slot-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8ec;
+  border-radius: 8px;
+}
+.slot-day {
+  min-width: 170px;
+  color: #142c40;
+  font-weight: 650;
+}
