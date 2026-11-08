@@ -433,15 +433,22 @@ def official_of(match: Match, location: str, home: bool, gym: str | None) -> dic
 def merge_event(db: Session, merged: Event, into: Event) -> None:
     """Réunit l’événement d’un match dans celui de son plateau, sans prévenir personne : les
     inscriptions, favoris et questions passent au plateau ; le reste disparaît avec lui."""
-    for model in (Registration, Follow):
-        for item in db.scalars(select(model).where(model.event_id == merged.id)):
-            duplicate = db.scalar(
-                select(model.id).where(model.event_id == into.id, model.user_id == item.user_id)
+    for registration in db.scalars(select(Registration).where(Registration.event_id == merged.id)):
+        if db.scalar(
+            select(Registration.id).where(
+                Registration.event_id == into.id, Registration.user_id == registration.user_id
             )
-            if duplicate is None:
-                item.event_id = into.id
-            else:
-                db.delete(item)
+        ):
+            db.delete(registration)
+        else:
+            registration.event_id = into.id
+    for follow in db.scalars(select(Follow).where(Follow.event_id == merged.id)):
+        if db.scalar(
+            select(Follow.id).where(Follow.event_id == into.id, Follow.user_id == follow.user_id)
+        ):
+            db.delete(follow)
+        else:
+            follow.event_id = into.id
     for thread in db.scalars(select(QuestionThread).where(QuestionThread.event_id == merged.id)):
         thread.event_id = into.id
     db.execute(delete(EventRevision).where(EventRevision.event_id == merged.id))

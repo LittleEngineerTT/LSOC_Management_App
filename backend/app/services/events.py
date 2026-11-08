@@ -5,7 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, text, true
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -695,13 +695,10 @@ def search_slots(db: Session, query: SlotSearchInput, current: datetime) -> list
     if last_day < first_day:
         return []
     duration = timedelta(minutes=query.duration_minutes)
-    gyms = list(
-        db.scalars(
-            select(Gymnasium)
-            .where(Gymnasium.id.in_(query.gymnasium_ids) if query.gymnasium_ids else true())
-            .order_by(Gymnasium.name)
-        )
-    )
+    chosen = select(Gymnasium).order_by(Gymnasium.name)
+    if query.gymnasium_ids:
+        chosen = chosen.where(Gymnasium.id.in_(query.gymnasium_ids))
+    gyms = list(db.scalars(chosen))
     window_start = datetime.combine(first_day, time(), tzinfo=PARIS)
     window_end = datetime.combine(last_day + timedelta(days=1), time(), tzinfo=PARIS)
     result: list[SlotView] = []
@@ -724,11 +721,14 @@ def search_slots(db: Session, query: SlotSearchInput, current: datetime) -> list
                 AvailabilityBlock.ends_at > window_start,
             )
         )
-        for item in [*events, *blocks]:
-            day = item.starts_at.astimezone(PARIS).date()
-            end = item.ends_at.astimezone(PARIS).date()
+        spans = [(item.starts_at, item.ends_at, item.courts) for item in events] + [
+            (item.starts_at, item.ends_at, item.courts) for item in blocks
+        ]
+        for begin, finish, used in spans:
+            day = begin.astimezone(PARIS).date()
+            end = finish.astimezone(PARIS).date()
             while day <= end:
-                by_day.setdefault(day, []).append((item.starts_at, item.ends_at, item.courts))
+                by_day.setdefault(day, []).append((begin, finish, used))
                 day += timedelta(days=1)
         day = first_day
         while day <= last_day:
