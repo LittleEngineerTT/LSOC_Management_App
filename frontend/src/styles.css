@@ -11,9 +11,18 @@
     --navy: #142c40;
     --red: #d94040;
     --muted: #64717b;
+    /* Thème clair : les listes déroulantes natives ne passent pas en sombre avec le système. */
+    color-scheme: light;
   }
   * {
     box-sizing: border-box;
+  }
+  /* Menu déplié des listes déroulantes : fond blanc, texte du site. */
+  select,
+  select option,
+  select optgroup {
+    background-color: #fff;
+    color: #182d3e;
   }
   body {
     margin: 0;
