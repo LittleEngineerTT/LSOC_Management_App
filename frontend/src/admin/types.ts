@@ -302,4 +302,11 @@ export interface EventProblem {
 export interface EventConflict {
   event: Event;
   problems: EventProblem[];
+  /** Divergences FFVB ouvertes du match ; absentes d’une API antérieure. */
+  divergences?: Conflict[];
+  /** Résumé des problèmes : ignorer le conflit vaut tant qu’il ne change pas. */
+  signature: string;
+  ignored?: boolean;
+  ignorer_name?: string | null;
+  ignored_at?: string | null;
 }

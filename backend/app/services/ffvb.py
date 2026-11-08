@@ -259,7 +259,7 @@ def apply_official(
                     "Conflit avec le calendrier FFVB",
                     f"Une valeur locale de {event.title} diffère de la FFVB. Consultez le conflit dans l’application.",
                     "ffvb_conflict",
-                    link="/app/administration?tab=ffvb",
+                    link="/app/administration?tab=conflicts",
                 )
             continue
         if key in state.protected:

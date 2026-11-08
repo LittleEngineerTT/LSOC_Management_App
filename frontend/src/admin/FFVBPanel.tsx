@@ -1,7 +1,7 @@
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useCallback, useState } from 'react';
 import { useAdmin, useLoad, useResource } from './data';
-import type { Conflict, Defaults, Mapping, Match } from './types';
+import type { Defaults, Mapping } from './types';
 import {
   Confirm,
   Empty,
@@ -13,8 +13,6 @@ import {
   num,
   str,
 } from './ui';
-import { dateLabel } from './time';
-import { Changes, fieldLabels } from './changes';
 import { SourcesPanel, ClubPanel } from './SourcesPanel';
 
 export function FFVBPanel() {
@@ -28,9 +26,9 @@ export function FFVBPanel() {
     [api],
   );
   const club = useLoad(clubLoader);
-  // L’ancienne sous-vue « Matchs importés » (liens d’anciennes notifications) est remplacée par
-  // l’onglet Conflits, où se réactivent les matchs désactivés ou suspendus.
-  if (view === 'matches') return <Navigate to="?tab=conflicts" replace />;
+  // Les anciennes sous-vues « Matchs importés » et « Conflits » (liens d’anciennes notifications)
+  // sont fusionnées dans l’onglet Conflits : divergences, réactivation et conflits ignorés.
+  if (view === 'matches' || view === 'conflicts') return <Navigate to="?tab=conflicts" replace />;
   const clubCode = club.data?.club_code ?? null;
   return (
     <>
@@ -44,7 +42,6 @@ export function FFVBPanel() {
           { id: 'club', label: 'Configuration du club' },
           { id: 'mappings', label: 'Gymnases FFVB' },
           { id: 'defaults', label: 'Marges et terrains' },
-          { id: 'conflicts', label: 'Conflits' },
         ].map((item) => (
           <button
             className={`admin-button${view === item.id ? ' selected' : ''}`}
@@ -66,7 +63,6 @@ export function FFVBPanel() {
         )}
         {view === 'mappings' && <Mappings />}
         {view === 'defaults' && <MatchDefaults />}
-        {view === 'conflicts' && <Conflicts />}
       </div>
     </>
   );
@@ -249,103 +245,6 @@ function MatchDefaults() {
             matchs existants restent inchangés.
           </p>
         </EntityForm>
-      )}
-    </>
-  );
-}
-function Conflicts() {
-  const { api } = useAdmin();
-  const result = useResource<Conflict>('/ffvb/conflicts');
-  const matches = useResource<Match>('/ffvb/matches', true);
-  const matchFor = (conflict: Conflict) =>
-    matches.data?.find((match) => match.id === conflict.match_id);
-  const matchTitle = (conflict: Conflict) => {
-    const match = matchFor(conflict);
-    return match ? `${match.match_code} · ${match.season}` : 'Identification du match indisponible';
-  };
-  const [resolving, setResolving] = useState<{
-    conflict: Conflict;
-    action: 'accept_ffvb' | 'suspend_48h' | 'disable';
-  } | null>(null);
-  const actions = [
-    { id: 'accept_ffvb', label: 'Accepter la FFVB' },
-    { id: 'suspend_48h', label: 'Suspendre 48 h' },
-    { id: 'disable', label: 'Désactiver ce match' },
-  ] as const;
-  return (
-    <>
-      <LoadState result={result} />
-      <LoadState result={matches} />
-      <button
-        className="admin-button"
-        onClick={() => {
-          result.reload();
-          matches.reload();
-        }}
-      >
-        Actualiser
-      </button>
-      {result.loaded && !result.data?.length && <Empty>Aucun conflit FFVB ouvert.</Empty>}
-      <div className="admin-list">
-        {result.data?.map((conflict) => (
-          <article className="admin-card" key={conflict.id}>
-            <h3>{matchTitle(conflict)}</h3>
-            {matchFor(conflict) && (
-              <p>
-                {String(matchFor(conflict)?.official.home_team ?? '')} /{' '}
-                {String(matchFor(conflict)?.official.away_team ?? '')}
-              </p>
-            )}
-            <h4>Divergence : {fieldLabels[conflict.field] ?? conflict.field}</h4>
-            <p>{dateLabel(conflict.created_at)}</p>
-            <div className="conflict-values">
-              <div>
-                <h4>Valeur locale conservée</h4>
-                <Changes values={{ [conflict.field]: conflict.local_value }} />
-              </div>
-              <div>
-                <h4>Valeur officielle</h4>
-                <Changes values={{ [conflict.field]: conflict.official_value }} />
-              </div>
-            </div>
-            <div className="admin-actions">
-              {actions.map((action) => (
-                <button
-                  className="admin-button"
-                  key={action.id}
-                  disabled={!matches.loaded || Boolean(matches.error) || !matchFor(conflict)}
-                  onClick={() => setResolving({ conflict, action: action.id })}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-      {resolving && (
-        <Confirm
-          title={`${actions.find((action) => action.id === resolving.action)?.label ?? 'Résoudre le conflit'} : ${matchTitle(resolving.conflict)}`}
-          onClose={() => setResolving(null)}
-          onConfirm={async (signal) => {
-            await api.request(
-              `/ffvb/conflicts/${resolving.conflict.id}/resolve`,
-              'POST',
-              { action: resolving.action },
-              signal,
-            );
-            result.reload();
-            matches.reload();
-          }}
-        >
-          <p>
-            {resolving.action === 'accept_ffvb'
-              ? 'La valeur officielle remplacera la valeur locale protégée. Cette décision sera historisée.'
-              : resolving.action === 'suspend_48h'
-                ? 'La valeur locale sera conservée et la vérification suspendue 48 heures. Une divergence persistante pourra rouvrir le conflit après reprise.'
-                : 'La vérification sera désactivée pour ce match. Vous pourrez la réactiver depuis les matchs importés.'}
-          </p>
-        </Confirm>
       )}
     </>
   );

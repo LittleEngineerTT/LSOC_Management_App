@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -31,11 +31,9 @@ it('affiche une erreur FFVB même quand la synchronisation répond 200', async (
   expect(await screen.findByRole('alert')).toHaveTextContent('Page FFVB invalide');
   expect(screen.queryByText('Synchronisation réussie.')).not.toBeInTheDocument();
 });
-it('ne suspend un conflit qu’après confirmation explicite', async () => {
+it('ne propose plus de sous-vue Conflits : les divergences se traitent dans l’onglet Conflits', async () => {
   open();
-  await userEvent.click(await screen.findByRole('button', { name: 'Conflits' }));
-  await userEvent.click(await screen.findByRole('button', { name: 'Suspendre 48 h' }));
-  expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
-  await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer' }));
-  expect(fetchMock).toHaveBeenCalledWith('/api/v1/ffvb/conflicts/conflict-1/resolve', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'suspend_48h' }) }));
+  const views = await screen.findByRole('button', { name: 'Sources' });
+  expect(views).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Conflits' })).not.toBeInTheDocument();
 });

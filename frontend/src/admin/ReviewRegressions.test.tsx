@@ -7,20 +7,6 @@ const admin = { id: 'admin', first_name: 'Admin', category: 'adult', roles: ['ad
 function reply(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }); }
 function open(tab: string) { document.cookie = 'lsoc_csrf=csrf; path=/'; render(<MemoryRouter initialEntries={[`/app/administration?tab=${tab}`]}><AuthApp /></MemoryRouter>); }
 afterEach(() => { vi.unstubAllGlobals(); document.cookie = 'lsoc_csrf=; Max-Age=0; path=/'; });
-it('identifie le match concerné sur un conflit FFVB', async () => {
-  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input) => {
-    const path = new URL(String(input), 'http://localhost').pathname;
-    if (path.endsWith('/auth/me')) return reply(admin);
-    if (path.endsWith('/users')) return reply([admin]);
-    if (path.endsWith('/ffvb/conflicts')) return reply([{ id: 'c', match_id: 'm', field: 'location', official_value: 'PARÉ', local_value: 'Autre', created_at: '2026-10-10T10:00:00Z' }]);
-    if (path.endsWith('/ffvb/matches')) return reply([{ id: 'm', match_code: 'BRC001', season: '2026/2027', official: { home_team: 'LSO COLOMBES', away_team: 'PARIS' }, protected: {} }]);
-    return reply([]);
-  }));
-  open('ffvb');
-  await userEvent.click(await screen.findByRole('button', { name: 'Conflits' }));
-  expect(await screen.findByRole('article')).toHaveTextContent('BRC001');
-  expect(screen.getByRole('article')).toHaveTextContent('2026/2027');
-});
 it('recharge les événements après décision et sur Actualiser', async () => {
   let accepted = false; let eventReads = 0;
   vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input, init) => {

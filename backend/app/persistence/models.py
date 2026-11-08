@@ -692,6 +692,24 @@ class FFVBConflict(Identity, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ConflictIgnore(Identity, Base):
+    """Conflit d’un événement ignoré par un administrateur dans l’onglet Conflits.
+
+    `signature` résume les problèmes vus au moment d’ignorer : tant qu’elle reste celle du
+    conflit actuel, l’événement est masqué ; un problème nouveau ou modifié le fait réapparaître.
+    """
+
+    __tablename__ = "conflict_ignores"
+    __table_args__ = (UniqueConstraint("event_id"),)
+    event_id: Mapped[str] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"))
+    signature: Mapped[str] = mapped_column(String(64))
+    ignored_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE")
+    )
+    ignorer_name: Mapped[str] = mapped_column(String(80))
+    ignored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class ClubSettings(Base):
     __tablename__ = "club_settings"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)

@@ -10,6 +10,7 @@ from app.integrations import s3
 from app.persistence.models import (
     ChangeRequest,
     CoachEventRequest,
+    ConflictIgnore,
     ContactRequest,
     Event,
     EventRevision,
@@ -118,6 +119,9 @@ def apply_retention(db: Session, at: datetime | None = None) -> int:
             func.coalesce(ContactRequest.resolved_at, ContactRequest.created_at) < history,
         )
     )
+    # Un conflit ignoré ne sert plus une fois l’événement terminé.
+    ended = select(Event.id).where(Event.ends_at < current)
+    db.execute(delete(ConflictIgnore).where(ConflictIgnore.event_id.in_(ended)))
     finished = select(Event.id).where(Event.ends_at < history)
     db.execute(delete(Registration).where(Registration.event_id.in_(finished)))
     return erase_inactive(db, current - timedelta(days=INACTIVE_ACCOUNT_DAYS))

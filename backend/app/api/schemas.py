@@ -351,6 +351,19 @@ class EventProblem(View):
 class EventConflictView(View):
     event: EventView
     problems: list[EventProblem]
+    # Divergences FFVB ouvertes du match, à trancher depuis l’onglet Conflits.
+    divergences: list["ConflictView"] = Field(default_factory=list)
+    # Résumé des problèmes affichés : ignorer le conflit vaut tant qu’il ne change pas.
+    signature: str
+    ignored: bool = False
+    ignorer_name: str | None = None
+    ignored_at: datetime | None = None
+
+
+class IgnoreInput(Input):
+    """Signature du conflit tel que l’administrateur l’a vu."""
+
+    signature: str = Field(min_length=1, max_length=64)
 
 
 StaffFunction = Literal["president", "vice_president", "coach"]
@@ -1029,3 +1042,7 @@ class EmailJobView(View):
     attempts: int
     due_at: datetime
     sent_at: datetime | None
+
+
+# Référence en avant : la vue d’une divergence FFVB est définie plus bas.
+EventConflictView.model_rebuild()

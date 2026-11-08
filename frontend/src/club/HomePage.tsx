@@ -68,7 +68,7 @@ function AdminSummary() {
     async (signal: AbortSignal) => {
       const [requests, conflicts] = await Promise.all([
         api.list<unknown>('/change-requests', true, signal),
-        api.list<unknown>('/ffvb/conflicts', false, signal),
+        api.list<unknown>('/event-conflicts', false, signal),
       ]);
       return { requests: requests.length, conflicts: conflicts.length };
     },
@@ -82,9 +82,9 @@ function AdminSummary() {
         <strong>{result.data.requests}</strong> demande{result.data.requests > 1 ? 's' : ''} à
         valider
       </Link>
-      <Link to="/app/administration?tab=ffvb">
-        <strong>{result.data.conflicts}</strong> conflit{result.data.conflicts > 1 ? 's' : ''} FFVB
-        ouvert{result.data.conflicts > 1 ? 's' : ''}
+      <Link to="/app/administration?tab=conflicts">
+        <strong>{result.data.conflicts}</strong> conflit{result.data.conflicts > 1 ? 's' : ''} à
+        traiter
       </Link>
     </div>
   );

@@ -75,3 +75,62 @@ def test_disabled_and_suspended_ffvb_matches_are_listed_until_reactivated(admin:
         assert admin.post(f'/api/v1/ffvb/matches/{event.ffvb_match_id}/reactivate', json={}).status_code == 200
     found = codes()
     assert not {'ffvb_disabled', 'ffvb_suspended'} & set(found.get(disabled.id, []) + found.get(suspended.id, []))
+
+
+def test_ffvb_divergences_join_the_conflicts_tab_and_past_ones_are_hidden(admin: TestClient) -> None:
+    from datetime import UTC, datetime
+
+    from test_ffvb import configure, match_event, sync
+
+    from app.persistence.models import FFVBConflict
+
+    source, _, _ = configure(admin)
+    sync(source)
+    upcoming, played = match_event('BRC007'), match_event('BRC005')
+    with SessionFactory.begin() as db:
+        for identifier, year in ((upcoming.id, 2099), (played.id, 2020)):
+            event = db.get_one(Event, identifier)
+            event.starts_at = datetime(year, 10, 20, 16, tzinfo=UTC)
+            event.ends_at = datetime(year, 10, 20, 20, tzinfo=UTC)
+        for match in (upcoming.ffvb_match_id, played.ffvb_match_id):
+            assert match is not None
+            db.add(FFVBConflict(match_id=match, field='kickoff_at', official_value='2099-10-20T17:00:00+00:00', local_value='2099-10-20T16:30:00+00:00'))
+    listed = {item['event']['id']: item for item in admin.get('/api/v1/event-conflicts').json()}
+    # Le match déjà joué ne figure plus, même avec une divergence ouverte.
+    assert played.id not in listed
+    divergence = listed[upcoming.id]['divergences']
+    assert [(item['field'], item['local_value'], item['official_value']) for item in divergence] == [('kickoff_at', '2099-10-20T16:30:00+00:00', '2099-10-20T17:00:00+00:00')]
+    assert 'ffvb_divergence' in [problem['code'] for problem in listed[upcoming.id]['problems']]
+
+
+def test_an_ignored_conflict_stays_hidden_until_it_changes(admin: TestClient) -> None:
+    section, gym = setup_planning(admin, capacity=3)
+    event = admin.post('/api/v1/events', json=payload(section, gym, start=at(18), end=at(20))).json()
+    with SessionFactory.begin() as db:
+        db.get_one(Event, event['id']).referent_ids = []
+
+    def listing(include_ignored: bool = False) -> dict[str, dict[str, object]]:
+        url = '/api/v1/event-conflicts' + ('?include_ignored=true' if include_ignored else '')
+        return {item['event']['id']: item for item in admin.get(url).json()}
+
+    signature = listing()[event['id']]['signature']
+    add_user('coach', ['member', 'coach'])
+    assert login('coach').post(f"/api/v1/event-conflicts/{event['id']}/ignore", json={'signature': signature}).status_code == 403
+    assert admin.post(f"/api/v1/event-conflicts/{event['id']}/ignore", json={'signature': 'autre'}).status_code == 409
+    ignored = admin.post(f"/api/v1/event-conflicts/{event['id']}/ignore", json={'signature': signature})
+    assert ignored.status_code == 200, ignored.text
+    assert (ignored.json()['ignored'], ignored.json()['ignorer_name']) == (True, 'Admin')
+    assert event['id'] not in listing()
+    shown = listing(include_ignored=True)[event['id']]
+    assert (shown['ignored'], shown['ignorer_name']) == (True, 'Admin')
+    # Un nouveau problème (dépassement de capacité) fait réapparaître le conflit.
+    admin.post('/api/v1/events?force=true', json=payload(section, gym, start=at(19), end=at(21)) | {'courts': 2})
+    back = listing()[event['id']]
+    assert back['ignored'] is False
+    assert {problem['code'] for problem in back['problems']} == {'no_referent', 'capacity_exceeded'}
+    # Ignoré à nouveau puis rétabli.
+    assert admin.post(f"/api/v1/event-conflicts/{event['id']}/ignore", json={'signature': back['signature']}).status_code == 200
+    assert event['id'] not in listing()
+    assert admin.delete(f"/api/v1/event-conflicts/{event['id']}/ignore").status_code == 204
+    assert listing()[event['id']]['ignored'] is False
+    assert admin.post('/api/v1/event-conflicts/inconnu/ignore', json={'signature': signature}).status_code == 404

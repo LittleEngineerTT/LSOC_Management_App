@@ -3,8 +3,8 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AwareDatetime
-from sqlalchemy import cast, select
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import cast, delete, select
+from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from app.api.common import DB, Actor, Admin, get
 from app.api.schemas import (
@@ -19,6 +19,7 @@ from app.api.schemas import (
     EventInput,
     EventPatch,
     EventView,
+    IgnoreInput,
     RestoreInput,
     RevisionView,
     SeriesChange,
@@ -27,9 +28,11 @@ from app.api.schemas import (
 from app.persistence.models import (
     AvailabilityBlock,
     ChangeRequest,
+    ConflictIgnore,
     Event,
     EventRevision,
     EventSeries,
+    uid,
 )
 from app.services.events import (
     PARIS,
@@ -92,9 +95,59 @@ def events(
 
 
 @router.get("/event-conflicts", response_model=list[EventConflictView])
-def conflicts(db: DB, actor: Admin) -> list[EventConflictView]:
-    """Événements à venir en conflit de capacité ou erronés, pour l’administration."""
-    return event_conflicts(db, datetime.now(UTC))
+def conflicts(db: DB, actor: Admin, include_ignored: bool = False) -> list[EventConflictView]:
+    """Événements à venir en conflit de capacité ou erronés, pour l’administration ; les
+    conflits ignorés n’y figurent qu’avec `include_ignored`."""
+    return event_conflicts(db, datetime.now(UTC), include_ignored)
+
+
+@router.post("/event-conflicts/{event_id}/ignore", response_model=EventConflictView)
+def ignore_conflict(event_id: str, body: IgnoreInput, db: DB, actor: Admin) -> EventConflictView:
+    """Ignore le conflit tel que l’administrateur l’a vu : s’il a changé depuis, le refus
+    l’invite à le relire avant de l’ignorer."""
+    get(db, Event, event_id)
+    current = next(
+        (
+            item
+            for item in event_conflicts(db, datetime.now(UTC), include_ignored=True)
+            if item.event.id == event_id
+        ),
+        None,
+    )
+    if current is None:
+        raise HTTPException(404, "Aucun conflit pour cet événement")
+    if current.signature != body.signature:
+        raise HTTPException(409, "Le conflit a changé : rechargez la liste avant de l’ignorer")
+    ignored_at = datetime.now(UTC)
+    db.execute(
+        insert(ConflictIgnore)
+        .values(
+            id=uid(),
+            event_id=event_id,
+            signature=body.signature,
+            ignored_by=actor.id,
+            ignorer_name=actor.first_name,
+            ignored_at=ignored_at,
+        )
+        .on_conflict_do_update(
+            index_elements=[ConflictIgnore.event_id],
+            set_={
+                "signature": body.signature,
+                "ignored_by": actor.id,
+                "ignorer_name": actor.first_name,
+                "ignored_at": ignored_at,
+            },
+        )
+    )
+    return current.model_copy(
+        update={"ignored": True, "ignorer_name": actor.first_name, "ignored_at": ignored_at}
+    )
+
+
+@router.delete("/event-conflicts/{event_id}/ignore", status_code=204)
+def restore_conflict(event_id: str, db: DB, actor: Admin) -> None:
+    """Le conflit réapparaît dans la liste."""
+    db.execute(delete(ConflictIgnore).where(ConflictIgnore.event_id == event_id))
 
 
 @router.post("/events", response_model=EventView, status_code=201)

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -10,6 +12,7 @@ from app.api.common import get, require_admin
 from app.api.schemas import (
     CapacitySegment,
     CapacityView,
+    ConflictView,
     EventConflictView,
     EventInput,
     EventPatch,
@@ -23,6 +26,7 @@ from app.persistence.models import (
     AvailabilityBlock,
     ChangeRequest,
     CoachEventRequest,
+    ConflictIgnore,
     Event,
     EventRevision,
     EventSeries,
@@ -280,13 +284,29 @@ def overlapping_excess(segments: list[CapacitySegment], event: Event) -> int:
     return max((s.excess for s in overlaps), default=0)
 
 
-def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
+def conflict_signature(problems: list[EventProblem], divergences: list[FFVBConflict]) -> str:
+    """Empreinte des problèmes d’un événement : elle change dès qu’un problème apparaît,
+    disparaît ou évolue (dépassement plus grand, autre valeur officielle…)."""
+    content = {
+        "problems": sorted([problem.code, problem.message] for problem in problems),
+        "divergences": sorted(
+            [item.field, item.official_value or "", item.local_value or ""] for item in divergences
+        ),
+    }
+    return hashlib.sha256(json.dumps(content, ensure_ascii=False).encode()).hexdigest()
+
+
+def event_conflicts(
+    db: Session, since: datetime, include_ignored: bool = False
+) -> list[EventConflictView]:
     """Événements à venir, non annulés, qui demandent l’attention d’un administrateur.
 
     Un événement ressort quand la capacité de son gymnase est dépassée pendant sa durée,
     quand un match à domicile n’a pas de gymnase (occupation inconnue), quand il n’a plus
     de référent, ou quand son match FFVB diverge du calendrier officiel, en a disparu, ou
-    n’est plus vérifié (désactivé ou suspendu) : la réactivation se fait depuis cette liste.
+    n’est plus vérifié (désactivé ou suspendu) : divergences et réactivation se traitent depuis
+    cette liste. Un événement terminé n’y figure plus. Un conflit ignoré est masqué, sauf avec
+    `include_ignored`, tant que ses problèmes restent ceux vus au moment de l’ignorer.
     """
     events = list(
         db.scalars(
@@ -316,13 +336,14 @@ def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
                     )
                 )
     matches = [event.ffvb_match_id for event in events if event.ffvb_match_id is not None]
-    divergent = set(
-        db.scalars(
-            select(FFVBConflict.match_id).where(
-                FFVBConflict.match_id.in_(matches), FFVBConflict.status == "open"
-            )
-        )
-    )
+    divergences: dict[str, list[FFVBConflict]] = {}
+    for item in db.scalars(
+        select(FFVBConflict)
+        .where(FFVBConflict.match_id.in_(matches), FFVBConflict.status == "open")
+        .order_by(FFVBConflict.created_at, FFVBConflict.id)
+    ):
+        divergences.setdefault(item.match_id, []).append(item)
+    divergent = set(divergences)
     states = {
         state.id: state
         for state in db.scalars(select(FFVBMatchState).where(FFVBMatchState.id.in_(matches)))
@@ -352,11 +373,35 @@ def event_conflicts(db: Session, since: datetime) -> list[EventConflictView]:
                     message=f"Vérification FFVB suspendue jusqu’au {until.astimezone(PARIS):%d/%m à %H:%M}",
                 )
             )
-    return [
-        EventConflictView(event=EventView.model_validate(event), problems=problems[event.id])
-        for event in events
-        if problems[event.id]
-    ]
+    ignores = {
+        item.event_id: item
+        for item in db.scalars(
+            select(ConflictIgnore).where(ConflictIgnore.event_id.in_(list(problems)))
+        )
+    }
+    result: list[EventConflictView] = []
+    for event in events:
+        if not problems[event.id]:
+            continue
+        found = divergences.get(event.ffvb_match_id or "", [])
+        signature = conflict_signature(problems[event.id], found)
+        ignore = ignores.get(event.id)
+        # Une signature différente : le conflit a changé depuis, il réapparaît.
+        ignored = ignore is not None and ignore.signature == signature
+        if ignored and not include_ignored:
+            continue
+        result.append(
+            EventConflictView(
+                event=EventView.model_validate(event),
+                problems=problems[event.id],
+                divergences=[ConflictView.model_validate(item) for item in found],
+                signature=signature,
+                ignored=ignored,
+                ignorer_name=ignore.ignorer_name if ignored and ignore else None,
+                ignored_at=ignore.ignored_at if ignored and ignore else None,
+            )
+        )
+    return result
 
 
 REFERENT_ROLES = {"coach", "admin"}
