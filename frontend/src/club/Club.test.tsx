@@ -997,3 +997,11 @@ it('réserve l’historique d’un événement aux administrateurs et à ses ré
   const own = await screen.findByRole('dialog', { name: 'Entraînement loisir' });
   expect(await within(own).findByRole('button', { name: 'Historique' })).toBeInTheDocument();
 });
+
+it('présente un match FFVB sans heure sur sa journée, heure à compléter', async () => {
+  routes['/events'] = [{ ...training, id: 'e9', title: 'LSO / Rueil', kind: 'match', ffvb_match_id: 'm9', courts: 0, starts_at: new Date(`${day}T00:00:00+02:00`).toISOString(), ends_at: new Date(`${addDays(day, 1)}T00:00:00+02:00`).toISOString(), time_unknown: true }];
+  routes['/events/e9'] = { ...(routes['/events'] as object[])[0], team_ids: ['t1'] };
+  open('/app/planning?event=e9');
+  const dialog = await screen.findByRole('dialog', { name: 'LSO / Rueil' });
+  expect(within(dialog).getByText('Journée · heure à compléter')).toBeInTheDocument();
+});

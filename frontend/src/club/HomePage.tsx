@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useLoad } from '../admin/data';
 import { Badge, Empty, LoadState } from '../admin/ui';
-import { dayLabel, parisDay, timeRange } from './calendar';
+import { dayLabel, parisDay, eventHours } from './calendar';
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { useEventLink } from './events';
@@ -47,7 +47,7 @@ export function HomePage() {
                 {event.cancelled && <Badge tone="danger">Annulé</Badge>}
                 <span className="admin-hint">
                   {' '}
-                  {dayLabel(parisDay(event.starts_at))}, {timeRange(event.starts_at, event.ends_at)}
+                  {dayLabel(parisDay(event.starts_at))}, {eventHours(event)}
                 </span>
               </li>
             ))}

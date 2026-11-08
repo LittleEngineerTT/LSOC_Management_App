@@ -151,6 +151,8 @@ export interface Event {
   after_minutes: number;
   match_courts: number;
   occupancy_unknown: boolean;
+  /** Match FFVB sans heure : placé sur sa journée, heure à compléter ; absent avant 0.5.2. */
+  time_unknown?: boolean;
   /** Sections dont les adhérents peuvent s’inscrire. */
   registration_section_ids: string[];
   /** Équipes ouvertes, en union avec les sections ; absent dans les anciens contrats. */
@@ -296,7 +298,8 @@ export interface EventProblem {
     | 'ffvb_divergence'
     | 'ffvb_missing'
     | 'ffvb_disabled'
-    | 'ffvb_suspended';
+    | 'ffvb_suspended'
+    | 'time_unknown';
   message: string;
 }
 export interface EventConflict {

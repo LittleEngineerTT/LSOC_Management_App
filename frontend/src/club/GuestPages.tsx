@@ -4,7 +4,16 @@ import { useLoad } from '../admin/data';
 import type { Event } from '../admin/types';
 import { Empty, LoadState, PanelHeading } from '../admin/ui';
 import { useDialogBackdropDismiss } from '../app/useDialogBackdropDismiss';
-import { dayLabel, dayStart, horizonEnd, parisDay, rangeQuery, timeRange, today } from './calendar';
+import {
+  dayLabel,
+  dayStart,
+  horizonEnd,
+  parisDay,
+  rangeQuery,
+  eventHours,
+  timeRange,
+  today,
+} from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarLegend, CalendarView } from './CalendarView';
 import { ReleaseNotes } from './ReleaseNotes';
@@ -35,6 +44,7 @@ type PublicEvent = Pick<
   | 'ffvb_match_id'
   | 'kickoff_at'
   | 'team_ids'
+  | 'time_unknown'
 >;
 
 /** Complète un match public pour les composants du planning, sans rien d’interne. */
@@ -106,7 +116,7 @@ export function GuestHome() {
                 <Link to={link(event.id)}>{event.title}</Link>
                 <span className="admin-hint">
                   {' '}
-                  {dayLabel(parisDay(event.starts_at))}, {timeRange(event.starts_at, event.ends_at)}
+                  {dayLabel(parisDay(event.starts_at))}, {eventHours(event)}
                 </span>
               </li>
             ))}
@@ -349,7 +359,7 @@ function GuestEventDetail({ id, onClose }: { id: string; onClose: () => void }) 
           </dd>
           <dt>Date</dt>
           <dd>
-            {dayLabel(parisDay(event.starts_at))}, {timeRange(event.starts_at, event.ends_at)}
+            {dayLabel(parisDay(event.starts_at))}, {eventHours(event)}
           </dd>
           {event.kickoff_at && (
             <>

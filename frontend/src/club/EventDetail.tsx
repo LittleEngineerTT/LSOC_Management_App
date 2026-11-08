@@ -17,7 +17,7 @@ import type {
   Team,
 } from '../admin/types';
 import { Badge, Confirm, Empty, EntityForm, LoadState, Notice, str } from '../admin/ui';
-import { dayLabel, parisDay, timeRange } from './calendar';
+import { dayLabel, parisDay, eventHours } from './calendar';
 import { PersonName, PersonNames, useClub, type Follow, type Thread } from './context';
 import { EventEditor } from './EventEditor';
 import { RequestForm } from './StaffRequests';
@@ -180,7 +180,7 @@ function EventBody({
         )}
         <div>
           <dt>{event.ffvb_match_id ? 'Réservation' : 'Horaires'}</dt>
-          <dd>{timeRange(event.starts_at, event.ends_at)}</dd>
+          <dd>{eventHours(event)}</dd>
         </div>
         <div>
           <dt>Lieu</dt>

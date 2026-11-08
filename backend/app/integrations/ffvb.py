@@ -36,6 +36,9 @@ class Match:
     # Absent d’un match déjà joué : la FFVB affiche alors le score à la place du lieu.
     location: str | None
     result: Result | None = None
+    # Aucune heure connue, même pour le plateau du jour : `kickoff_at` est minuit (Paris) de la
+    # journée du match, dont l’heure reste à compléter.
+    time_unknown: bool = False
 
 
 def fetch(client: httpx.Client, season: str, entity: str, pool: str) -> bytes:
@@ -51,6 +54,62 @@ def fetch(client: httpx.Client, season: str, entity: str, pool: str) -> bytes:
     return response.content
 
 
+def exempt(home: str, away: str) -> bool:
+    """Poule à nombre impair d’équipes : l’équipe exempte d’une journée affronte « xxxxx »,
+    sans date ni horaire. Ce n’est pas un match."""
+    return any(re.fullmatch(r"x+", team, re.IGNORECASE) for team in (home, away))
+
+
+def unscheduled(values: list[str]) -> bool:
+    """Match annoncé sans date : la FFVB ne l’a pas encore programmé."""
+    return not values[1]
+
+
+def match_day(value: str) -> datetime:
+    """Date FFVB (« 21/11/26 » ou « 21/11/2026 »), à minuit à Paris."""
+    date_format = "%d/%m/%Y" if len(value.split("/")[-1]) == 4 else "%d/%m/%y"
+    return datetime.strptime(value, date_format).replace(tzinfo=ZoneInfo("Europe/Paris"))
+
+
+def plateau_times(soup: BeautifulSoup, pool: str) -> dict[tuple[str, str], str]:
+    """Heure de chaque plateau (même jour, même lieu) : la FFVB n’indique souvent que celle du
+    premier match ; les suivants s’enchaînent sur le même créneau. La plus tôt l’emporte."""
+    times: dict[tuple[str, str], str] = {}
+    for row in soup.find_all("tr"):
+        first = row.find("td", recursive=False)
+        if first is None:
+            continue
+        code = first.get_text(" ", strip=True)
+        if re.fullmatch(re.escape(pool) + r"[A-Z]*\d+", code) is None:
+            continue
+        values = [cell.get_text(" ", strip=True) for cell in row.find_all("td")]
+        if len(values) < 8 or not values[1] or not re.fullmatch(r"\d{1,2}:\d{2}", values[2]):
+            continue
+        key = (values[1], normalize(values[7]))
+        if key not in times or values[2].zfill(5) < times[key].zfill(5):
+            times[key] = values[2]
+    return times
+
+
+def calendar_codes(html: bytes, pool: str, team_name: str) -> set[str]:
+    """Codes des matchs de l’équipe listés au calendrier, programmés ou non : un match encore
+    sans horaire n’est pas importé, mais il n’a pas disparu du calendrier."""
+    codes: set[str] = set()
+    for row in BeautifulSoup(html, "html.parser").find_all("tr"):
+        first = row.find("td", recursive=False)
+        if first is None:
+            continue
+        code = first.get_text(" ", strip=True)
+        if re.fullmatch(re.escape(pool) + r"[A-Z]*\d+", code) is None:
+            continue
+        values = [cell.get_text(" ", strip=True) for cell in row.find_all("td")]
+        if len(values) < 6 or exempt(values[3], values[5]):
+            continue
+        if normalize(team_name) in {normalize(values[3]), normalize(values[5])}:
+            codes.add(code)
+    return codes
+
+
 def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: str) -> list[Match]:
     soup = BeautifulSoup(html, "html.parser")
     for name, expected in [("saison", season), ("codent", entity), ("poule", pool)]:
@@ -61,6 +120,7 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
             raise ValueError("Page FFVB ne correspondant pas à la source configurée")
     matches: list[Match] = []
     found_calendar = False
+    plateaus = plateau_times(soup, pool)
     for row in soup.find_all("tr"):
         first = row.find("td", recursive=False)
         if first is None:
@@ -72,20 +132,27 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
         found_calendar = True
         cells = row.find_all("td")
         values = [cell.get_text(" ", strip=True) for cell in cells]
+        # L’exemption d’abord : une ligne « xxxxx » n’est jamais un match, quelle que soit sa forme.
+        if len(values) >= 6 and exempt(values[3], values[5]):
+            continue
         if len(values) < 8:
             raise ValueError("Ligne FFVB incomplète")
         home, away = values[3], values[5]
         if normalize(team_name) not in {normalize(home), normalize(away)}:
             continue
-        # Poule à nombre impair d’équipes : l’équipe exempte d’une journée affronte « xxxxx »,
-        # sans date ni horaire. Ce n’est pas un match.
-        if any(re.fullmatch(r"x+", team, re.IGNORECASE) for team in (home, away)):
+        # Date pas encore fixée : le match sera importé quand la FFVB la publiera.
+        if unscheduled(values):
             continue
+        # Sans heure, le match prend celle de son plateau ; sans plateau horodaté, il est importé
+        # sur sa journée, l’heure restant à compléter.
+        hour = values[2] or plateaus.get((values[1], normalize(values[7])), "")
+        time_unknown = not hour
         try:
-            date_format = "%d/%m/%Y" if len(values[1].split("/")[-1]) == 4 else "%d/%m/%y"
-            kickoff = datetime.strptime(
-                values[1] + " " + values[2], date_format + " %H:%M"
-            ).replace(tzinfo=ZoneInfo("Europe/Paris"))
+            day = match_day(values[1])
+            kickoff = day
+            if hour:
+                parsed = datetime.strptime(hour, "%H:%M")
+                kickoff = day.replace(hour=parsed.hour, minute=parsed.minute)
         except ValueError as exc:
             raise ValueError(f"Horaires FFVB inexploitables pour {code}") from exc
         if kickoff.year not in {int(year) for year in season.split("/")}:
@@ -107,7 +174,9 @@ def parse_calendar(html: bytes, season: str, entity: str, pool: str, team_name: 
             if played
             else None
         )
-        matches.append(Match(code, kickoff.astimezone(UTC), home, away, location, result))
+        matches.append(
+            Match(code, kickoff.astimezone(UTC), home, away, location, result, time_unknown)
+        )
     if not found_calendar:
         raise ValueError("Calendrier FFVB introuvable")
     return matches

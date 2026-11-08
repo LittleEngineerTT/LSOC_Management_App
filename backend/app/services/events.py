@@ -276,6 +276,7 @@ PROBLEM_MESSAGES: dict[EventProblemCode, str] = {
     "ffvb_divergence": "Divergence avec le calendrier officiel FFVB à traiter",
     "ffvb_missing": "Match absent du calendrier officiel FFVB",
     "ffvb_disabled": "Vérification FFVB désactivée pour ce match",
+    "time_unknown": "Heure du match à compléter : la FFVB n’indique que la journée",
 }
 
 
@@ -353,6 +354,7 @@ def event_conflicts(
         state = states.get(event.ffvb_match_id or "")
         checks: list[tuple[EventProblemCode, bool]] = [
             ("missing_gymnasium", event.occupancy_unknown),
+            ("time_unknown", event.time_unknown),
             ("no_referent", not event.referent_ids),
             ("ffvb_divergence", event.ffvb_match_id in divergent),
             ("ffvb_missing", state is not None and state.missing),
@@ -833,6 +835,11 @@ def change_event(
         for key in values.keys() & {"kickoff_at", "gymnasium_id", "location"}:
             protected[key] = actor.id
         state.protected = protected
+        # Heure complétée d’un match qui n’en avait pas : il quitte sa journée et réserve ses
+        # terrains comme un match ordinaire.
+        if "kickoff_at" in values and event.kickoff_at and event.time_unknown:
+            event.time_unknown = False
+            event.courts = match_occupancy(db, event)
         if values.keys() & {"kickoff_at", "before_minutes", "after_minutes"} and event.kickoff_at:
             event.starts_at = event.kickoff_at - timedelta(minutes=event.before_minutes)
             event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)

@@ -76,6 +76,14 @@ export function weekLabel(monday: string): string {
 export function timeLabel(value: string): string {
   return timeFormat.format(new Date(value));
 }
+/** Libellé d’un match FFVB dont la FFVB n’indique que la journée. */
+export const DAY_ONLY = 'Journée · heure à compléter';
+
+/** Horaires d’un événement ; un match sans heure connue occupe sa journée. */
+export function eventHours(event: { starts_at: string; ends_at: string; time_unknown?: boolean }) {
+  return event.time_unknown ? DAY_ONLY : timeRange(event.starts_at, event.ends_at);
+}
+
 export function timeRange(start: string, end: string): string {
   const sameDay = parisDay(start) === parisDay(end);
   return sameDay

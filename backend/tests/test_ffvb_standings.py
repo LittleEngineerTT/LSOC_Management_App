@@ -1,12 +1,13 @@
 import re
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from conftest import add_user, login
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 from test_ffvb import HTML, configure, sync
 
-from app.integrations.ffvb import Standing, parse_calendar, parse_standings
+from app.integrations.ffvb import Standing, calendar_codes, parse_calendar, parse_standings
 from app.integrations.ffvb_source import club_candidates
 from app.persistence.database import SessionFactory
 from app.persistence.models import FFVBMatchState, FFVBSource
@@ -119,3 +120,39 @@ def test_odd_pool_skips_the_bye_and_reads_every_match() -> None:
     # Garches n’a perdu aucun set : « MAX » en coefficient, pas en nom d’équipe.
     assert club_candidates(html, '2026/2027', 'PTIDF92', '1MA', '0928528', None) == [('12', 'GARCHES VAUCRESSON VOLLEY-BALL')]
     assert club_candidates(html, '2026/2027', 'PTIDF92', '1MA', '0926620', '10') == [('10', 'LSO COLOMBES 2')]
+
+
+def test_matches_without_a_time_take_their_plateau_time_or_their_day() -> None:
+    # Poule BFA : 16 matchs de LSO COLOMBES, la FFVB ne donnant souvent que l’heure du premier
+    # match d’un plateau (même jour, même gymnase), et parfois aucune heure.
+    html = FIXTURES.joinpath('ffvb-ptidf92-bfa.html').read_bytes()
+    matches = {match.code: match for match in parse_calendar(html, '2026/2027', 'PTIDF92', 'BFA', 'LSO COLOMBES')}
+    assert len(matches) == 16
+    paris = ZoneInfo('Europe/Paris')
+    # BFA008 suit BFA007 (14:30) au gymnase Verhaeren : il prend l’heure du plateau.
+    assert matches['BFA007'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '21/11 14:30'
+    assert matches['BFA008'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '21/11 14:30'
+    assert not matches['BFA008'].time_unknown
+    # BFA014 : aucune heure ce jour-là aux Platanes, il est placé sur sa journée.
+    assert matches['BFA014'].time_unknown
+    assert matches['BFA014'].kickoff_at.astimezone(paris).strftime('%d/%m %H:%M') == '05/12 00:00'
+
+
+def test_matches_without_a_time_no_longer_break_the_page() -> None:
+    # Poule BMA : des matchs ont une date mais pas d’heure (BMA005…) ; la page se lit.
+    html = FIXTURES.joinpath('ffvb-ptidf92-bma.html').read_bytes()
+    codes = {match.code for match in parse_calendar(html, '2026/2027', 'PTIDF92', 'BMA', 'LSO COLOMBES')}
+    assert 'BMA005' in codes
+    assert codes <= calendar_codes(html, 'BMA', 'LSO COLOMBES')
+    # La recherche des équipes du club lit la page sans erreur.
+    club_candidates(html, '2026/2027', 'PTIDF92', 'BMA', '0926620', None)
+
+
+def test_bye_rows_are_ignored_before_reading_the_date() -> None:
+    # Poule MFA : LSO COLOMBES 2 est exempte de MFA008 (adversaire « xxxxx », sans date ni heure).
+    html = FIXTURES.joinpath('ffvb-ptidf92-mfa.html').read_bytes()
+    matches = parse_calendar(html, '2026/2027', 'PTIDF92', 'MFA', 'LSO COLOMBES 2')
+    assert matches and 'MFA008' not in {match.code for match in matches}
+    assert 'MFA008' not in calendar_codes(html, 'MFA', 'LSO COLOMBES 2')
+    # La recherche des équipes du club lit la page sans erreur.
+    club_candidates(html, '2026/2027', 'PTIDF92', 'MFA', '0926620', None)

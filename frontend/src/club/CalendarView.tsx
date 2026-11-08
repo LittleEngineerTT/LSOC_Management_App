@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { Event } from '../admin/types';
 import { Empty } from '../admin/ui';
-import { dayLabel, timeRange, today } from './calendar';
+import { dayLabel, eventHours, timeRange, today } from './calendar';
 import { HOUR_HEIGHT, MIN_EVENT_MINUTES, placeSegments, splitEvents } from './calendarLayout';
 import { useSelectedDay, type CalendarMode } from './CalendarNavigation';
 import { EventRow, EventOrigin, kindLabels, useEventLink, usePlace } from './events';
@@ -218,7 +218,7 @@ function CalendarEvent({
   const link = useEventLink();
   const place = usePlace();
   const source = event.ffvb_match_id ? 'FFVB' : 'Local';
-  const label = `${event.title}, ${source}, ${kindLabels[event.kind]}, ${timeRange(event.starts_at, event.ends_at)}, ${place(event)}${event.cancelled ? ', annulé' : ''}`;
+  const label = `${event.title}, ${source}, ${kindLabels[event.kind]}, ${eventHours(event)}, ${place(event)}${event.cancelled ? ', annulé' : ''}`;
   return (
     <Link
       to={link(event.id, day)}
@@ -234,7 +234,7 @@ function CalendarEvent({
         {event.cancelled && <span className="calendar-cancelled">Annulé</span>}
       </span>
       <strong>{event.title}</strong>
-      <span className="calendar-event-hours">{timeRange(event.starts_at, event.ends_at)}</span>
+      <span className="calendar-event-hours">{eventHours(event)}</span>
       {event.kickoff_at && (
         <span className="calendar-kickoff">
           Coup d’envoi : {timeRange(event.kickoff_at, event.kickoff_at).split(' – ')[0]}

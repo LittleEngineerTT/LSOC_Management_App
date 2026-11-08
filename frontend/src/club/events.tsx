@@ -1,7 +1,7 @@
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { Event } from '../admin/types';
 import { Badge, Empty } from '../admin/ui';
-import { dayLabel, parisDay, timeRange } from './calendar';
+import { dayLabel, parisDay, eventHours } from './calendar';
 import { isFollowed, useClub } from './context';
 
 export const kindLabels: Record<Event['kind'], string> = {
@@ -82,7 +82,7 @@ export function EventRow({ event }: { event: Event }) {
       className={`club-event kind-${event.kind} origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${event.cancelled ? ' cancelled' : ''}`}
     >
       <Link to={link(event.id)} className="club-event-link">
-        <span className="club-event-time">{timeRange(event.starts_at, event.ends_at)}</span>
+        <span className="club-event-time">{eventHours(event)}</span>
         <span className="club-event-copy">
           <strong>{event.title}</strong>
           <span>

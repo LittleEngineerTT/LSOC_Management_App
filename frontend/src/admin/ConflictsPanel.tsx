@@ -16,6 +16,7 @@ const tones: Record<EventProblem['code'], string> = {
   ffvb_missing: 'warning',
   ffvb_disabled: 'warning',
   ffvb_suspended: 'warning',
+  time_unknown: 'warning',
 };
 
 // Décisions possibles sur une divergence avec le calendrier officiel.

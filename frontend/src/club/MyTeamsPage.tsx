@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Badge, Empty, LoadState, PanelHeading, playerDetails } from '../admin/ui';
-import { dayLabel, horizonLabel, parisDay, timeRange } from './calendar';
+import { dayLabel, horizonLabel, parisDay, eventHours } from './calendar';
 import { PersonNames, useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { concernsTeam, useEventLink } from './events';
@@ -75,8 +75,7 @@ export function MyTeamsPage() {
                   {upcoming.map((event) => (
                     <li key={event.id}>
                       <Link to={link(event.id)}>{event.title}</Link> ·{' '}
-                      {dayLabel(parisDay(event.starts_at))},{' '}
-                      {timeRange(event.starts_at, event.ends_at)}
+                      {dayLabel(parisDay(event.starts_at))}, {eventHours(event)}
                     </li>
                   ))}
                 </ul>

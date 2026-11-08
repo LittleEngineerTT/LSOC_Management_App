@@ -321,6 +321,8 @@ class EventView(View):
     before_minutes: int
     after_minutes: int
     occupancy_unknown: bool
+    # Match FFVB sur sa journée, heure à compléter.
+    time_unknown: bool = False
     match_courts: int
     registration_section_ids: list[str]
     registration_team_ids: list[str] = Field(default_factory=list)
@@ -338,6 +340,7 @@ EventProblemCode = Literal[
     "ffvb_missing",
     "ffvb_disabled",
     "ffvb_suspended",
+    "time_unknown",
 ]
 
 
@@ -400,6 +403,8 @@ class PublicEventView(View):
     cancelled: bool
     ffvb_match_id: str
     kickoff_at: datetime | None
+    # Journée connue, heure du match à compléter.
+    time_unknown: bool = False
     team_ids: list[str]
 
 
@@ -902,6 +907,8 @@ class TeamMatchView(View):
     # le score.
     location: str | None
     score: MatchScoreView | None
+    # Journée connue, heure à compléter : `kickoff_at` est alors minuit, heure de Paris.
+    time_unknown: bool = False
 
 
 class SourceStandingsView(View):

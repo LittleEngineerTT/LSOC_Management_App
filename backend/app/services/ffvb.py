@@ -24,6 +24,7 @@ from app.core.security import now
 from app.integrations.ffvb import (
     Match,
     Result,
+    calendar_codes,
     fetch,
     normalize,
     parse_calendar,
@@ -223,6 +224,14 @@ def apply_official(
     for key in ("kickoff_at", "gymnasium_id", "location"):
         local = official_value(event, key)
         remote = official.get(key)
+        # Heure complétée localement alors que la FFVB n’en donne pas : rien à trancher.
+        if (
+            key == "kickoff_at"
+            and key in state.protected
+            and remote is None
+            and official.get("day")
+        ):
+            continue
         if key in state.protected and local != remote:
             existing = db.scalar(
                 select(FFVBConflict).where(
@@ -273,7 +282,12 @@ def apply_official(
     # Local reservations follow the mapped location; unknown venues never select an arbitrary gym.
     event.occupancy_unknown = bool(home and event.gymnasium_id is None)
     event.courts = match_occupancy(db, event)
-    if event.kickoff_at:
+    # Sans heure connue ni complétée : le match occupe sa journée, sans réserver de terrain.
+    event.time_unknown = event.kickoff_at is None and bool(official.get("day"))
+    if event.time_unknown:
+        day = datetime.fromisoformat(str(official["day"]))
+        event.starts_at, event.ends_at, event.courts = day, day + timedelta(days=1), 0
+    elif event.kickoff_at:
         if home or event.gymnasium_id is not None:
             event.starts_at = event.kickoff_at - timedelta(minutes=event.before_minutes)
             event.ends_at = event.kickoff_at + timedelta(minutes=event.after_minutes)
@@ -359,6 +373,7 @@ def record_calendar(db: Session, source: FFVBSource, matches: list[Match]) -> No
         {
             "match_code": match.code,
             "kickoff_at": match.kickoff_at.isoformat(),
+            "time_unknown": match.time_unknown,
             "home_team": match.home_team,
             "away_team": match.away_team,
             "location": match.location or known.get(match.code) or None,
@@ -407,6 +422,8 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     try:
         html = fetch(client, source.season, source.entity, source.pool)
         matches = parse_calendar(html, source.season, source.entity, source.pool, source.team_name)
+        # Matchs listés mais pas encore programmés : présents, donc jamais signalés absents.
+        listed = calendar_codes(html, source.pool, source.team_name)
     except (httpx.HTTPError, ValueError):
         lock_planning(db)
         db.refresh(source)
@@ -434,7 +451,7 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
     # Une notification par compte pour la synchronisation : matchs ajoutés, gymnases à associer…
     with grouping(db, f"ffvb:{source.id}", f"Calendrier FFVB {team.name}"):
         venues = Venues(db)
-        seen: set[str] = set()
+        seen: set[str] = set(listed)
         before, after, courts = match_settings(db, source)
         for match in matches:
             seen.add(match.code)
@@ -464,7 +481,9 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
             )
             home, gym = venues.resolve(location, match.home_team, source.team_name)
             official: dict[str, Any] = {
-                "kickoff_at": match.kickoff_at.isoformat(),
+                # Sans heure (même pour le plateau), la FFVB ne fixe que la journée.
+                "kickoff_at": None if match.time_unknown else match.kickoff_at.isoformat(),
+                "day": match.kickoff_at.isoformat() if match.time_unknown else None,
                 "gymnasium_id": gym,
                 "location": location,
                 "home_team": match.home_team,
@@ -490,11 +509,13 @@ def sync_source(db: Session, source: FFVBSource, client: httpx.Client) -> bool:
                     gymnasium_id=official["gymnasium_id"],
                     location=location,
                     starts_at=match.kickoff_at,
-                    ends_at=match.kickoff_at + timedelta(minutes=after),
-                    courts=courts if official["gymnasium_id"] else 0,
+                    ends_at=match.kickoff_at
+                    + (timedelta(days=1) if match.time_unknown else timedelta(minutes=after)),
+                    courts=courts if official["gymnasium_id"] and not match.time_unknown else 0,
+                    time_unknown=match.time_unknown,
                     referent_ids=list(team.referent_ids),
                     ffvb_match_id=state.id,
-                    kickoff_at=match.kickoff_at,
+                    kickoff_at=None if match.time_unknown else match.kickoff_at,
                     before_minutes=before,
                     after_minutes=after,
                     match_courts=courts,

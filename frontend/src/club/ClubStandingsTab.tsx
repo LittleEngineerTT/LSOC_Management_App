@@ -27,6 +27,8 @@ interface TeamMatch {
   away_team: string;
   /** Absent d’un match joué avant le premier import : la FFVB n’en affiche plus que le score. */
   location: string | null;
+  /** Journée connue, heure à compléter ; absent d’une API antérieure. */
+  time_unknown?: boolean;
   score: {
     home_sets: number;
     away_sets: number;
@@ -137,7 +139,8 @@ function MatchRow({ match, club }: { match: TeamMatch; club: string }) {
   return (
     <li className="club-result">
       <span className="club-result-date">
-        {dayLabel(parisDay(match.kickoff_at))} · {timeLabel(match.kickoff_at)}
+        {dayLabel(parisDay(match.kickoff_at))} ·{' '}
+        {match.time_unknown ? 'heure à compléter' : timeLabel(match.kickoff_at)}
       </span>
       <span className="club-result-teams">
         <span className={home ? 'club-result-club' : undefined}>{match.home_team}</span>{' '}

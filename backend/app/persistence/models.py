@@ -350,6 +350,9 @@ class Event(Identity, Base):
     after_minutes: Mapped[int] = mapped_column(Integer, default=150)
     match_courts: Mapped[int] = mapped_column(Integer, default=3)
     occupancy_unknown: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Match FFVB sans heure, même pour son plateau : placé sur sa journée, sans réserver de
+    # terrain, jusqu’à ce que l’heure soit publiée ou complétée.
+    time_unknown: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Séance ouverte : union des sections et équipes autorisées.
     registration_section_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     registration_team_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
