@@ -902,6 +902,25 @@ it('un signal du serveur met aussitôt à jour la pastille et la liste des notif
   expect(source.closed).toBe(true);
 });
 
+it('pastilles sans nombre : points à traiter dans l’administration et la messagerie', async () => {
+  account = admin;
+  let unread = { messages: 0, notifications: 0, threads: [] as string[], administration: true, messaging_pending: true };
+  Object.defineProperty(routes, '/unread', { enumerable: true, configurable: true, get: () => unread });
+  open('/app');
+  const menu = await screen.findByRole('navigation', { name: 'Applications' });
+  const administration = within(menu).getByRole('link', { name: /Administration/ });
+  expect(await within(administration).findByLabelText('Conflits ou points FFVB à traiter')).toBeInTheDocument();
+  const messaging = within(menu).getByRole('link', { name: /Messagerie/ });
+  expect(within(messaging).getByLabelText('Questions ou demandes en attente')).toBeInTheDocument();
+  // Des messages non lus : la messagerie montre leur nombre, sans la pastille seule.
+  unread = { ...unread, messages: 2, threads: ['q1'] };
+  await userEvent.click(within(menu).getByRole('link', { name: /Planning/ }));
+  const after = await screen.findByRole('navigation', { name: 'Applications' });
+  const counted = within(after).getByRole('link', { name: /Messagerie/ });
+  expect(await within(counted).findByLabelText('2 questions non lues')).toBeInTheDocument();
+  expect(within(counted).queryByLabelText('Questions ou demandes en attente')).not.toBeInTheDocument();
+});
+
 it('un administrateur suit les demandes de contact : pastille, prise en charge, résolution et filtre', async () => {
   account = admin;
   const requested: string[] = [];

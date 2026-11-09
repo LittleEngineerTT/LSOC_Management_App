@@ -24,6 +24,12 @@ export interface Unread {
   requests?: number;
   /** Demandes de contact non résolues (administrateurs) ; absent d’une API antérieure. */
   contacts?: number;
+  /** Au moins un conflit ou un point FFVB à traiter (administrateurs) ; absent d’une API
+   * antérieure. */
+  administration?: boolean;
+  /** Au moins une question sans réponse ou une demande à décider (coachs et
+   * administrateurs) ; absent d’une API antérieure. */
+  messaging_pending?: boolean;
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;
@@ -148,4 +154,10 @@ export function CountBadge({ count, label }: { count: number; label: [string, st
       {count > 99 ? '99+' : count}
     </span>
   );
+}
+
+/** Pastille sans nombre : au moins un point à traiter. */
+export function PendingDot({ pending, label }: { pending: boolean; label: string }) {
+  if (!pending) return null;
+  return <span className="nav-count nav-pending" role="img" aria-label={label} />;
 }

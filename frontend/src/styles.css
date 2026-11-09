@@ -652,6 +652,14 @@
     text-align: center;
     box-shadow: 0 0 0 2px var(--navy);
   }
+  /* Pastille sans nombre : au moins un point à traiter. */
+  .nav-pending {
+    top: 12px;
+    min-width: 11px;
+    width: 11px;
+    height: 11px;
+    padding: 0;
+  }
   .mobile-menu {
     position: relative;
   }

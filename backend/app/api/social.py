@@ -18,11 +18,14 @@ from app.persistence.models import (
     EmailJob,
     Event,
     EventSeries,
+    FFVBSource,
     Follow,
     HiddenThread,
     Notification,
     QuestionMessage,
     QuestionThread,
+    StaffRequest,
+    Team,
     User,
 )
 from app.services.notifications import admins, thread_link
@@ -71,6 +74,61 @@ def unread_for(actor: User) -> ColumnElement[bool]:
     return QuestionMessage.read_at.is_(None) & received & visible_to(actor)
 
 
+def administration_alert(db: Session, actor: User) -> bool:
+    """Au moins un point à traiter dans l’administration (administrateurs) : conflit ni résolu
+    ni ignoré, source FFVB activée en erreur ou équipe sans source FFVB à configurer."""
+    if "admin" not in actor.roles:
+        return False
+    failing = select(FFVBSource.id).where(
+        FFVBSource.enabled.is_(True),
+        FFVBSource.last_error.is_not(None),
+        FFVBSource.last_error != "",
+    )
+    missing = select(Team.id).where(
+        Team.ffvb_source_warning_ignored.is_(False),
+        ~exists(select(FFVBSource.id).where(FFVBSource.team_id == Team.id)),
+    )
+    if db.scalar(select(exists(failing))) or db.scalar(select(exists(missing))):
+        return True
+    from app.services.events import event_conflicts
+
+    return any(not item.ignored for item in event_conflicts(db, now()))
+
+
+def messaging_pending(db: Session, actor: User) -> bool:
+    """Au moins une demande en attente de décision, ou, pour un administrateur, une question
+    sans réponse : le dernier message vient de l’adhérent. Lue ou non, elle compte jusqu’à sa
+    réponse, sa décision ou la suppression de la conversation. Coachs et administrateurs seuls,
+    comme l’onglet Demandes."""
+    if not {"admin", "coach"} & set(actor.roles):
+        return False
+    from app.api.requests import requests as listed_requests
+
+    if listed_requests(db, actor, "pending"):
+        return True
+    if "admin" not in actor.roles:
+        return False
+    later = aliased(QuestionMessage)
+    last = aliased(QuestionMessage)
+    waiting = (
+        select(QuestionThread.id)
+        .join(last, last.thread_id == QuestionThread.id)
+        .where(
+            QuestionThread.user_id != actor.id,
+            last.author_id == QuestionThread.user_id,
+            ~exists(
+                select(later.id).where(
+                    later.thread_id == QuestionThread.id, later.created_at > last.created_at
+                )
+            ),
+            # Conversation d’une demande : sa décision la traite, pas une réponse écrite.
+            ~exists(select(StaffRequest.id).where(StaffRequest.thread_id == QuestionThread.id)),
+            visible_to(actor),
+        )
+    )
+    return bool(db.scalar(select(exists(waiting))))
+
+
 @router.get("/unread", response_model=UnreadView)
 def unread(db: DB, actor: Actor) -> UnreadView:
     rows = db.execute(
@@ -99,6 +157,8 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         thread_counts=counts,
         requests=requests or 0,
         contacts=contacts or 0,
+        administration=administration_alert(db, actor),
+        messaging_pending=messaging_pending(db, actor),
     )
 
 

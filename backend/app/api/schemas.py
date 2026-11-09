@@ -773,6 +773,10 @@ class UnreadView(View):
     requests: int = 0
     # Demandes de contact non résolues, pour la pastille de l’application Contact (admins).
     contacts: int = 0
+    # Au moins un conflit ou un point FFVB à traiter : pastille sans nombre d’Administration.
+    administration: bool = False
+    # Au moins une question sans réponse ou une demande à décider : pastille de Messagerie.
+    messaging_pending: bool = False
 
 
 LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]

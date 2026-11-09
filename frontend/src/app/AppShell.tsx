@@ -8,7 +8,7 @@ import { createAdminApi } from '../admin/api';
 import { AdminPage } from '../admin/AdminPage';
 import { ProfilePage } from './ProfilePage';
 import { NotificationsPanel } from './NotificationsPanel';
-import { CountBadge, UnreadProvider, useUnread } from './unread';
+import { CountBadge, PendingDot, UnreadProvider, useUnread } from './unread';
 import { ClubProvider, GuestClubProvider, useClub } from '../club/context';
 import { GuestGymnasiums, GuestHome, GuestPlanning } from '../club/GuestPages';
 import { GymnasiumsPage } from '../club/GymnasiumsPage';
@@ -156,6 +156,19 @@ function Workspace({ account, section }: { account: Account | null; section: str
       label: ['pièce à déposer', 'pièces à déposer'],
     },
   };
+  // Pastilles sans nombre : au moins un point à traiter, lu ou non. Messagerie garde son nombre
+  // de non lus ; la pastille seule apparaît quand tout est lu mais reste en attente.
+  const pending: Partial<Record<string, { pending: boolean; label: string }>> = {
+    Messagerie: {
+      pending: !messaging && !!unread.messaging_pending,
+      label: 'Questions ou demandes en attente',
+    },
+    Administration: {
+      pending: !!unread.administration,
+      label: 'Conflits ou points FFVB à traiter',
+    },
+  };
+  const waiting = Object.values(pending).some((item) => item?.pending);
   const { refresh } = unread;
   // Chaque changement de section relit les compteurs.
   useEffect(refresh, [refresh]);
@@ -233,6 +246,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
                 <Icon name={item.icon} />
                 <span>{item.title}</span>
                 {account && item.title in badges && <CountBadge {...badges[item.title]!} />}
+                {account && item.title in pending && <PendingDot {...pending[item.title]!} />}
               </NavLink>
             ))}
         </nav>
@@ -251,7 +265,7 @@ function Workspace({ account, section }: { account: Account | null; section: str
             onClick={() => setNavigationOpen(!navigationOpen)}
           >
             <Icon name="menu" />
-            {messaging + dossier.pending + contacts > 0 && (
+            {(messaging + dossier.pending + contacts > 0 || waiting) && (
               <span className="nav-dot" aria-hidden="true" />
             )}
           </button>
