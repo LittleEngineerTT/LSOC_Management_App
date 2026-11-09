@@ -62,7 +62,8 @@ export function UserCard({
   /** Rattachements connus du compte, quand l’administration ne peut pas les relire (coach). */
   assignments: Assignment[];
   editable: boolean;
-  onSaved: (id: string, message: string, invitation?: Invitation) => void;
+  /** `saved` : le compte tel que le serveur l’a enregistré, affiché sans attendre la relecture. */
+  onSaved: (id: string, message: string, invitation?: Invitation, saved?: User) => void;
   onClose: () => void;
 }) {
   const { api, catalog } = useAdmin();
@@ -204,9 +205,11 @@ export function UserCard({
       };
       let id: string;
       let created: Invitation | undefined;
+      let saved: User | undefined;
       let message: string;
       if (user) {
-        id = (await api.request<User>(`/users/${encodeURIComponent(user.id)}`, 'PUT', body)).id;
+        saved = await api.request<User>(`/users/${encodeURIComponent(user.id)}`, 'PUT', body);
+        id = saved.id;
         message = 'Compte mis à jour.';
         if (user.id === accountId) session.retry();
       } else {
@@ -226,7 +229,7 @@ export function UserCard({
       }
       if (user || players.length || coaches.length)
         id = await syncAssignments(id, created ? [] : original);
-      onSaved(id, message, created);
+      onSaved(id, message, created, saved);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Enregistrement impossible.');
     } finally {

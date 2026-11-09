@@ -143,6 +143,20 @@ it('renseigne facultativement le sexe d’un compte', async () => {
   await waitFor(() => expect(mutations()).toEqual([['/users/b', 'PUT', { first_name: 'Bob', category: 'adult', sex: null, roles: ['member'], messaging_allowed: true }]]));
 });
 
+it('garde affichées les nouvelles informations du compte après l’enregistrement', async () => {
+  open('users');
+  await userEvent.click(await screen.findByRole('button', { name: 'Bob M.' }));
+  const card = await screen.findByRole('region', { name: 'Fiche de Bob' });
+  await userEvent.clear(within(card).getByLabelText('Prénom'));
+  await userEvent.type(within(card).getByLabelText('Prénom'), 'Robert');
+  await userEvent.selectOptions(within(card).getByLabelText('Sexe'), '');
+  await userEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));
+  // La fiche rouverte montre le compte enregistré, même si la liste relue tarde ou reste ancienne.
+  const saved = await screen.findByRole('region', { name: 'Fiche de Robert' });
+  expect(within(saved).getByLabelText('Prénom')).toHaveValue('Robert');
+  expect(within(saved).getByLabelText('Sexe')).toHaveValue('');
+});
+
 it('garde la gestion du compte hors de la fiche : elle s’ouvre par Gérer, à côté de Supprimer', async () => {
   open('users');
   const row = (await screen.findByText('Bob M.', { selector: 'button' })).closest('article') as HTMLElement;

@@ -26,6 +26,15 @@ export function UsersPanel() {
   const [editing, setEditing] = useState<{ id: string | null; revision: number } | null>(null);
   // Dernière version connue du compte ouvert, le temps que la liste se recharge.
   const [known, setKnown] = useState<User | null>(null);
+  // Compte tel que le serveur vient de l’enregistrer : il prime sur la liste, encore ancienne,
+  // jusqu’à sa relecture.
+  // Valable tant que la liste n’a pas changé (`users` : la liste au moment de l’enregistrement).
+  const [saved, setSaved] = useState<{ user: User; users: User[] } | null>(null);
+  const fresh = saved?.users === catalog.users ? saved.user : null;
+  const current = (id: string) =>
+    (fresh?.id === id ? fresh : null) ??
+    catalog.users.find((user) => user.id === id) ??
+    (known?.id === id ? known : null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [section, setSection] = useState('');
@@ -35,21 +44,13 @@ export function UsersPanel() {
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   // Gestion du compte (identifiants, invitation), ouverte par « Gérer » dans la liste.
   const [managing, setManaging] = useState<string | null>(null);
-  const managed =
-    managing != null
-      ? (catalog.users.find((user) => user.id === managing) ??
-        (known?.id === managing ? known : null))
-      : null;
+  const managed = managing != null ? current(managing) : null;
   const [confirmation, setConfirmation] = useState<{
     user: User;
     action: 'delete' | 'regenerate' | 'revoke';
   } | null>(null);
   const [notice, setNotice] = useState('');
-  const selected =
-    editing?.id != null
-      ? (catalog.users.find((user) => user.id === editing.id) ??
-        (known?.id === editing.id ? known : null))
-      : null;
+  const selected = editing?.id != null ? current(editing.id) : null;
   const assignmentsOf = (id: string) =>
     (assignments.data ?? []).filter((item) => item.user_id === id);
   const teamsOf = new Map<string, string[]>();
@@ -96,7 +97,7 @@ export function UsersPanel() {
       assignments={selected ? assignmentsOf(selected.id) : []}
       editable={admin}
       onClose={() => setEditing(null)}
-      onSaved={(id, message, created) => {
+      onSaved={(id, message, created, updated) => {
         setNotice(message);
         if (created) {
           // Le lien d’invitation n’est lisible qu’à la création : la gestion du compte s’ouvre.
@@ -104,7 +105,9 @@ export function UsersPanel() {
           setKnown({ ...created.user, id });
           setManaging(id);
         } else if (selected) {
-          setKnown({ ...selected, id });
+          const latest = { ...(updated ?? selected), id };
+          setKnown(latest);
+          setSaved({ user: latest, users: catalog.users });
           if (managing === selected.id) setManaging(id);
         }
         setEditing((previous) => ({ id, revision: (previous?.revision ?? 0) + 1 }));
