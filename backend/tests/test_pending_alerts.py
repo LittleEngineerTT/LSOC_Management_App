@@ -78,7 +78,10 @@ def test_messaging_dot_for_unanswered_questions_and_undecided_requests(admin: Te
     assert created.status_code == 201, created.text
     assert flags(coach)[1] is True
     assert flags(admin)[1] is True
-    assert tabs(coach) == (False, True)
+    with SessionFactory() as db:
+        stored = db.get_one(User, 'coach')
+        diagnostic = (list(stored.roles), waiting_threads(db, stored), coach.get('/api/v1/auth/me').json().get('id'), coach.get('/api/v1/unread').json())
+    assert tabs(coach) == (False, True), diagnostic
     assert tabs(admin) == (False, True)
     decided = admin.post(f"/api/v1/requests/{created.json()['id']}/decision", json={'accept': True})
     assert decided.status_code == 200, decided.text
