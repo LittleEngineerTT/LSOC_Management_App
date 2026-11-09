@@ -116,7 +116,9 @@ Les tests navigateur utilisent des réponses API contrôlées et ne modifient pa
 
 Utiliser exclusivement une base PostgreSQL dédiée : la vérification efface son schéma `public`, et les fixtures recréent les tables entre les tests. Les tests doivent s’exécuter séquentiellement.
 
-Depuis la racine, avec un PostgreSQL local de test :
+Le plus simple : `backend/test.sh` monte une base PostgreSQL jetable dans Docker (port 55432), crée l’environnement Python au besoin, lance la vérification complète puis supprime la base, même en cas d’échec. Avec des arguments, il lance seulement pytest : `backend/test.sh tests/test_social.py -x -vv`.
+
+Sinon, depuis la racine, avec un PostgreSQL local de test :
 
 ```sh
 LSOC_TEST_DATABASE_URL='postgresql+psycopg://lsoc:lsoc@localhost:5432/lsoc_test' \
