@@ -26,7 +26,7 @@ const LIMIT = 20;
 /** Cloche du bandeau : pastille des notifications non lues et panneau qui présente les
  * 20 dernières, non lues d’abord. Seul « Marquer comme lu » passe une notification en lue :
  * la suivre vers son écran la laisse non lue. Les lues restent masquées tant que « Tout afficher »
- * n’est pas coché. */
+ * n’est pas coché ; « Marquer comme non lu » en remet une parmi les non lues. */
 export function NotificationsPanel() {
   const { csrfToken, clear } = useSession();
   const api = useMemo(() => createAdminApi(csrfToken, clear), [csrfToken, clear]);
@@ -34,8 +34,8 @@ export function NotificationsPanel() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  // Lues pendant la session du panneau, avant la relecture de la liste.
-  const [read, setRead] = useState<Set<string>>(new Set());
+  // Lues ou remises en non lues pendant la session du panneau, avant la relecture de la liste.
+  const [read, setRead] = useState<Map<string, boolean>>(new Map());
   const control = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const request = useRequest();
@@ -54,7 +54,7 @@ export function NotificationsPanel() {
   );
   const result = useLoad(loader);
   useLiveReload(result.refresh);
-  const isRead = (item: Notification) => Boolean(item.read_at) || read.has(item.id);
+  const isRead = (item: Notification) => read.get(item.id) ?? Boolean(item.read_at);
   const items = result.data ?? [];
   const unread = items.filter((item) => !isRead(item));
   // Les déjà lues suivent, de la plus récente à la plus ancienne.
@@ -89,11 +89,16 @@ export function NotificationsPanel() {
     next.set('event', item.event_id);
     return `${location.pathname}?${next.toString()}`;
   }
-  function markRead(ids: string[]) {
+  function markRead(ids: string[], value = true) {
     void request.run(async (signal) => {
       for (const id of ids) {
-        await api.request(`/notifications/${id}/read`, 'POST', {}, signal);
-        setRead((previous) => new Set(previous).add(id));
+        await api.request(
+          `/notifications/${id}/read`,
+          value ? 'POST' : 'DELETE',
+          value ? {} : undefined,
+          signal,
+        );
+        setRead((previous) => new Map(previous).set(id, value));
       }
       refresh();
     });
@@ -119,29 +124,25 @@ export function NotificationsPanel() {
             {!fresh && ' · lue'}
           </span>
           {item.body && <span className="notifications-body">{item.body}</span>}
-          {(action || fresh) && (
-            <span className="notifications-actions">
-              {action && (
-                <Link
-                  className={`admin-button${fresh ? ' primary' : ''}`}
-                  to={to!}
-                  onClick={() => setOpen(false)}
-                >
-                  {action}
-                </Link>
-              )}
-              {fresh && (
-                <button
-                  type="button"
-                  className="admin-button"
-                  disabled={request.pending}
-                  onClick={() => markRead([item.id])}
-                >
-                  Marquer comme lu
-                </button>
-              )}
-            </span>
-          )}
+          <span className="notifications-actions">
+            {action && (
+              <Link
+                className={`admin-button${fresh ? ' primary' : ''}`}
+                to={to!}
+                onClick={() => setOpen(false)}
+              >
+                {action}
+              </Link>
+            )}
+            <button
+              type="button"
+              className="admin-button"
+              disabled={request.pending}
+              onClick={() => markRead([item.id], fresh)}
+            >
+              {fresh ? 'Marquer comme lu' : 'Marquer comme non lu'}
+            </button>
+          </span>
         </div>
       </li>
     );

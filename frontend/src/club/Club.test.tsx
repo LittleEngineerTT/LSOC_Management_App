@@ -290,6 +290,29 @@ it('la cloche du bandeau porte la pastille des notifications et retire une notif
   expect(bell).toHaveFocus();
 });
 
+it('une notification lue se remet en non lue depuis la cloche', async () => {
+  let notifications = 0;
+  routes['/notifications'] = [
+    { id: 'n1', kind: 'event_changed', title: 'Événement modifié : Entraînement loisir', event_id: 'e1', read_at: at('10:30'), created_at: at('10:00') },
+  ];
+  Object.defineProperty(routes, '/unread', { enumerable: true, configurable: true, get: () => ({ messages: 0, notifications, threads: [] }) });
+  mutation = () => {
+    notifications += 1;
+    routes['/notifications'] = [{ ...(routes['/notifications'] as object[])[0], read_at: null }];
+    return reply({}, 200);
+  };
+  open('/app');
+  await userEvent.click(await screen.findByRole('button', { name: 'Notifications' }));
+  const panel = screen.getByRole('region', { name: 'Notifications' });
+  await userEvent.click(await within(panel).findByLabelText('Tout afficher'));
+  const item = within(panel).getByText('Événement modifié : Entraînement loisir').closest('li')!;
+  await userEvent.click(within(item).getByRole('button', { name: 'Marquer comme non lu' }));
+  expect(await within(panel).findByRole('button', { name: 'Marquer comme lu' })).toBeInTheDocument();
+  expect(within(panel).queryByText('Déjà lues')).not.toBeInTheDocument();
+  expect(mutations).toEqual([{ path: '/notifications/n1/read', method: 'DELETE', body: undefined }]);
+  expect(await within(screen.getByRole('button', { name: 'Notifications' })).findByLabelText('1 notification non lue')).toBeInTheDocument();
+});
+
 it('un administrateur crée un entraînement les mardis et jeudis jusqu’à la date choisie', async () => {
   account = admin;
   mutation = () => reply([training], 201);

@@ -79,6 +79,11 @@ export const release: Release = {
       text: 'Les pastilles de notifications et de messages se mettent à jour aussitôt, sans recharger la page.',
     },
     {
+      kind: 'feature',
+      title: 'Notification à revoir',
+      text: 'Une notification déjà lue se remet en non lue avec « Marquer comme non lu », sous « Tout afficher ».',
+    },
+    {
       kind: 'fix',
       title: 'Les matchs FFVB des poules en plateau ou sans horaire sont de nouveau récupérés.',
     },

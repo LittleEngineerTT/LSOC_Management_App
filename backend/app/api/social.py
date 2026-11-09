@@ -355,6 +355,16 @@ def mark_read(notification_id: str, db: DB, actor: Actor) -> Notification:
     return notification
 
 
+@router.delete("/notifications/{notification_id}/read", response_model=NotificationView)
+def mark_unread(notification_id: str, db: DB, actor: Actor) -> Notification:
+    """Repasse une notification lue en non lue : elle revient en tête du panneau."""
+    notification = get(db, Notification, notification_id)
+    if notification.user_id != actor.id:
+        raise HTTPException(403, "Notification privée")
+    notification.read_at = None
+    return notification
+
+
 @router.get("/admin/email-jobs", response_model=list[EmailJobView])
 def email_jobs(
     db: DB,

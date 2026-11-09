@@ -47,6 +47,10 @@ def test_follow_preferences_referent_and_author_email(admin: TestClient) -> None
     notification_id = notifications[0]['id']
     assert member.post(f'/api/v1/notifications/{notification_id}/read').status_code == 403
     assert other.post(f'/api/v1/notifications/{notification_id}/read').json()['read_at'] is not None
+    # Une notification lue peut redevenir non lue, par son seul destinataire.
+    assert member.delete(f'/api/v1/notifications/{notification_id}/read').status_code == 403
+    assert other.delete(f'/api/v1/notifications/{notification_id}/read').json()['read_at'] is None
+    assert notification_id in [n['id'] for n in other.get('/api/v1/notifications', params={'unread_only': True}).json()]
 
 
 def test_series_follow_covers_future_occurrences(admin: TestClient) -> None:
