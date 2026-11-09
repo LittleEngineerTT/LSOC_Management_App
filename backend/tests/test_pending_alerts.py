@@ -1,9 +1,8 @@
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.persistence.database import SessionFactory
-from app.api.social import waiting_threads
-from app.persistence.models import FFVBSource, QuestionMessage, QuestionThread, StaffRequest, User
+from app.persistence.models import FFVBSource
 from conftest import add_user, login
 from test_events import payload, setup_planning
 from test_ffvb import configure
@@ -20,27 +19,6 @@ def tabs(client: TestClient) -> tuple[bool, bool]:
     """Pastilles des onglets Conversations et Demandes."""
     body = client.get('/api/v1/unread').json()
     return body['questions_pending'], body['requests_pending']
-
-
-def explain() -> dict[str, object]:
-    """Diagnostic : conversations vues comme sans réponse par l’administrateur, avec leur
-    propriétaire et leurs messages, et conversations rattachées à une demande."""
-    with SessionFactory() as db:
-        found = waiting_threads(db, db.get_one(User, 'admin'))
-        return {
-            'found': {
-                identifier: (
-                    db.get_one(QuestionThread, identifier).user_id,
-                    [
-                        (message.author_id, message.created_at.isoformat(), message.body[:30])
-                        for message in db.scalars(select(QuestionMessage).where(QuestionMessage.thread_id == identifier).order_by(QuestionMessage.created_at))
-                    ],
-                )
-                for identifier in found
-            },
-            'threads': [(item.id, item.user_id, item.event_id, item.subject) for item in db.scalars(select(QuestionThread))],
-            'linked': [(item.id, item.thread_id, item.status) for item in db.scalars(select(StaffRequest))],
-        }
 
 
 def test_administration_dot_follows_conflicts_and_ffvb_points(admin: TestClient) -> None:
@@ -99,16 +77,14 @@ def test_messaging_dot_for_unanswered_questions_and_undecided_requests(admin: Te
     assert created.status_code == 201, created.text
     assert flags(coach)[1] is True
     assert flags(admin)[1] is True
-    with SessionFactory() as db:
-        stored = db.get_one(User, 'coach')
-        diagnostic = (list(stored.roles), waiting_threads(db, stored), coach.get('/api/v1/auth/me').json().get('id'), coach.get('/api/v1/unread').json())
-    assert tabs(coach) == (False, True), diagnostic
-    assert tabs(admin) == (False, True), explain()
+    # La question supprimée par l’administrateur reste masquée malgré le message du coach.
+    assert tabs(coach) == (False, True)
+    assert tabs(admin) == (False, True)
     decided = admin.post(f"/api/v1/requests/{created.json()['id']}/decision", json={'accept': True})
     assert decided.status_code == 200, decided.text
     assert flags(coach)[1] is False
     # Côté administrateur : plus de demande en attente, et la conversation de la demande, close
     # par la décision, ne compte pas comme une question sans réponse.
     assert admin.get('/api/v1/requests', params={'status': 'pending'}).json() == []
-    assert tabs(admin) == (False, False), (explain(), thread)
+    assert tabs(admin) == (False, False)
     assert flags(admin)[1] is False

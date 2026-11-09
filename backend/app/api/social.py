@@ -53,7 +53,10 @@ def visible_to(actor: User) -> ColumnElement[bool]:
             HiddenThread.thread_id == QuestionThread.id,
             ~exists(
                 select(later.id).where(
-                    later.thread_id == QuestionThread.id, later.created_at > HiddenThread.hidden_at
+                    # Relié à la conversation masquée elle-même : rattaché à QuestionThread, deux
+                    # niveaux plus haut, le filtre comptait les messages de toutes les conversations.
+                    later.thread_id == HiddenThread.thread_id,
+                    later.created_at > HiddenThread.hidden_at,
                 )
             ),
         )

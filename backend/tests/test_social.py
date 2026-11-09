@@ -132,6 +132,13 @@ def test_deleting_a_conversation_hides_it_for_that_account_only(admin: TestClien
     assert member.get(f'/api/v1/questions?event_id={event}').json() == []
     assert member.get('/api/v1/unread').json()['messages'] == 0
     assert [t['id'] for t in admin.get('/api/v1/questions').json()] == [thread]
+    # Un message dans une autre conversation ne la fait pas réapparaître.
+    second = admin.post('/api/v1/events', json=payload(section, gym, start='2026-10-16T18:00:00+02:00', end='2026-10-16T20:00:00+02:00')).json()['id']
+    elsewhere = other.post(f'/api/v1/events/{second}/questions', json={'body': 'Et moi ?'})
+    assert elsewhere.status_code == 201, elsewhere.text
+    assert member.get('/api/v1/questions').json() == []
+    # L’admin la supprime : elle reste masquée malgré les messages écrits ensuite ailleurs.
+    assert admin.delete(f"/api/v1/questions/{elsewhere.json()['id']}").status_code == 204
     assert member.delete(f'/api/v1/questions/{thread}').status_code == 204
     # Un nouveau message la fait réapparaître.
     assert admin.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Et des chaussures.'}).status_code == 201
