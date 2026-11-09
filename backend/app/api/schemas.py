@@ -777,6 +777,9 @@ class UnreadView(View):
     administration: bool = False
     # Au moins une question sans réponse ou une demande à décider : pastille de Messagerie.
     messaging_pending: bool = False
+    # Le détail par onglet de la messagerie : demandes à décider, questions sans réponse.
+    requests_pending: bool = False
+    questions_pending: bool = False
 
 
 LicenseStatus = Literal["none", "in_progress", "payment_pending", "active"]

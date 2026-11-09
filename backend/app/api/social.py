@@ -95,19 +95,22 @@ def administration_alert(db: Session, actor: User) -> bool:
     return any(not item.ignored for item in event_conflicts(db, now()))
 
 
-def messaging_pending(db: Session, actor: User) -> bool:
-    """Au moins une demande en attente de décision, ou, pour un administrateur, une question
-    sans réponse : le dernier message vient de l’adhérent. Lue ou non, elle compte jusqu’à sa
-    réponse, sa décision ou la suppression de la conversation. Coachs et administrateurs seuls,
-    comme l’onglet Demandes."""
+def requests_pending(db: Session, actor: User) -> bool:
+    """Au moins une demande en attente de décision, lue ou non : onglet Demandes de la
+    messagerie, réservé aux coachs et aux administrateurs."""
     if not {"admin", "coach"} & set(actor.roles):
         return False
     from app.api.requests import requests as listed_requests
 
-    if listed_requests(db, actor, "pending"):
-        return True
+    return bool(listed_requests(db, actor, "pending"))
+
+
+def waiting_threads(db: Session, actor: User) -> list[str]:
+    """Pour un administrateur, les questions sans réponse : le dernier message vient de
+    l’adhérent. Lue ou non, une question compte jusqu’à sa réponse ou la suppression de la
+    conversation ; onglet Conversations de la messagerie."""
     if "admin" not in actor.roles:
-        return False
+        return []
     # Auteur du dernier message de chaque fil.
     last_author = (
         select(QuestionMessage.author_id)
@@ -124,11 +127,17 @@ def messaging_pending(db: Session, actor: User) -> bool:
         ~exists(select(StaffRequest.id).where(StaffRequest.thread_id == QuestionThread.id)),
         visible_to(actor),
     )
-    return bool(db.scalar(select(exists(waiting))))
+    return list(db.scalars(waiting.order_by(QuestionThread.id)))
+
+
+def questions_pending(db: Session, actor: User) -> bool:
+    return bool(waiting_threads(db, actor))
 
 
 @router.get("/unread", response_model=UnreadView)
 def unread(db: DB, actor: Actor) -> UnreadView:
+    requests_waiting = requests_pending(db, actor)
+    questions_waiting = questions_pending(db, actor)
     rows = db.execute(
         select(QuestionMessage.thread_id, func.count(QuestionMessage.id))
         .join(QuestionThread, QuestionThread.id == QuestionMessage.thread_id)
@@ -156,7 +165,9 @@ def unread(db: DB, actor: Actor) -> UnreadView:
         requests=requests or 0,
         contacts=contacts or 0,
         administration=administration_alert(db, actor),
-        messaging_pending=messaging_pending(db, actor),
+        messaging_pending=requests_waiting or questions_waiting,
+        requests_pending=requests_waiting,
+        questions_pending=questions_waiting,
     )
 
 

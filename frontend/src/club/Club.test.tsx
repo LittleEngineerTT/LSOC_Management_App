@@ -902,6 +902,17 @@ it('un signal du serveur met aussitôt à jour la pastille et la liste des notif
   expect(source.closed).toBe(true);
 });
 
+it('les onglets de la messagerie portent une pastille sans nombre quand une opération attend', async () => {
+  account = admin;
+  Object.defineProperty(routes, '/unread', { enumerable: true, configurable: true, get: () => ({ messages: 0, notifications: 0, threads: [], requests: 0, messaging_pending: true, questions_pending: true, requests_pending: false }) });
+  open('/app/messagerie');
+  const tabs = await screen.findByRole('group', { name: 'Vue de la messagerie' });
+  const conversations = within(tabs).getByRole('button', { name: /^Conversations/ });
+  expect(await within(conversations).findByLabelText('Questions sans réponse')).toBeInTheDocument();
+  const requests = within(tabs).getByRole('button', { name: /^Demandes/ });
+  expect(within(requests).queryByLabelText('Demandes à décider')).not.toBeInTheDocument();
+});
+
 it('pastilles sans nombre : points à traiter dans l’administration et la messagerie', async () => {
   account = admin;
   let unread = { messages: 0, notifications: 0, threads: [] as string[], administration: true, messaging_pending: true };

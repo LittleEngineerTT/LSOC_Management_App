@@ -30,6 +30,10 @@ export interface Unread {
   /** Au moins une question sans réponse ou une demande à décider (coachs et
    * administrateurs) ; absent d’une API antérieure. */
   messaging_pending?: boolean;
+  /** Détail par onglet de la messagerie : demandes à décider, questions sans réponse ;
+   * absents d’une API antérieure. */
+  requests_pending?: boolean;
+  questions_pending?: boolean;
 }
 interface UnreadContextValue extends Unread {
   refresh: () => void;

@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from app.persistence.database import SessionFactory
-from app.persistence.models import FFVBSource
+from app.api.social import waiting_threads
+from app.persistence.models import FFVBSource, QuestionMessage, QuestionThread, StaffRequest, User
 from conftest import add_user, login
 from test_events import payload, setup_planning
 from test_ffvb import configure
@@ -10,7 +11,15 @@ from test_ffvb import configure
 
 def flags(client: TestClient) -> tuple[bool, bool]:
     body = client.get('/api/v1/unread').json()
+    # La pastille de la messagerie réunit celles de ses deux onglets.
+    assert body['messaging_pending'] == (body['questions_pending'] or body['requests_pending'])
     return body['administration'], body['messaging_pending']
+
+
+def tabs(client: TestClient) -> tuple[bool, bool]:
+    """Pastilles des onglets Conversations et Demandes."""
+    body = client.get('/api/v1/unread').json()
+    return body['questions_pending'], body['requests_pending']
 
 
 def test_administration_dot_follows_conflicts_and_ffvb_points(admin: TestClient) -> None:
@@ -53,6 +62,7 @@ def test_messaging_dot_for_unanswered_questions_and_undecided_requests(admin: Te
     thread = member.post(f'/api/v1/events/{event}/questions', json={'body': 'Quel équipement apporter ?'}).json()['id']
     # Lue ou non, la question attend sa réponse ; l’adhérent n’a pas de pastille.
     assert flags(admin)[1] is True
+    assert tabs(admin) == (True, False)
     assert flags(member)[1] is False
     assert admin.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Des chaussures propres.'}).status_code == 201
     assert flags(admin)[1] is False
@@ -68,10 +78,25 @@ def test_messaging_dot_for_unanswered_questions_and_undecided_requests(admin: Te
     assert created.status_code == 201, created.text
     assert flags(coach)[1] is True
     assert flags(admin)[1] is True
+    assert tabs(coach) == (False, True)
+    assert tabs(admin) == (False, True)
     decided = admin.post(f"/api/v1/requests/{created.json()['id']}/decision", json={'accept': True})
     assert decided.status_code == 200, decided.text
     assert flags(coach)[1] is False
     # Côté administrateur : plus de demande en attente, et la conversation de la demande, close
     # par la décision, ne compte pas comme une question sans réponse.
     assert admin.get('/api/v1/requests', params={'status': 'pending'}).json() == []
+    # Diagnostic : les conversations vues comme sans réponse, avec leurs messages.
+    with SessionFactory() as db:
+        found = waiting_threads(db, db.get_one(User, 'admin'))
+        detail = {
+            identifier: [
+                (message.author_id, message.created_at.isoformat(), message.body[:30])
+                for message in db.scalars(select(QuestionMessage).where(QuestionMessage.thread_id == identifier).order_by(QuestionMessage.created_at))
+            ]
+            for identifier in found
+        }
+        owners = {identifier: db.get_one(QuestionThread, identifier).user_id for identifier in found}
+        linked = list(db.scalars(select(StaffRequest.thread_id)))
+    assert found == [], (detail, owners, linked, thread)
     assert flags(admin)[1] is False

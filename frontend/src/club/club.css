@@ -1091,6 +1091,13 @@ a.club-team-card:focus-visible {
   box-shadow: none;
   vertical-align: 1px;
 }
+.admin-subtabs .nav-pending {
+  min-width: 10px;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+}
 /* Application Contact : formulaire et suivi des demandes par les administrateurs. */
 .club-contact {
   max-width: 820px;

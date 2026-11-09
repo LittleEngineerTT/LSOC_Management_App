@@ -8,7 +8,7 @@ import type { Event } from '../admin/types';
 import { Confirm, Empty, LoadState, PanelHeading } from '../admin/ui';
 import { dayLabel, parisDay } from './calendar';
 import { PersonName, useClub, type Message, type Thread } from './context';
-import { CountBadge, useLiveReload, useUnread } from '../app/unread';
+import { CountBadge, PendingDot, useLiveReload, useUnread } from '../app/unread';
 import { RequestsList } from './StaffRequests';
 
 interface Conversation extends Thread {
@@ -21,7 +21,12 @@ function conversationTitle(conversation: Conversation) {
 export function MessagingPage() {
   const { account } = useClub();
   const [search, setSearch] = useSearchParams();
-  const { messages, requests: pending = 0 } = useUnread();
+  const {
+    messages,
+    requests: pending = 0,
+    questions_pending: questionsWaiting = false,
+    requests_pending: requestsWaiting = false,
+  } = useUnread();
   // Coachs et administrateurs suivent aussi leurs demandes dans la messagerie.
   const staff = account.roles.some((role) => role === 'admin' || role === 'coach');
   const requests = staff && search.get('vue') === 'demandes';
@@ -29,6 +34,11 @@ export function MessagingPage() {
   const counts: Record<'' | 'demandes', { count: number; label: [string, string] }> = {
     '': { count: messages, label: ['message non lu', 'messages non lus'] },
     demandes: { count: pending, label: ['nouvelle demande', 'nouvelles demandes'] },
+  };
+  // Pastille sans nombre : rien de non lu, mais des opérations en attente dans l’onglet.
+  const waiting: Record<'' | 'demandes', { pending: boolean; label: string }> = {
+    '': { pending: !messages && questionsWaiting, label: 'Questions sans réponse' },
+    demandes: { pending: !pending && requestsWaiting, label: 'Demandes à décider' },
   };
   return (
     <>
@@ -57,6 +67,7 @@ export function MessagingPage() {
             >
               {label}
               <CountBadge {...counts[id]} />
+              <PendingDot {...waiting[id]} />
             </button>
           ))}
         </div>
