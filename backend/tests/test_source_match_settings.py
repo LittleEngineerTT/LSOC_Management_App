@@ -109,17 +109,22 @@ def test_a_match_exceeding_capacity_is_never_refused(admin: TestClient) -> None:
     assert any(item['kind'] == 'capacity_conflict' and 'Capacité dépassée' in item['title'] for item in admin.get('/api/v1/notifications').json())
 
 
-def test_updating_a_match_recomputes_its_cancelled_status(admin: TestClient) -> None:
+def test_a_match_conflict_follows_the_unavailability(admin: TestClient) -> None:
     source, _, gym = configure(admin)
     sync(source)
     event = match_event('BRC007')
     day = {'title': 'Travaux', 'gymnasium_id': gym, 'courts': 3, 'starts_at': '2026-11-02T00:00:00+01:00', 'ends_at': '2026-11-03T00:00:00+01:00'}
     block = admin.post('/api/v1/availability-blocks', json=day)
     assert block.status_code == 201, block.text
-    assert admin.get(f'/api/v1/events/{event.id}').json()['cancelled'] is True
-    assert admin.delete(f"/api/v1/availability-blocks/{block.json()['id']}").status_code == 204
-    # Toute mise à jour du match recalcule le statut : l’indisponibilité a disparu.
     current = admin.get(f'/api/v1/events/{event.id}').json()
-    updated = admin.patch(f'/api/v1/events/{event.id}', json={'base_version': current['version'], 'changes': {'before_minutes': 60}})
-    assert updated.status_code == 200, updated.text
-    assert updated.json()['cancelled'] is False
+    assert (current['cancelled'], current['conflict']) == (False, True)
+    # Le match avancé avant l’indisponibilité sort du conflit.
+    moved = admin.patch(f'/api/v1/events/{event.id}', json={'base_version': current['version'], 'changes': {'kickoff_at': '2026-11-01T20:00:00+01:00'}, 'acknowledge_ffvb': True})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()['conflict'] is False
+    # Reprogrammé sur la journée bloquée, il y revient ; l’indisponibilité supprimée l’en sort.
+    back = admin.patch(f'/api/v1/events/{event.id}', json={'base_version': moved.json()['version'], 'changes': {'kickoff_at': current['kickoff_at']}, 'acknowledge_ffvb': True})
+    assert back.status_code == 200, back.text
+    assert back.json()['conflict'] is True
+    assert admin.delete(f"/api/v1/availability-blocks/{block.json()['id']}").status_code == 204
+    assert admin.get(f'/api/v1/events/{event.id}').json()['conflict'] is False

@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useLoad } from '../admin/data';
-import { Badge, Empty, LoadState } from '../admin/ui';
+import { Empty, LoadState } from '../admin/ui';
 import { dayLabel, parisDay, eventHours } from './calendar';
 import { useClub } from './context';
 import { DetailHost } from './EventDetail';
-import { useEventLink } from './events';
+import { eventStatus, StatusBadge, useEventLink } from './events';
 import { useMyEvents } from './myEvents';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
@@ -42,9 +42,11 @@ export function HomePage() {
           )}
           <ul className="club-plain-list">
             {next.map((event) => (
-              <li key={event.id} className={event.cancelled ? 'club-cancelled' : undefined}>
-                <Link to={link(event.id)}>{event.title}</Link>{' '}
-                {event.cancelled && <Badge tone="danger">Annulé</Badge>}
+              <li
+                key={event.id}
+                className={eventStatus(event) ? `club-${eventStatus(event)}` : undefined}
+              >
+                <Link to={link(event.id)}>{event.title}</Link> <StatusBadge event={event} />
                 <span className="admin-hint">
                   {' '}
                   {dayLabel(parisDay(event.starts_at))}, {eventHours(event)}

@@ -5,7 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, or_, select, text
+from sqlalchemy import ColumnElement, and_, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -45,7 +45,13 @@ from app.persistence.models import (
     User,
     uid,
 )
-from app.services.notifications import admins, event_changed, event_deleted, event_unavailable
+from app.services.notifications import (
+    admins,
+    conflict_lifted,
+    event_changed,
+    event_conflicted,
+    event_deleted,
+)
 
 PARIS = ZoneInfo("Europe/Paris")
 # Terrains d’un match FFVB (`match_courts`, réglages du club et des sources) : zéro signifie
@@ -94,7 +100,7 @@ def availability(db: Session, gym_id: str, start: datetime, end: datetime) -> Ca
     events = db.scalars(
         select(Event).where(
             Event.gymnasium_id == gym_id,
-            Event.cancelled.is_(False),
+            occupying(),
             Event.starts_at < end,
             Event.ends_at > start,
         )
@@ -120,7 +126,7 @@ def blocking(db: Session, event: Event) -> AvailabilityBlock | None:
     """Indisponibilité qui ne laisse pas assez de terrains à l’événement.
 
     Seules les indisponibilités comptent : un conflit entre événements reste une alerte de
-    capacité, tandis que l’indisponibilité est prioritaire et annule l’événement.
+    capacité, tandis que l’indisponibilité met l’événement en conflit.
     """
     if event.cancelled or not event.gymnasium_id or event.courts <= 0:
         return None
@@ -142,9 +148,20 @@ def blocking(db: Session, event: Event) -> AvailabilityBlock | None:
     return blocks[0] if blocks and any(s.excess for s in segments) else None
 
 
+def occupying() -> ColumnElement[bool]:
+    """Événements qui occupent leurs terrains : ni annulés, ni en conflit (l’indisponibilité
+    qui les prive de terrains occupe déjà la place)."""
+    return and_(Event.cancelled.is_(False), Event.conflict.is_(False))
+
+
 def clear_cancellation(event: Event) -> None:
     event.cancelled = False
     event.cancel_reason = event.cancel_note = ""
+
+
+def clear_conflict(event: Event) -> None:
+    event.conflict = False
+    event.conflict_note = ""
 
 
 def manual_reason(event: Event, actor: User) -> str:
@@ -155,7 +172,8 @@ def set_cancellation(
     db: Session, event: Event, actor: User, base_version: int, cancelled: bool, reason: str | None
 ) -> Event:
     """Annule ou rétablit un événement : le référent et les administrateurs, sans passer par
-    une modification complète."""
+    une modification complète. L’annulation, réelle, prévient les membres et lève le conflit ;
+    un événement rétabli sur une indisponibilité repasse en conflit."""
     lock_gyms(db, [event.gymnasium_id])
     db.refresh(event)
     if event.version != base_version:
@@ -169,58 +187,85 @@ def set_cancellation(
         event.cancelled = True
         event.cancel_reason = reason or manual_reason(event, actor)
         event.cancel_note = ""
+        clear_conflict(event)
     else:
         clear_cancellation(event)
-        if blocking(db, event) is not None:
-            raise HTTPException(409, "Le gymnase est indisponible sur ce créneau")
     event.version += 1
+    db.flush()
+    if not cancelled:
+        sync_conflict(db, event, actor, record=False)
     revision(db, event, actor, before, "cancel" if cancelled else "reopen")
     db.flush()
     event_changed(db, event, actor.id, before)
     return event
 
 
-def cancel_if_blocked(db: Session, event: Event, actor: User | None, record: bool = True) -> bool:
-    """Annule sans erreur un événement placé sur une indisponibilité et prévient ses membres.
+def sync_conflict(db: Session, event: Event, actor: User | None, record: bool = True) -> bool:
+    """Met en conflit l’événement qu’une indisponibilité prive de terrains, ou lève son conflit
+    quand elle le libère ; vrai si l’événement reste en conflit.
 
-    `record=False` laisse l’appelant historiser l’annulation avec sa propre révision.
+    Seuls les administrateurs et les référents sont prévenus : l’événement n’est pas annulé, les
+    membres ne le seront que d’une annulation réelle. `record=False` laisse l’appelant
+    historiser le changement avec sa propre révision.
     """
-    block = blocking(db, event)
-    if block is None:
+    if event.cancelled:
+        # Annulé pour de bon : le conflit n’a plus lieu d’être, sans autre notification.
+        clear_conflict(event)
         return False
+    block = blocking(db, event)
+    note = block.title[:200] if block is not None else ""
+    if event.conflict == (block is not None) and event.conflict_note == note:
+        return block is not None
+    raised = block is not None and not event.conflict
+    lifted = block is None
     before = snapshot(event)
-    event.cancelled = True
-    event.cancel_reason, event.cancel_note = "unavailability", block.title[:200]
+    event.conflict, event.conflict_note = block is not None, note
     if record:
         event.version += 1
-        revision(db, event, actor, before, "unavailability_cancel", origin="unavailability")
+        action = "conflict_lifted" if lifted else "unavailability_conflict"
+        revision(db, event, actor, before, action, origin="unavailability")
     db.flush()
-    event_unavailable(db, event, block)
-    return True
+    if raised and block is not None:
+        event_conflicted(db, event, block)
+    elif lifted:
+        conflict_lifted(db, event)
+    return block is not None
 
 
-def apply_unavailability(db: Session, block: AvailabilityBlock, actor: User) -> None:
-    """Annule les événements que l’indisponibilité prive de terrains, puis alerte le reste."""
-    for event in db.scalars(
-        select(Event)
-        .where(
-            Event.gymnasium_id == block.gymnasium_id,
-            Event.cancelled.is_(False),
-            Event.starts_at < block.ends_at,
-            Event.ends_at > block.starts_at,
+def refresh_conflicts(
+    db: Session,
+    gym_ids: list[str],
+    actor: User,
+    start: datetime,
+    end: datetime,
+    alert: bool = True,
+) -> None:
+    """Après le changement d’une indisponibilité : les événements qu’elle couvre (`start` à
+    `end`) passent en conflit s’ils manquent de terrains, ceux déjà en conflit dans ces gymnases
+    sont réexaminés, puis, avec `alert`, les dépassements de capacité restants sont signalés."""
+    for event in list(
+        db.scalars(
+            select(Event)
+            .where(
+                Event.gymnasium_id.in_(gym_ids),
+                Event.cancelled.is_(False),
+                or_(Event.conflict.is_(True), and_(Event.starts_at < end, Event.ends_at > start)),
+            )
+            .order_by(Event.starts_at, Event.id)
         )
-        .order_by(Event.starts_at, Event.id)
     ):
-        cancel_if_blocked(db, event, actor)
-    alert_capacity(db, block.gymnasium_id)
+        sync_conflict(db, event, actor)
+    for gym_id in gym_ids if alert else []:
+        alert_capacity(db, gym_id)
 
 
 def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -> bool:
-    if event.cancelled or not event.gymnasium_id:
-        return False
     db.flush()
-    # L’indisponibilité l’emporte : l’événement est annulé plutôt que refusé.
-    if cancel_if_blocked(db, event, actor, record=False):
+    # L’indisponibilité l’emporte : l’événement passe en conflit plutôt que d’être refusé ; un
+    # événement déplacé hors de l’indisponibilité en sort.
+    if sync_conflict(db, event, actor, record=False):
+        return False
+    if event.cancelled or not event.gymnasium_id:
         return False
     segments = availability(db, event.gymnasium_id, event.starts_at, event.ends_at).segments
     conflicts = [s.model_dump(mode="json") for s in segments if s.excess > 0]
@@ -243,7 +288,7 @@ def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -
                 Event.gymnasium_id == event.gymnasium_id,
                 Event.id != event.id,
                 Event.ffvb_match_id.is_not(None),
-                Event.cancelled.is_(False),
+                occupying(),
                 Event.starts_at < event.ends_at,
                 Event.ends_at > event.starts_at,
             )
@@ -259,9 +304,7 @@ def check_capacity(db: Session, event: Event, actor: User | None, force: bool) -
 
 
 def alert_capacity(db: Session, gym_id: str) -> None:
-    for event in db.scalars(
-        select(Event).where(Event.gymnasium_id == gym_id, Event.cancelled.is_(False))
-    ):
+    for event in db.scalars(select(Event).where(Event.gymnasium_id == gym_id, occupying())):
         if any(s.excess for s in availability(db, gym_id, event.starts_at, event.ends_at).segments):
             admins(
                 db,
@@ -279,7 +322,7 @@ PROBLEM_MESSAGES: dict[EventProblemCode, str] = {
     "ffvb_missing": "Match absent du calendrier officiel FFVB",
     "ffvb_disabled": "Vérification FFVB désactivée pour ce match",
     "time_unknown": "Heure du match à compléter : la FFVB n’indique que la journée",
-    "unavailability_cancelled": "Annulé : gymnase indisponible",
+    "unavailability_conflict": "Conflit : gymnase indisponible",
 }
 
 
@@ -304,11 +347,10 @@ def conflict_signature(problems: list[EventProblem], divergences: list[FFVBConfl
 def event_conflicts(
     db: Session, since: datetime, include_ignored: bool = False
 ) -> list[EventConflictView]:
-    """Événements à venir qui demandent l’attention d’un administrateur.
+    """Événements à venir, non annulés, qui demandent l’attention d’un administrateur.
 
-    Un événement annulé par une indisponibilité de son gymnase ressort, seul problème signalé
-    tant qu’il reste annulé : il est à déplacer ou à reporter. Les autres annulations n’y
-    figurent pas. Un événement actif ressort quand la capacité de son gymnase est dépassée
+    Un événement ressort quand il est en conflit (une indisponibilité de son gymnase le prive
+    de terrains : à déplacer, reporter ou annuler), quand la capacité de son gymnase est dépassée
     pendant sa durée, quand un match à domicile n’a pas de gymnase (occupation inconnue), quand
     il n’a plus de référent, ou quand son match FFVB diverge du calendrier officiel, en a
     disparu, ou n’est plus vérifié (désactivé ou suspendu) : divergences et réactivation se
@@ -319,30 +361,16 @@ def event_conflicts(
     events = list(
         db.scalars(
             select(Event)
-            .where(
-                or_(Event.cancelled.is_(False), Event.cancel_reason == "unavailability"),
-                Event.ends_at > since,
-            )
+            .where(Event.cancelled.is_(False), Event.ends_at > since)
             .order_by(Event.starts_at, Event.id)
         )
     )
     problems: dict[str, list[EventProblem]] = {event.id: [] for event in events}
-    every = events
-    for event in every:
-        if event.cancelled:
-            message = PROBLEM_MESSAGES["unavailability_cancelled"]
-            problems[event.id].append(
-                EventProblem(
-                    code="unavailability_cancelled",
-                    message=f"{message} ({event.cancel_note})" if event.cancel_note else message,
-                )
-            )
-    # Les autres vérifications ne portent que sur les événements actifs.
-    events = [event for event in every if not event.cancelled]
-    # Capacité : une seule lecture par gymnase, sur la période couverte par ses événements.
+    # Capacité : une seule lecture par gymnase, sur la période couverte par ses événements. Un
+    # événement en conflit n’occupe pas ses terrains : son conflit suffit.
     by_gym: dict[str, list[Event]] = {}
     for event in events:
-        if event.gymnasium_id is not None:
+        if event.gymnasium_id is not None and not event.conflict:
             by_gym.setdefault(event.gymnasium_id, []).append(event)
     for gym_id, items in by_gym.items():
         start = min(event.starts_at for event in items)
@@ -372,6 +400,15 @@ def event_conflicts(
         for state in db.scalars(select(FFVBMatchState).where(FFVBMatchState.id.in_(matches)))
     }
     for event in events:
+        if event.conflict:
+            message = PROBLEM_MESSAGES["unavailability_conflict"]
+            note = f" ({event.conflict_note})" if event.conflict_note else ""
+            problems[event.id].append(
+                EventProblem(
+                    code="unavailability_conflict",
+                    message=f"{message}{note} : à déplacer, reporter ou annuler",
+                )
+            )
         state = states.get(event.ffvb_match_id or "")
         checks: list[tuple[EventProblemCode, bool]] = [
             ("missing_gymnasium", event.occupancy_unknown),
@@ -404,7 +441,7 @@ def event_conflicts(
         )
     }
     result: list[EventConflictView] = []
-    for event in every:
+    for event in events:
         if not problems[event.id]:
             continue
         found = divergences.get(event.ffvb_match_id or "", [])
@@ -670,15 +707,15 @@ def capacity_conflicts(
     db: Session, gym_id: str, courts: int, slots: list[tuple[datetime, datetime]]
 ) -> list[OccurrenceConflict]:
     """Créneaux où `courts` terrains de plus dépasseraient la capacité du gymnase, avec le
-    nombre de terrains manquants. Seuls les événements comptent : une indisponibilité annule
-    l’événement au lieu de le mettre en conflit."""
+    nombre de terrains manquants. Seuls les événements comptent : une indisponibilité met
+    l’événement en conflit au lieu de le refuser."""
     gym = get(db, Gymnasium, gym_id)
     result: list[OccurrenceConflict] = []
     for start, end in slots:
         events = db.scalars(
             select(Event).where(
                 Event.gymnasium_id == gym_id,
-                Event.cancelled.is_(False),
+                occupying(),
                 Event.starts_at < end,
                 Event.ends_at > start,
             )
@@ -727,7 +764,7 @@ def search_slots(db: Session, query: SlotSearchInput, current: datetime) -> list
         events = db.scalars(
             select(Event).where(
                 Event.gymnasium_id == gym.id,
-                Event.cancelled.is_(False),
+                occupying(),
                 Event.courts > 0,
                 Event.starts_at < window_end,
                 Event.ends_at > window_start,
@@ -786,13 +823,13 @@ def search_slots(db: Session, query: SlotSearchInput, current: datetime) -> list
 def no_court_left(db: Session, gym_id: str, start: datetime, end: datetime) -> bool:
     """Les autres événements occupent tous les terrains à un moment du créneau.
 
-    Les indisponibilités sont exclues : elles annulent l’événement au lieu de le refuser.
+    Les indisponibilités sont exclues : elles mettent l’événement en conflit au lieu de le refuser.
     """
     gym = get(db, Gymnasium, gym_id)
     events = db.scalars(
         select(Event).where(
             Event.gymnasium_id == gym_id,
-            Event.cancelled.is_(False),
+            occupying(),
             Event.starts_at < end,
             Event.ends_at > start,
         )
@@ -927,10 +964,6 @@ def change_event(
         and "direct_edit" not in values
     ):
         values["direct_edit"] = False
-    # Modifier un match FFVB recalcule son statut annulé (indisponibilité, capacité), sauf si
-    # la modification porte elle-même sur ce statut.
-    if event.ffvb_match_id and "cancelled" not in values:
-        clear_cancellation(event)
     for key, value in values.items():
         setattr(event, key, value)
     if "cancelled" in values:

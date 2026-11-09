@@ -313,6 +313,9 @@ class EventView(View):
     cancelled: bool
     cancel_reason: str = ""
     cancel_note: str = ""
+    # Privé de terrains par une indisponibilité du gymnase, sans être annulé.
+    conflict: bool = False
+    conflict_note: str = ""
     version: int
     series_id: str | None
     exception: bool
@@ -341,7 +344,7 @@ EventProblemCode = Literal[
     "ffvb_disabled",
     "ffvb_suspended",
     "time_unknown",
-    "unavailability_cancelled",
+    "unavailability_conflict",
 ]
 
 
@@ -402,6 +405,7 @@ class PublicEventView(View):
     starts_at: datetime
     ends_at: datetime
     cancelled: bool
+    conflict: bool = False
     ffvb_match_id: str
     kickoff_at: datetime | None
     # Journée connue, heure du match à compléter.
@@ -485,7 +489,7 @@ class CoachEventRequestInput(Interval):
 class CoachEventRequestView(View):
     id: str
     team_id: str | None
-    # Demande en attente : créneaux tombant sur une indisponibilité (l’événement serait annulé).
+    # Demande en attente : créneaux tombant sur une indisponibilité (l’événement serait en conflit).
     unavailability: list[str] = Field(default_factory=list)
     actor_id: str | None
     actor_name: str

@@ -6,7 +6,7 @@ import { AuthApp } from '../auth/AuthApp';
 import { today, dayLabel, addDays } from './calendar';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', active: true, roles: ['member'], email: null };
-const base = { section_ids: [], team_ids: [] as string[], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false };
+const base = { section_ids: [], team_ids: [] as string[], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false, conflict: false, conflict_note: '' };
 const events = [
   { ...base, id: 'local', title: 'Entraînement local', kind: 'training', ffvb_match_id: null },
   { ...base, id: 'ffvb', title: 'Match fédéral', kind: 'match', ffvb_match_id: 'match-1' },
@@ -88,6 +88,15 @@ it('affiche par défaut un événement annulé, en rouge avec la mention Annulé
   expect(within(event).getByText('Annulé')).toHaveClass('calendar-cancelled');
   expect(screen.getByLabelText('Afficher les annulations')).toBeChecked();
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('include_cancelled=true'))).toBe(true);
+});
+
+it('affiche un événement en conflit avec la mention Conflit, sans le traiter comme annulé', async () => {
+  open('/app/planning?semaine=2026-10-12', [{ ...events[0]!, conflict: true, conflict_note: 'Travaux' }]);
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  const event = await within(calendar).findByRole('link', { name: /Entraînement local.*conflit/ });
+  expect(event).toHaveClass('conflict');
+  expect(event).not.toHaveClass('cancelled');
+  expect(within(event).getByText('Conflit')).toHaveClass('calendar-conflict');
 });
 
 it('change le jour sélectionné de la semaine en cliquant sur un jour', async () => {

@@ -4,7 +4,7 @@ import type { Block, Capacity, Event } from '../admin/types';
 import { dayLabel, today, validDay } from './calendar';
 import { HOUR_HEIGHT } from './calendarLayout';
 import type { CalendarMode } from './CalendarNavigation';
-import { EventOrigin, useEventLink } from './events';
+import { EventOrigin, eventStatus, statusClass, statusLabels, useEventLink } from './events';
 import { gymSlotTime, placeGymBookings, splitGymIntervals, type GymDaySlot } from './gymCalendar';
 import './calendar.css';
 import './gymCalendar.css';
@@ -366,8 +366,10 @@ function BookingCard({ slot, style }: { slot: GymDaySlot<Booking>; style?: CSSPr
         ) : (
           <span>Indisponible</span>
         )}
-        {slot.item.type === 'event' && slot.item.value.cancelled && (
-          <span className="calendar-cancelled">Annulé · sans occupation</span>
+        {slot.item.type === 'event' && eventStatus(slot.item.value) && (
+          <span className={`calendar-${eventStatus(slot.item.value)}`}>
+            {statusLabels[eventStatus(slot.item.value)!]} · sans occupation
+          </span>
         )}
       </span>
       <strong>{item.title}</strong>
@@ -383,8 +385,8 @@ function BookingCard({ slot, style }: { slot: GymDaySlot<Booking>; style?: CSSPr
       // La case ne doit pas traiter ce clic : sa sélection écraserait l’ouverture de l’événement.
       onClick={(click) => click.stopPropagation()}
       style={style}
-      className={`calendar-event gym-booking origin-${slot.item.value.ffvb_match_id ? 'ffvb' : 'local'} ${slot.item.value.cancelled ? 'cancelled' : ''}`}
-      aria-label={`${item.title}, ${slot.item.value.ffvb_match_id ? 'FFVB' : 'Local'}, ${gymSlotTime(slot)}, ${item.courts} terrain${item.courts > 1 ? 's' : ''}${slot.item.value.cancelled ? ', annulé, sans occupation' : ''}`}
+      className={`calendar-event gym-booking origin-${slot.item.value.ffvb_match_id ? 'ffvb' : 'local'}${statusClass(slot.item.value)}`}
+      aria-label={`${item.title}, ${slot.item.value.ffvb_match_id ? 'FFVB' : 'Local'}, ${gymSlotTime(slot)}, ${item.courts} terrain${item.courts > 1 ? 's' : ''}${eventStatus(slot.item.value) ? `, ${statusLabels[eventStatus(slot.item.value)!].toLowerCase()}, sans occupation` : ''}`}
     >
       {contents}
     </Link>

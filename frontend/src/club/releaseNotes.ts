@@ -80,6 +80,11 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Événements en conflit',
+      text: 'Un événement dont le gymnase devient indisponible passe en « Conflit » au lieu d’être annulé : il reste prévu jusqu’à une annulation réelle, et le conflit se lève seul si le gymnase se libère.',
+    },
+    {
+      kind: 'feature',
       title: 'Notification à revoir',
       text: 'Une notification déjà lue se remet en non lue avec « Marquer comme non lu », sous « Tout afficher ».',
     },

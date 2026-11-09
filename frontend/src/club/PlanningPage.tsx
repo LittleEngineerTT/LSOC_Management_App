@@ -66,7 +66,7 @@ export function PlanningPage() {
     ? (search.get('equipe') ?? '')
     : '';
   const selectedTeam = teams.find((item) => item.id === team);
-  // Les annulations (indisponibilité du gymnase…) restent visibles, en rouge, sauf choix contraire.
+  // Les annulations restent visibles, en rouge, sauf choix contraire ; les conflits, toujours.
   const cancelled = search.get('annules') !== '0';
   // « Mon planning » : séances de mes équipes ou ouvertes à leur inscription, favoris,
   // ceux dont je suis référent ou que j’encadre comme coach, et ceux où je suis inscrit.

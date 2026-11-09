@@ -5,7 +5,16 @@ import { Empty } from '../admin/ui';
 import { dayLabel, eventHours, timeRange, today } from './calendar';
 import { HOUR_HEIGHT, MIN_EVENT_MINUTES, placeSegments, splitEvents } from './calendarLayout';
 import { useSelectedDay, type CalendarMode } from './CalendarNavigation';
-import { EventRow, EventOrigin, kindLabels, useEventLink, usePlace } from './events';
+import {
+  EventRow,
+  EventOrigin,
+  eventStatus,
+  kindLabels,
+  statusClass,
+  statusLabels,
+  useEventLink,
+  usePlace,
+} from './events';
 import './calendar.css';
 
 export function CalendarLegend() {
@@ -218,20 +227,21 @@ function CalendarEvent({
   const link = useEventLink();
   const place = usePlace();
   const source = event.ffvb_match_id ? 'FFVB' : 'Local';
-  const label = `${event.title}, ${source}, ${kindLabels[event.kind]}, ${eventHours(event)}, ${place(event)}${event.cancelled ? ', annulé' : ''}`;
+  const status = eventStatus(event);
+  const label = `${event.title}, ${source}, ${kindLabels[event.kind]}, ${eventHours(event)}, ${place(event)}${status ? `, ${statusLabels[status].toLowerCase()}` : ''}`;
   return (
     <Link
       to={link(event.id, day)}
       // La case ne doit pas traiter ce clic : sa sélection écraserait l’ouverture de l’événement.
       onClick={(click) => click.stopPropagation()}
-      className={`calendar-event origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${event.cancelled ? ' cancelled' : ''} ${className}`}
+      className={`calendar-event origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${statusClass(event)} ${className}`}
       style={style}
       aria-label={label}
       title={label}
     >
       <span className="calendar-event-meta">
         <EventOrigin event={event} />
-        {event.cancelled && <span className="calendar-cancelled">Annulé</span>}
+        {status && <span className={`calendar-${status}`}>{statusLabels[status]}</span>}
       </span>
       <strong>{event.title}</strong>
       <span className="calendar-event-hours">{eventHours(event)}</span>

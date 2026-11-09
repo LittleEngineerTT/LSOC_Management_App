@@ -71,3 +71,27 @@ def test_email_ends_with_a_button_to_the_resolution_screen() -> None:
     assert f'href="{url}"' in html and 'Examiner la demande →' in html
     # Le pied de page mène aux préférences d’e-mail.
     assert f'{settings.frontend_url}/login?suite=/app/profil' in text
+
+
+def test_conflict_emails_reach_only_the_referent_then_cancellation_reaches_the_members(admin: TestClient) -> None:
+    section, gym = setup_planning(admin)
+    add_user('referent', ['member', 'coach'])
+    add_user()
+    event = admin.post('/api/v1/events', json=payload(section, gym, referent='referent')).json()['id']
+    assert login().post(f'/api/v1/events/{event}/follow').status_code == 201
+    block = {'title': 'Travaux', 'gymnasium_id': gym, 'courts': 3, 'starts_at': '2026-10-15T17:00:00+02:00', 'ends_at': '2026-10-15T22:00:00+02:00'}
+    assert admin.post('/api/v1/availability-blocks', json=block).status_code == 201
+    # Conflit : le référent reçoit l’e-mail, badge orange ; le membre qui suit l’événement, rien.
+    [conflict] = [sent for sent in queued('referent') if sent['subject'].startswith('Événement en conflit')]
+    assert conflict['subject'] == 'Événement en conflit : Entraînement du 15/10/2026'
+    assert 'Entraînement (conflit)' in conflict['body']
+    assert 'background:#b85c00;' in conflict['html'] and '>Conflit</span>' in conflict['html']
+    assert '>Annulé</span>' not in conflict['html']
+    assert queued('member') == []
+    # Annulation réelle : le membre est prévenu, le statut passe de Conflit à Annulé, en rouge.
+    version = admin.get(f'/api/v1/events/{event}').json()['version']
+    assert admin.post(f'/api/v1/events/{event}/cancellation', json={'base_version': version}).status_code == 200
+    [cancelled] = [sent for sent in queued('member') if sent['subject'] == 'Événement modifié : Entraînement']
+    assert 'Statut : Conflit → Annulé' in cancelled['body']
+    assert 'background:#d94040;' in cancelled['html'] and '>Annulé</span>' in cancelled['html']
+    assert '>Conflit</span>' not in cancelled['html']

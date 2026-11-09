@@ -41,6 +41,7 @@ type PublicEvent = Pick<
   | 'starts_at'
   | 'ends_at'
   | 'cancelled'
+  | 'conflict'
   | 'ffvb_match_id'
   | 'kickoff_at'
   | 'team_ids'
@@ -356,6 +357,7 @@ function GuestEventDetail({ id, onClose }: { id: string; onClose: () => void }) 
           <dd>
             {kindLabels[event.kind]} <EventOrigin event={event} />
             {event.cancelled && ' · annulé'}
+            {!event.cancelled && event.conflict && ' · conflit'}
           </dd>
           <dt>Date</dt>
           <dd>

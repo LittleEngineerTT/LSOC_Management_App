@@ -103,6 +103,14 @@
   color: #b71c1c;
   text-decoration: line-through;
 }
+/* En conflit : à déplacer, reporter ou annuler ; l’événement reste prévu. */
+.conflict .club-event-link {
+  border-left-color: #b85c00;
+  background: #fff3e2;
+}
+.club-conflict > a {
+  color: #80521b;
+}
 .club-event-time {
   font-weight: 650;
   font-variant-numeric: tabular-nums;

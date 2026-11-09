@@ -337,7 +337,13 @@ class Event(Identity, Base):
     referent_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     direct_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Motif de l’annulation : unavailability, capacity, admin ou referent ; vide sinon.
+    # En conflit : une indisponibilité du gymnase le prive de terrains. Il n’est pas annulé
+    # pour autant ; le conflit se lève seul quand l’indisponibilité le libère.
+    conflict: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Titre de l’indisponibilité en cause.
+    conflict_note: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # Motif de l’annulation : capacity, admin ou referent (unavailability avant les conflits) ;
+    # vide sinon.
     cancel_reason: Mapped[str] = mapped_column(String(20), default="", server_default="")
     # Précision du motif (titre de l’indisponibilité).
     cancel_note: Mapped[str] = mapped_column(String(200), default="", server_default="")

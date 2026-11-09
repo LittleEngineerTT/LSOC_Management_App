@@ -31,16 +31,16 @@ def test_referent_and_admin_cancel_with_a_reason_and_reopen(admin: TestClient) -
     assert admin.post(f"/api/v1/events/{event['id']}/cancellation", json={'base_version': 1}).status_code == 409
 
 
-def test_an_unavailability_cancellation_names_the_block(admin: TestClient) -> None:
+def test_an_unavailability_conflict_names_the_block_and_lifts_itself(admin: TestClient) -> None:
     section, gym = setup_planning(admin, capacity=3)
     event = admin.post('/api/v1/events', json=payload(section, gym, courts=2)).json()
     block = {'title': 'Travaux', 'gymnasium_id': gym, 'courts': 3, 'starts_at': '2099-10-15T17:00:00+02:00', 'ends_at': '2099-10-15T22:00:00+02:00'}
     created = admin.post('/api/v1/availability-blocks', json=block)
     assert created.status_code == 201
     current = admin.get(f"/api/v1/events/{event['id']}").json()
-    assert (current['cancelled'], current['cancel_reason'], current['cancel_note']) == (True, 'unavailability', 'Travaux')
-    # Une modification directe qui rétablit l’événement, une fois l’indisponibilité levée, efface le motif.
+    # Un conflit n’est pas une annulation : aucun motif d’annulation.
+    assert (current['cancelled'], current['cancel_reason'], current['conflict'], current['conflict_note']) == (False, '', True, 'Travaux')
+    # L’indisponibilité supprimée, le conflit se lève sans intervention.
     assert admin.delete(f"/api/v1/availability-blocks/{created.json()['id']}").status_code == 204
-    restored = admin.patch(f"/api/v1/events/{event['id']}", json={'base_version': current['version'], 'changes': {'cancelled': False}})
-    assert restored.status_code == 200, restored.text
-    assert (restored.json()['cancelled'], restored.json()['cancel_reason']) == (False, '')
+    restored = admin.get(f"/api/v1/events/{event['id']}").json()
+    assert (restored['cancelled'], restored['conflict'], restored['conflict_note']) == (False, False, '')

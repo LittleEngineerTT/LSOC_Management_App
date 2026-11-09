@@ -139,9 +139,15 @@ export interface Event {
   referent_ids: string[];
   direct_edit: boolean;
   cancelled: boolean;
-  /** unavailability, capacity, admin ou referent ; vide si l’événement n’est pas annulé. */
+  /** capacity, admin ou referent (unavailability avant les conflits) ; vide si l’événement
+   * n’est pas annulé. */
   cancel_reason?: string;
   cancel_note?: string;
+  /** Privé de terrains par une indisponibilité du gymnase, sans être annulé ; absent d’une API
+   * antérieure. */
+  conflict?: boolean;
+  /** Titre de l’indisponibilité en cause. */
+  conflict_note?: string;
   version: number;
   series_id: string | null;
   exception: boolean;
@@ -300,7 +306,7 @@ export interface EventProblem {
     | 'ffvb_disabled'
     | 'ffvb_suspended'
     | 'time_unknown'
-    | 'unavailability_cancelled';
+    | 'unavailability_conflict';
   message: string;
 }
 export interface EventConflict {

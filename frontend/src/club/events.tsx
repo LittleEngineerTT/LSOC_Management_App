@@ -10,6 +10,26 @@ export const kindLabels: Record<Event['kind'], string> = {
   other: 'Autre activité',
 };
 
+type Status = Pick<Event, 'cancelled' | 'conflict'>;
+
+/** Statut d’un événement : annulé (décision du club), en conflit (gymnase indisponible, sans
+ * être annulé) ou prévu. */
+export function eventStatus(event: Status): 'cancelled' | 'conflict' | null {
+  if (event.cancelled) return 'cancelled';
+  return event.conflict ? 'conflict' : null;
+}
+/** Classe CSS du statut, précédée d’une espace ; vide pour un événement prévu. */
+export function statusClass(event: Status) {
+  const status = eventStatus(event);
+  return status ? ` ${status}` : '';
+}
+export const statusLabels = { cancelled: 'Annulé', conflict: 'Conflit' } as const;
+export function StatusBadge({ event }: { event: Status }) {
+  const status = eventStatus(event);
+  if (!status) return null;
+  return <Badge tone={status === 'cancelled' ? 'danger' : 'warning'}>{statusLabels[status]}</Badge>;
+}
+
 export function EventOrigin({ event }: { event: Pick<Event, 'ffvb_match_id'> }) {
   return (
     <span className={`event-origin origin-${event.ffvb_match_id ? 'ffvb' : 'local'}`}>
@@ -79,7 +99,7 @@ export function EventRow({ event }: { event: Event }) {
   const link = useEventLink();
   return (
     <li
-      className={`club-event kind-${event.kind} origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${event.cancelled ? ' cancelled' : ''}`}
+      className={`club-event kind-${event.kind} origin-${event.ffvb_match_id ? 'ffvb' : 'local'}${statusClass(event)}`}
     >
       <Link to={link(event.id)} className="club-event-link">
         <span className="club-event-time">{eventHours(event)}</span>
@@ -92,7 +112,7 @@ export function EventRow({ event }: { event: Event }) {
           <span className="club-event-sections">{sectionNames(event.section_ids).join(', ')}</span>
         </span>
         <span className="club-event-badges">
-          {event.cancelled && <Badge tone="danger">Annulé</Badge>}
+          <StatusBadge event={event} />
           <EventOrigin event={event} />
           {!guest && event.occupancy_unknown && <Badge tone="warning">Lieu non associé</Badge>}
           {!guest && event.referent_ids.includes(account.id) && <Badge tone="good">Référent</Badge>}

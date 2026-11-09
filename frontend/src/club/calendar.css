@@ -220,6 +220,21 @@
   font-weight: 700;
   text-transform: uppercase;
 }
+/* En conflit : gymnase indisponible, l’événement n’est pas annulé (orange, sans barrer). */
+.calendar-event.conflict {
+  border-color: #b85c00;
+  border-style: dashed;
+  background: #fff3e2;
+  color: #80521b;
+}
+.calendar-conflict {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #b85c00;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+}
 .calendar-time-event {
   position: absolute;
 }

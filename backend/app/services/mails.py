@@ -39,6 +39,8 @@ KINDS = {"training": "Entraînement", "match": "Match", "other": "Autre"}
 # Couleurs de l’application ; les styles sont en ligne, seuls lus par toutes les messageries.
 NAVY = "#142c40"
 RED = "#d94040"
+# Conflit : orange de l’application, lisible en texte blanc.
+ORANGE = "#b85c00"
 MUTED = "#64717b"
 BORDER = "#dde3e8"
 PAGE = "#eef2f5"
@@ -159,6 +161,8 @@ def facts(db: Session, data: dict[str, Any]) -> dict[str, str]:
     result = {"Titre": str(data.get("title") or ""), "Statut": "Prévu"}
     if data.get("cancelled"):
         result["Statut"] = "Annulé"
+    elif data.get("conflict"):
+        result["Statut"] = "Conflit"
     result["Date"] = ""
     if start and end:
         result["Date"] = (
@@ -222,8 +226,10 @@ def event_card(db: Session, data: dict[str, Any]) -> Block:
     info = facts(db, data)
     title = info["Titre"] or "Événement"
     cancelled = info["Statut"] == "Annulé"
+    conflict = info["Statut"] == "Conflit"
     rows = [(key, value) for key, value in info.items() if value and key not in {"Titre", "Statut"}]
     badges = badge(info["Type"], NAVY) + (badge("Annulé", RED) if cancelled else "")
+    badges += badge("Conflit", ORANGE) if conflict else ""
     html = frame(
         title_html(title, badges),
         "".join(
@@ -234,7 +240,7 @@ def event_card(db: Session, data: dict[str, Any]) -> Block:
     )
     text = "\n".join(
         [
-            f"{title}{' (annulé)' if cancelled else ''}",
+            f"{title}{' (annulé)' if cancelled else ' (conflit)' if conflict else ''}",
             *(f"  {key} : {value}" for key, value in rows),
         ]
     )
@@ -262,6 +268,7 @@ def event_changes(db: Session, before: dict[str, Any], after: dict[str, Any], au
     intro = f"Modifié par {author} : {', '.join(key.lower() for key in changed)}."
     title = new["Titre"] or "Événement"
     badges = badge(new["Type"], NAVY) + (badge("Annulé", RED) if new["Statut"] == "Annulé" else "")
+    badges += badge("Conflit", ORANGE) if new["Statut"] == "Conflit" else ""
     head = (
         f'<tr><td style="{LABEL}border-top:0;padding-top:0;"></td>'
         f'<td style="{LABEL}border-top:0;padding-top:0;font-weight:bold;">Avant</td>'

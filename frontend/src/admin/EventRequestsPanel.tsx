@@ -7,13 +7,13 @@ import { dateLabel } from './time';
 import type { EventRequest } from './types';
 import { Badge, checked, Empty, EntityForm, LoadState, Notice, str } from './ui';
 
-/** Avertissement seul : l’acceptation reste possible, l’événement sera créé annulé. */
+/** Avertissement seul : l’acceptation reste possible, l’événement sera créé en conflit. */
 function UnavailabilityWarning({ request }: { request: EventRequest }) {
   if (!request.unavailability?.length) return null;
   return (
     <div className="admin-warning club-wide" role="note">
       <strong>Gymnase indisponible sur ce créneau.</strong> Si vous acceptez, l’événement sera créé
-      annulé et ses participants prévenus :
+      en conflit, à déplacer, reporter ou annuler ; seuls ses référents en seront prévenus :
       <ul>
         {request.unavailability.map((item) => (
           <li key={item}>{item}</li>

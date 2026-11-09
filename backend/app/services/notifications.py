@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session, SessionTransaction
 from app.core.config import settings
 from app.core.security import cipher, now
 from app.persistence.models import (
-    Assignment,
     AvailabilityBlock,
     EmailJob,
     Event,
@@ -47,6 +46,7 @@ EMAIL_CATEGORIES = {
     "capacity_conflict": "capacity",
     "capacity_exceeded": "capacity",
     "event_cancelled": "cancelled",
+    "event_conflict": "conflict",
     "event_changed": "changed",
     "event_deleted": "deleted",
     "change_request": "request",
@@ -75,6 +75,7 @@ EMAIL_CATEGORIES = {
 EMAIL_SUBJECTS = {
     "capacity": "{n} événements ont une capacité dépassée",
     "cancelled": "{n} événements ont été annulés",
+    "conflict": "{n} conflits d’événements à suivre",
     "changed": "{n} événements ont été modifiés",
     "deleted": "{n} événements ont été supprimés",
     "request": "{n} nouvelles demandes à traiter",
@@ -438,40 +439,56 @@ def concerned(db: Session, event: Event) -> set[str]:
     return followed | registered_users(db, event)
 
 
-def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> None:
-    """Annulation due à une indisponibilité : administrateurs, référent, équipes organisatrices
-    et inscrits. Les administrateurs, d’abord prévenus, sont renvoyés vers l’onglet Conflits
-    pour déplacer ou reporter l’événement ; la même clé leur évite une seconde notification."""
-    key = f"unavailable:{event.id}:{event.version}"
+def conflict_recipients(db: Session, event: Event) -> list[tuple[User, bool, bool]]:
+    """Administrateurs et référents actifs d’un événement en conflit : (compte, administrateur,
+    e-mail selon ses préférences). Les membres ne sont pas prévenus d’un conflit, seulement
+    d’une annulation réelle."""
+    result = []
+    for user in db.scalars(select(User).where(User.active.is_(True))):
+        is_admin = "admin" in user.roles
+        is_ref = user.id in event.referent_ids
+        if is_admin or is_ref:
+            send = (is_admin and user.admin_email) or (is_ref and user.referent_email)
+            result.append((user, is_admin, bool(send)))
+    return result
+
+
+def event_conflicted(db: Session, event: Event, block: AvailabilityBlock) -> None:
+    """Événement passé en conflit : les administrateurs, renvoyés vers l’onglet Conflits, et les
+    référents sont invités à le déplacer, le reporter ou l’annuler."""
     day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
-    title = f"Événement annulé : {event.title} du {day}"
-    body = f"Le gymnase est indisponible sur ce créneau ({block.title})."
-    admins(
-        db,
-        key,
-        "event_cancelled",
-        title,
-        event.id,
-        link="/app/administration?tab=conflicts",
-        body=body + " L’événement est à déplacer ou à reporter.",
+    body = (
+        f"Le gymnase est indisponible sur ce créneau ({block.title}). L’événement n’est pas "
+        "annulé : il est à déplacer, à reporter ou à annuler. Ses membres ne sont pas prévenus."
     )
-    members = (
-        set(db.scalars(select(Assignment.user_id).where(Assignment.team_id.in_(event.team_ids))))
-        if event.team_ids
-        else set()
-    )
-    registered = registered_users(db, event)
-    recipients = members | registered | set(event.referent_ids)
-    for user in db.scalars(select(User).where(User.id.in_(recipients))):
+    for user, is_admin, send in conflict_recipients(db, event):
         notify(
             db,
             user,
-            key,
-            "event_cancelled",
-            title,
+            f"conflict:{event.id}:{event.version}",
+            "event_conflict",
+            f"Événement en conflit : {event.title} du {day}",
             event.id,
-            user.followed_email or (user.id in event.referent_ids and user.referent_email),
+            send,
             body=body,
+            link="/app/administration?tab=conflicts" if is_admin else None,
+        )
+
+
+def conflict_lifted(db: Session, event: Event) -> None:
+    """Conflit levé (indisponibilité supprimée, réduite ou événement déplacé) : les mêmes
+    administrateurs et référents en sont prévenus."""
+    day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+    for user, _, send in conflict_recipients(db, event):
+        notify(
+            db,
+            user,
+            f"conflict-lifted:{event.id}:{event.version}",
+            "event_conflict",
+            f"Conflit levé : {event.title} du {day}",
+            event.id,
+            send,
+            body="Le gymnase est de nouveau disponible : l’événement a lieu comme prévu.",
         )
 
 

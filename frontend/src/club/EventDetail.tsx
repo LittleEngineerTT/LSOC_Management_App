@@ -25,6 +25,7 @@ import {
   kindLabels,
   registrationCapacity,
   registrationOpen,
+  StatusBadge,
   usePlace,
   useSectionNames,
   useTeamNames,
@@ -159,7 +160,7 @@ function EventBody({
       <CancelReason event={event} />
       <div className="club-detail-badges">
         <Badge>{kindLabels[event.kind]}</Badge>
-        {event.cancelled && <Badge tone="danger">Annulé</Badge>}
+        <StatusBadge event={event} />
         {event.series_id && <Badge>Série hebdomadaire</Badge>}
         {event.exception && <Badge>Occurrence modifiée</Badge>}
         <Badge>{event.ffvb_match_id ? 'Match FFVB' : 'Événement local'}</Badge>
@@ -290,8 +291,16 @@ const cancelReasons: Record<string, string> = {
   referent: 'Annulé par le référent de l’événement',
 };
 
-/** Motif de l’annulation, tout en haut de la fiche. */
+/** Motif de l’annulation, ou du conflit, tout en haut de la fiche. */
 function CancelReason({ event }: { event: Event }) {
+  if (!event.cancelled && event.conflict)
+    return (
+      <p className="admin-notice club-conflict-reason" role="status">
+        <strong>Événement en conflit</strong> · Gymnase indisponible
+        {event.conflict_note ? ` : ${event.conflict_note}` : ''}. L’événement n’est pas annulé : il
+        reste à déplacer, reporter ou annuler.
+      </p>
+    );
   if (!event.cancelled) return null;
   const reason =
     event.cancel_reason === 'unavailability'
@@ -942,7 +951,7 @@ function Questions({ event }: { event: Event }) {
 const origins: Record<string, string> = {
   human: 'Action manuelle',
   ffvb: 'Synchronisation FFVB',
-  unavailability: 'Annulation : gymnase indisponible',
+  unavailability: 'Indisponibilité du gymnase',
 };
 function History({ event, onChanged }: { event: Event; onChanged: () => void }) {
   const { api, admin } = useClub();

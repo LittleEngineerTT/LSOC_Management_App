@@ -38,9 +38,7 @@ from app.persistence.models import (
 )
 from app.services.events import (
     PARIS,
-    apply_unavailability,
     availability,
-    cancel_if_blocked,
     change_event,
     check_capacity,
     create_event,
@@ -50,10 +48,12 @@ from app.services.events import (
     lock_gyms,
     lock_planning,
     permission,
+    refresh_conflicts,
     revision,
     search_slots,
     set_cancellation,
     snapshot,
+    sync_conflict,
 )
 from app.services.mails import event_card, state
 from app.services.notifications import (
@@ -458,7 +458,7 @@ def update_series(series_id: str, body: SeriesChange, db: DB, actor: Actor) -> l
     db.flush()
     conflicts = []
     for event in result:
-        if cancel_if_blocked(db, event, actor) or event.cancelled or not event.gymnasium_id:
+        if sync_conflict(db, event, actor) or event.cancelled or not event.gymnasium_id:
             continue
         segments = [
             segment.model_dump(mode="json")
@@ -506,7 +506,7 @@ def create_block(body: BlockInput, db: DB, actor: Admin) -> AvailabilityBlock:
     value = AvailabilityBlock(**body.model_dump())
     db.add(value)
     db.flush()
-    apply_unavailability(db, value, actor)
+    refresh_conflicts(db, [value.gymnasium_id], actor, value.starts_at, value.ends_at)
     return value
 
 
@@ -515,10 +515,12 @@ def update_block(block_id: str, body: BlockInput, db: DB, actor: Admin) -> Avail
     lock_planning(db)
     value = get(db, AvailabilityBlock, block_id)
     lock_gyms(db, [value.gymnasium_id, body.gymnasium_id])
+    # Les événements de l’ancien gymnase en conflit sont réexaminés : le conflit se lève seul.
+    gyms = sorted({value.gymnasium_id, body.gymnasium_id})
     for key, item in body.model_dump().items():
         setattr(value, key, item)
     db.flush()
-    apply_unavailability(db, value, actor)
+    refresh_conflicts(db, gyms, actor, value.starts_at, value.ends_at)
     return value
 
 
@@ -527,7 +529,12 @@ def remove_block(block_id: str, db: DB, actor: Admin) -> None:
     lock_planning(db)
     block = get(db, AvailabilityBlock, block_id)
     lock_gyms(db, [block.gymnasium_id])
+    gym, start = block.gymnasium_id, block.starts_at
     db.delete(block)
+    db.flush()
+    # Les événements que l’indisponibilité mettait en conflit en sortent ; plus de terrains
+    # libres ne crée aucun dépassement à signaler.
+    refresh_conflicts(db, [gym], actor, start, start, alert=False)
 
 
 @router.get("/gymnasiums/{gymnasium_id}/availability", response_model=CapacityView)
