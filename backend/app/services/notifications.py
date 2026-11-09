@@ -439,7 +439,22 @@ def concerned(db: Session, event: Event) -> set[str]:
 
 
 def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> None:
-    """Annulation due à une indisponibilité : référent, équipes organisatrices et inscrits."""
+    """Annulation due à une indisponibilité : administrateurs, référent, équipes organisatrices
+    et inscrits. Les administrateurs, d’abord prévenus, sont renvoyés vers l’onglet Conflits
+    pour déplacer ou reporter l’événement ; la même clé leur évite une seconde notification."""
+    key = f"unavailable:{event.id}:{event.version}"
+    day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
+    title = f"Événement annulé : {event.title} du {day}"
+    body = f"Le gymnase est indisponible sur ce créneau ({block.title})."
+    admins(
+        db,
+        key,
+        "event_cancelled",
+        title,
+        event.id,
+        link="/app/administration?tab=conflicts",
+        body=body + " L’événement est à déplacer ou à reporter.",
+    )
     members = (
         set(db.scalars(select(Assignment.user_id).where(Assignment.team_id.in_(event.team_ids))))
         if event.team_ids
@@ -447,17 +462,16 @@ def event_unavailable(db: Session, event: Event, block: AvailabilityBlock) -> No
     )
     registered = registered_users(db, event)
     recipients = members | registered | set(event.referent_ids)
-    day = event.starts_at.astimezone(PARIS).strftime("%d/%m/%Y")
     for user in db.scalars(select(User).where(User.id.in_(recipients))):
         notify(
             db,
             user,
-            f"unavailable:{event.id}:{event.version}",
+            key,
             "event_cancelled",
-            f"Événement annulé : {event.title} du {day}",
+            title,
             event.id,
             user.followed_email or (user.id in event.referent_ids and user.referent_email),
-            body=f"Le gymnase est indisponible sur ce créneau ({block.title}).",
+            body=body,
         )
 
 

@@ -341,6 +341,7 @@ EventProblemCode = Literal[
     "ffvb_disabled",
     "ffvb_suspended",
     "time_unknown",
+    "unavailability_cancelled",
 ]
 
 

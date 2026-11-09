@@ -9,6 +9,7 @@ const coach = { ...admin, id: 'coach-1', roles: ['member', 'coach'] };
 const base = { kind: 'training', section_ids: [], location: '', courts: 2, referent_ids: ['admin-1'], cancelled: false, ffvb_match_id: null, starts_at: '2099-10-15T16:00:00Z', ends_at: '2099-10-15T18:00:00Z' };
 const conflicts = [
   { event: { ...base, id: 'e1', title: 'Entraînement loisir', gymnasium_id: 'g1' }, problems: [{ code: 'capacity_exceeded', message: 'Capacité du gymnase dépassée de 1 terrain' }] },
+  { event: { ...base, id: 'e3', title: 'Entraînement annulé', gymnasium_id: 'g1', cancelled: true, cancel_reason: 'unavailability', cancel_note: 'Travaux' }, problems: [{ code: 'unavailability_cancelled', message: 'Annulé : gymnase indisponible (Travaux)' }], signature: 'sig-e3' },
   { event: { ...base, id: 'e2', title: 'LSO / Paris', kind: 'match', gymnasium_id: null, courts: 0, ffvb_match_id: 'm1' }, problems: [{ code: 'missing_gymnasium', message: 'Match à domicile sans gymnase associé : occupation des terrains inconnue' }, { code: 'ffvb_divergence', message: 'Divergence avec le calendrier officiel FFVB à traiter' }], divergences: [{ id: 'd1', match_id: 'm1', field: 'location', official_value: 'PARÉ', local_value: 'Extérieur', author_id: null, status: 'open', created_at: '2099-10-10T10:00:00Z' }], signature: 'sig-e2' },
 ];
 let account: typeof admin;
@@ -37,6 +38,9 @@ it('liste les événements en conflit ou erronés avec leurs problèmes', async 
   const excess = (await screen.findByRole('heading', { name: 'Entraînement loisir' })).closest('article')!;
   expect(excess).toHaveTextContent('Ambroise Paré');
   expect(within(excess).getByText('Capacité du gymnase dépassée de 1 terrain')).toBeInTheDocument();
+  // Un événement annulé par une indisponibilité est à déplacer ou à reporter.
+  const cancelled = screen.getByRole('heading', { name: 'Entraînement annulé' }).closest('article')!;
+  expect(within(cancelled).getByText('Annulé : gymnase indisponible (Travaux)')).toBeInTheDocument();
   expect(within(excess).getByRole('link', { name: 'Ouvrir l’événement' })).toHaveAttribute('href', '/app/planning?semaine=2099-10-12&event=e1');
   expect(within(excess).queryByRole('region', { name: /Divergence/ })).not.toBeInTheDocument();
   const match = screen.getByRole('heading', { name: 'LSO / Paris' }).closest('article')!;

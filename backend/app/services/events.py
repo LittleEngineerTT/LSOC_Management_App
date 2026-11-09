@@ -5,7 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.api.common import get, require_admin
@@ -279,6 +279,7 @@ PROBLEM_MESSAGES: dict[EventProblemCode, str] = {
     "ffvb_missing": "Match absent du calendrier officiel FFVB",
     "ffvb_disabled": "Vérification FFVB désactivée pour ce match",
     "time_unknown": "Heure du match à compléter : la FFVB n’indique que la journée",
+    "unavailability_cancelled": "Annulé : gymnase indisponible",
 }
 
 
@@ -303,23 +304,41 @@ def conflict_signature(problems: list[EventProblem], divergences: list[FFVBConfl
 def event_conflicts(
     db: Session, since: datetime, include_ignored: bool = False
 ) -> list[EventConflictView]:
-    """Événements à venir, non annulés, qui demandent l’attention d’un administrateur.
+    """Événements à venir qui demandent l’attention d’un administrateur.
 
-    Un événement ressort quand la capacité de son gymnase est dépassée pendant sa durée,
-    quand un match à domicile n’a pas de gymnase (occupation inconnue), quand il n’a plus
-    de référent, ou quand son match FFVB diverge du calendrier officiel, en a disparu, ou
-    n’est plus vérifié (désactivé ou suspendu) : divergences et réactivation se traitent depuis
-    cette liste. Un événement terminé n’y figure plus. Un conflit ignoré est masqué, sauf avec
-    `include_ignored`, tant que ses problèmes restent ceux vus au moment de l’ignorer.
+    Un événement annulé par une indisponibilité de son gymnase ressort, seul problème signalé
+    tant qu’il reste annulé : il est à déplacer ou à reporter. Les autres annulations n’y
+    figurent pas. Un événement actif ressort quand la capacité de son gymnase est dépassée
+    pendant sa durée, quand un match à domicile n’a pas de gymnase (occupation inconnue), quand
+    il n’a plus de référent, ou quand son match FFVB diverge du calendrier officiel, en a
+    disparu, ou n’est plus vérifié (désactivé ou suspendu) : divergences et réactivation se
+    traitent depuis cette liste. Un événement terminé n’y figure plus. Un conflit ignoré est
+    masqué, sauf avec `include_ignored`, tant que ses problèmes restent ceux vus au moment de
+    l’ignorer.
     """
     events = list(
         db.scalars(
             select(Event)
-            .where(Event.cancelled.is_(False), Event.ends_at > since)
+            .where(
+                or_(Event.cancelled.is_(False), Event.cancel_reason == "unavailability"),
+                Event.ends_at > since,
+            )
             .order_by(Event.starts_at, Event.id)
         )
     )
     problems: dict[str, list[EventProblem]] = {event.id: [] for event in events}
+    every = events
+    for event in every:
+        if event.cancelled:
+            message = PROBLEM_MESSAGES["unavailability_cancelled"]
+            problems[event.id].append(
+                EventProblem(
+                    code="unavailability_cancelled",
+                    message=f"{message} ({event.cancel_note})" if event.cancel_note else message,
+                )
+            )
+    # Les autres vérifications ne portent que sur les événements actifs.
+    events = [event for event in every if not event.cancelled]
     # Capacité : une seule lecture par gymnase, sur la période couverte par ses événements.
     by_gym: dict[str, list[Event]] = {}
     for event in events:
@@ -385,7 +404,7 @@ def event_conflicts(
         )
     }
     result: list[EventConflictView] = []
-    for event in events:
+    for event in every:
         if not problems[event.id]:
             continue
         found = divergences.get(event.ffvb_match_id or "", [])

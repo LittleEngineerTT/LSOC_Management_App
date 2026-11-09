@@ -299,7 +299,8 @@ export interface EventProblem {
     | 'ffvb_missing'
     | 'ffvb_disabled'
     | 'ffvb_suspended'
-    | 'time_unknown';
+    | 'time_unknown'
+    | 'unavailability_cancelled';
   message: string;
 }
 export interface EventConflict {

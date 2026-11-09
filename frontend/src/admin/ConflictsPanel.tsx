@@ -7,7 +7,8 @@ import type { Conflict, EventConflict, EventProblem } from './types';
 import { dateLabel } from './time';
 import { Badge, Confirm, Empty, LoadState, Notice, PanelHeading } from './ui';
 
-// Le dépassement de capacité est un conflit ; les autres anomalies sont des erreurs à corriger.
+// Le dépassement de capacité et l’annulation par une indisponibilité sont des conflits ; les autres
+// anomalies sont des erreurs à corriger.
 const tones: Record<EventProblem['code'], string> = {
   capacity_exceeded: 'danger',
   missing_gymnasium: 'warning',
@@ -17,6 +18,7 @@ const tones: Record<EventProblem['code'], string> = {
   ffvb_disabled: 'warning',
   ffvb_suspended: 'warning',
   time_unknown: 'warning',
+  unavailability_cancelled: 'danger',
 };
 
 // Décisions possibles sur une divergence avec le calendrier officiel.
@@ -102,7 +104,7 @@ export function ConflictsPanel({
     <>
       <PanelHeading
         title="Conflits"
-        description="Événements à venir dont la capacité du gymnase est dépassée ou qui comportent une erreur : match à domicile sans gymnase, référent manquant, divergence avec le calendrier FFVB, vérification FFVB désactivée ou suspendue. Les événements terminés n’y figurent plus."
+        description="Événements à venir dont la capacité du gymnase est dépassée ou qui comportent une erreur : match à domicile sans gymnase, référent manquant, divergence avec le calendrier FFVB, vérification FFVB désactivée ou suspendue. Y figurent aussi les événements annulés par une indisponibilité du gymnase, à déplacer ou à reporter. Les événements terminés n’y figurent plus."
       >
         <button className="admin-button" onClick={result.reload}>
           Actualiser

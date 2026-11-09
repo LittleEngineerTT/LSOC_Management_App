@@ -119,3 +119,20 @@ def test_recurring_request_warns_of_conflicting_occurrences_but_is_still_sent(ad
     assert admin.post(decision, json={'accept': True}).status_code == 409
     # Sans gymnase, aucun conflit à signaler.
     assert coach.post('/api/v1/event-requests/conflicts', json=series | {'gymnasium_id': None, 'courts': 0}).json() == []
+
+
+def test_unavailability_cancellation_is_a_conflict_and_warns_the_admins(admin: TestClient) -> None:
+    section, gym = setup_planning(admin, capacity=3)
+    add_user('referent', ['member', 'coach'])
+    event = admin.post('/api/v1/events', json=payload(section, gym, courts=2, referent='referent')).json()
+    # Une annulation manuelle n’est pas un conflit.
+    manual = admin.post('/api/v1/events', json=payload(section, gym, courts=1, start='2099-10-16T18:00:00+02:00', end='2099-10-16T20:00:00+02:00')).json()
+    assert admin.post(f"/api/v1/events/{manual['id']}/cancellation", json={'base_version': manual['version']}).status_code == 200
+    assert admin.post('/api/v1/availability-blocks', json=BLOCK | {'gymnasium_id': gym, 'courts': 3}).status_code == 201
+    listed = admin.get('/api/v1/event-conflicts').json()
+    assert [item['event']['id'] for item in listed] == [event['id']]
+    assert listed[0]['problems'] == [{'code': 'unavailability_cancelled', 'message': 'Annulé : gymnase indisponible (Travaux)'}]
+    # L’administrateur, ni référent ni inscrit, est prévenu et renvoyé vers les conflits.
+    warned = [n for n in admin.get('/api/v1/notifications').json() if n['kind'] == 'event_cancelled']
+    assert len(warned) == 1
+    assert warned[0]['link'] == '/app/administration?tab=conflicts'
