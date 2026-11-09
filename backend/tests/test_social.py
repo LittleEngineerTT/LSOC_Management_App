@@ -82,11 +82,12 @@ def test_unread_counts_for_questions_answers_and_notifications(admin: TestClient
     assert member.get('/api/v1/unread').json()['messages'] == 0
     assert second.post(f'/api/v1/questions/{thread}/messages', json={'body': 'Non, merci.'}).status_code == 201
     assert admin.post(f'/api/v1/questions/{thread}/read').status_code == 204
-    # Lire le fil efface aussi les alertes de question, sans marquer la réponse d’un autre admin.
-    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0, 'contacts': 0}
+    # Lire le fil efface aussi les alertes de question, sans marquer la réponse d’un autre admin ;
+    # le second admin a répondu : la question n’est plus en attente.
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0, 'contacts': 0, 'administration': False, 'messaging_pending': False}
     # La boîte des admins est partagée : un fil lu par un admin l’est pour tous.
     assert second.get('/api/v1/unread').json()['messages'] == 0
-    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread], 'thread_counts': {thread: 1}, 'requests': 0, 'contacts': 0}
+    assert member.get('/api/v1/unread').json() == {'messages': 1, 'notifications': 0, 'threads': [thread], 'thread_counts': {thread: 1}, 'requests': 0, 'contacts': 0, 'administration': False, 'messaging_pending': False}
     assert member.post(f'/api/v1/questions/{thread}/read').status_code == 204
     assert member.get('/api/v1/unread').json()['messages'] == 0
     # Le second admin a répondu : ses alertes de question sur ce fil sont lues.
@@ -111,7 +112,8 @@ def test_reply_and_mark_all_read_clear_question_counters(admin: TestClient) -> N
     assert member.get('/api/v1/unread').json()['messages'] == 0
     assert admin.get('/api/v1/unread').json()['messages'] == 1
     assert admin.post('/api/v1/questions/read').status_code == 204
-    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0, 'contacts': 0}
+    # Lue, la question de l’autre adhérent attend toujours sa réponse.
+    assert admin.get('/api/v1/unread').json() == {'messages': 0, 'notifications': 0, 'threads': [], 'thread_counts': {}, 'requests': 0, 'contacts': 0, 'administration': False, 'messaging_pending': True}
 
 
 def test_deleting_a_conversation_hides_it_for_that_account_only(admin: TestClient) -> None:

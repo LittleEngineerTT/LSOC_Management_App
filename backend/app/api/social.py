@@ -108,23 +108,21 @@ def messaging_pending(db: Session, actor: User) -> bool:
         return True
     if "admin" not in actor.roles:
         return False
-    later = aliased(QuestionMessage)
-    last = aliased(QuestionMessage)
-    waiting = (
-        select(QuestionThread.id)
-        .join(last, last.thread_id == QuestionThread.id)
-        .where(
-            QuestionThread.user_id != actor.id,
-            last.author_id == QuestionThread.user_id,
-            ~exists(
-                select(later.id).where(
-                    later.thread_id == QuestionThread.id, later.created_at > last.created_at
-                )
-            ),
-            # Conversation d’une demande : sa décision la traite, pas une réponse écrite.
-            ~exists(select(StaffRequest.id).where(StaffRequest.thread_id == QuestionThread.id)),
-            visible_to(actor),
-        )
+    # Auteur du dernier message de chaque fil.
+    last_author = (
+        select(QuestionMessage.author_id)
+        .where(QuestionMessage.thread_id == QuestionThread.id)
+        .order_by(QuestionMessage.created_at.desc(), QuestionMessage.id.desc())
+        .limit(1)
+        .correlate(QuestionThread)
+        .scalar_subquery()
+    )
+    waiting = select(QuestionThread.id).where(
+        QuestionThread.user_id != actor.id,
+        last_author == QuestionThread.user_id,
+        # Conversation d’une demande : sa décision la traite, pas une réponse écrite.
+        ~exists(select(StaffRequest.id).where(StaffRequest.thread_id == QuestionThread.id)),
+        visible_to(actor),
     )
     return bool(db.scalar(select(exists(waiting))))
 

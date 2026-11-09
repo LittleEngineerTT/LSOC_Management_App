@@ -66,7 +66,12 @@ def test_messaging_dot_for_unanswered_questions_and_undecided_requests(admin: Te
     coach = login('coach')
     created = coach.post('/api/v1/requests', json={'kind': 'other', 'title': 'Ballons neufs'})
     assert created.status_code == 201, created.text
-    assert flags(coach)[1] is True and flags(admin)[1] is True
+    assert flags(coach)[1] is True
+    assert flags(admin)[1] is True
     decided = admin.post(f"/api/v1/requests/{created.json()['id']}/decision", json={'accept': True})
     assert decided.status_code == 200, decided.text
-    assert flags(coach)[1] is False and flags(admin)[1] is False
+    assert flags(coach)[1] is False
+    # Côté administrateur : plus de demande en attente, et la conversation de la demande, close
+    # par la décision, ne compte pas comme une question sans réponse.
+    assert admin.get('/api/v1/requests', params={'status': 'pending'}).json() == []
+    assert flags(admin)[1] is False
