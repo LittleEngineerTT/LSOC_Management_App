@@ -80,6 +80,12 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Événements à l’extérieur',
+      text: 'Le filtre Gymnase du planning propose « À l’extérieur » : seuls les événements hors des gymnases du club s’affichent.',
+      link: { to: '/app/planning?gymnase=exterieur', label: 'Voir les événements à l’extérieur' },
+    },
+    {
+      kind: 'feature',
       title: 'Événements en conflit',
       text: 'Un événement dont le gymnase devient indisponible passe en « Conflit » au lieu d’être annulé : il reste prévu jusqu’à une annulation réelle, et le conflit se lève seul si le gymnase se libère.',
     },

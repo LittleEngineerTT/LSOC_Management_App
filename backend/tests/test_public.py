@@ -117,3 +117,19 @@ def test_guest_reads_board_and_coaches_without_identifiers(admin: TestClient) ->
         {'first_name': 'Alice', 'functions': ['coach'], 'photo': None, 'teams': ['Loisir A', 'Loisir B']},
         {'first_name': 'Zoé', 'functions': ['coach'], 'photo': None, 'teams': []},
     ]
+
+
+def test_away_filter_keeps_only_events_outside_the_club_gyms(admin: TestClient) -> None:
+    from app.persistence.database import SessionFactory
+    from app.persistence.models import Event
+
+    section, gym = setup_planning(admin)
+    home = admin.post('/api/v1/events', json=payload(section, gym)).json()['id']
+    away = admin.post('/api/v1/events', json={**payload(section, None, courts=0), 'location': 'Gymnase de Nanterre'}).json()['id']
+    unmapped = admin.post('/api/v1/events', json={**payload(section, None, courts=0), 'location': 'GYMNASE INCONNU'}).json()['id']
+    with SessionFactory.begin() as db:
+        # Match à domicile dont le gymnase FFVB n’est pas associé : il n’est pas à l’extérieur.
+        db.get_one(Event, unmapped).occupancy_unknown = True
+    params = {'starts_at': '2026-10-15T00:00:00+02:00', 'ends_at': '2026-10-16T00:00:00+02:00'}
+    assert {e['id'] for e in admin.get('/api/v1/events', params=params).json()} == {home, away, unmapped}
+    assert [e['id'] for e in admin.get('/api/v1/events', params=params | {'away': True}).json()] == [away]

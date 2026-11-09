@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
@@ -97,6 +97,13 @@ it('affiche un événement en conflit avec la mention Conflit, sans le traiter c
   expect(event).toHaveClass('conflict');
   expect(event).not.toHaveClass('cancelled');
   expect(within(event).getByText('Conflit')).toHaveClass('calendar-conflict');
+});
+
+it('filtre le planning sur les événements à l’extérieur', async () => {
+  const fetchMock = open();
+  await userEvent.selectOptions(await screen.findByLabelText('Gymnase'), 'À l’extérieur');
+  await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/events?') && String(input).includes('away=true'))).toBe(true));
+  expect(fetchMock.mock.calls.some(([input]) => String(input).includes('gymnasium_id=exterieur'))).toBe(false);
 });
 
 it('change le jour sélectionné de la semaine en cliquant sur un jour', async () => {

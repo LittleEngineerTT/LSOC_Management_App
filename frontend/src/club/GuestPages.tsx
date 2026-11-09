@@ -21,7 +21,9 @@ import { RecentResults } from './RecentResults';
 import { useClub } from './context';
 import { GymPicker, useSelectedGym } from './GymnasiumsPage';
 import {
+  AWAY,
   EventOrigin,
+  isAway,
   kindLabels,
   useEventLink,
   usePlace,
@@ -46,6 +48,7 @@ type PublicEvent = Pick<
   | 'kickoff_at'
   | 'team_ids'
   | 'time_unknown'
+  | 'occupancy_unknown'
 >;
 
 /** Complète un match public pour les composants du planning, sans rien d’interne. */
@@ -61,7 +64,7 @@ function asEvent(event: PublicEvent): Event {
     before_minutes: 0,
     after_minutes: 0,
     match_courts: 0,
-    occupancy_unknown: false,
+    occupancy_unknown: event.occupancy_unknown ?? false,
     registration_section_ids: [],
     registration_team_ids: [],
     registration_limit: null,
@@ -147,7 +150,7 @@ export function GuestPlanning() {
   const team = teamChoices.some((item) => item.id === search.get('equipe'))
     ? (search.get('equipe') ?? '')
     : '';
-  const gym = gymnasiums.some((item) => item.id === search.get('gymnase'))
+  const gym = [AWAY, ...gymnasiums.map((item) => item.id)].includes(search.get('gymnase') ?? '')
     ? (search.get('gymnase') ?? '')
     : '';
   function filter(name: string, value: string) {
@@ -211,6 +214,7 @@ export function GuestPlanning() {
           Gymnase
           <select value={gym} onChange={(change) => filter('gymnase', change.target.value)}>
             <option value="">Tous les lieux</option>
+            <option value={AWAY}>À l’extérieur</option>
             {gymnasiums.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -226,7 +230,7 @@ export function GuestPlanning() {
         <CalendarView
           events={result.data.filter(
             (event) =>
-              (!gym || event.gymnasium_id === gym) &&
+              (!gym || (gym === AWAY ? isAway(event) : event.gymnasium_id === gym)) &&
               (!section || event.section_ids.includes(section)) &&
               (!team || (event.team_ids ?? []).includes(team)),
           )}

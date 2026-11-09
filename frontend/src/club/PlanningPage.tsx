@@ -10,7 +10,7 @@ import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
 import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
-import { concernsTeam } from './events';
+import { AWAY, concernsTeam } from './events';
 import { EventProposalForm, useCoachedTeams } from './EventProposalForm';
 import { MyRequests } from './MyRequests';
 import { TeamOptions } from './teamOrder';
@@ -100,7 +100,7 @@ export function PlanningPage() {
       const filters = [
         rangeQuery(firstDay, days.length),
         section && `section_id=${encodeURIComponent(section)}`,
-        gym && `gymnasium_id=${encodeURIComponent(gym)}`,
+        gym === AWAY ? 'away=true' : gym && `gymnasium_id=${encodeURIComponent(gym)}`,
         cancelled && 'include_cancelled=true',
       ].filter(Boolean);
       return api.list<Event>(`/events?${filters.join('&')}`, true, signal);
@@ -246,6 +246,7 @@ export function PlanningPage() {
           Gymnase
           <select value={gym} onChange={(change) => filter('gymnase', change.target.value)}>
             <option value="">Tous les lieux</option>
+            <option value={AWAY}>À l’extérieur</option>
             {gymnasiums.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}

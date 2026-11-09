@@ -408,6 +408,8 @@ class PublicEventView(View):
     conflict: bool = False
     ffvb_match_id: str
     kickoff_at: datetime | None
+    # Match à domicile au gymnase non associé : ni à l’extérieur, ni dans un gymnase connu.
+    occupancy_unknown: bool = False
     # Journée connue, heure du match à compléter.
     time_unknown: bool = False
     team_ids: list[str]

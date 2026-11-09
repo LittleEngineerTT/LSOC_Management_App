@@ -4,6 +4,13 @@ import { Badge, Empty } from '../admin/ui';
 import { dayLabel, parisDay, eventHours } from './calendar';
 import { isFollowed, useClub } from './context';
 
+// Valeur du filtre « Gymnase » pour les événements hors des gymnases du club.
+export const AWAY = 'exterieur';
+/** À l’extérieur : sans gymnase du club, et pas un match à domicile au gymnase non associé. */
+export function isAway(event: Pick<Event, 'gymnasium_id' | 'occupancy_unknown'>) {
+  return !event.gymnasium_id && !event.occupancy_unknown;
+}
+
 export const kindLabels: Record<Event['kind'], string> = {
   training: 'Entraînement',
   match: 'Match',

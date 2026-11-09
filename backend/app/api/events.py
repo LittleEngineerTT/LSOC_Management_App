@@ -76,9 +76,12 @@ def events(
     section_id: str | None = None,
     series_id: str | None = None,
     include_cancelled: bool = False,
+    away: bool = False,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[Event]:
+    """Événements de la période ; `away` : seulement ceux à l’extérieur, hors des gymnases du
+    club (un match à domicile au gymnase non associé n’en fait pas partie)."""
     if starts_at and ends_at and ends_at <= starts_at:
         raise HTTPException(422, "Intervalle invalide")
     query = select(Event)
@@ -88,6 +91,8 @@ def events(
         query = query.where(Event.starts_at < ends_at)
     if gymnasium_id:
         query = query.where(Event.gymnasium_id == gymnasium_id)
+    if away:
+        query = query.where(Event.gymnasium_id.is_(None), Event.occupancy_unknown.is_(False))
     if series_id:
         query = query.where(Event.series_id == series_id)
     if not include_cancelled:
