@@ -365,6 +365,10 @@ class EventConflictView(View):
     ignored: bool = False
     ignorer_name: str | None = None
     ignored_at: datetime | None = None
+    # Conflit regroupé : les problèmes de gymnase (capacité, indisponibilité) d’événements d’un
+    # même gymnase à 2 h d’intervalle au plus forment un seul conflit. Seul, l’identifiant de
+    # l’événement.
+    group_id: str = ""
 
 
 class IgnoreInput(Input):

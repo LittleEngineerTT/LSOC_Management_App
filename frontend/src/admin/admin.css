@@ -984,6 +984,18 @@
   opacity: 0.72;
   background: #f7f9fa;
 }
+/* Conflit regroupé : chaque événement du gymnase, séparé du précédent. */
+.conflict-member {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e3e9ee;
+}
+.conflict-member h4 {
+  margin: 0 0 4px;
+}
+.conflict-member .admin-actions {
+  margin-top: 8px;
+}
 .conflict-ignored {
   color: #637683;
   font-size: 12px;

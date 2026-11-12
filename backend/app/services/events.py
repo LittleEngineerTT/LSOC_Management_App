@@ -449,8 +449,6 @@ def event_conflicts(
         ignore = ignores.get(event.id)
         # Une signature différente : le conflit a changé depuis, il réapparaît.
         ignored = ignore is not None and ignore.signature == signature
-        if ignored and not include_ignored:
-            continue
         result.append(
             EventConflictView(
                 event=EventView.model_validate(event),
@@ -460,9 +458,41 @@ def event_conflicts(
                 ignored=ignored,
                 ignorer_name=ignore.ignorer_name if ignored and ignore else None,
                 ignored_at=ignore.ignored_at if ignored and ignore else None,
+                group_id=event.id,
             )
         )
-    return result
+    group_conflicts(result)
+    if include_ignored:
+        return result
+    # Un groupe n’est ignoré que si tous ses événements le sont : un seul qui change le rouvre.
+    open_groups = {item.group_id for item in result if not item.ignored}
+    return [item for item in result if item.group_id in open_groups]
+
+
+# Problèmes propres au gymnase, partagés par les événements qui s’y disputent les terrains.
+GYM_PROBLEMS = {"capacity_exceeded", "unavailability_conflict"}
+# Écart maximal entre deux événements d’un même conflit de gymnase.
+GROUP_GAP = timedelta(hours=2)
+
+
+def group_conflicts(items: list[EventConflictView]) -> None:
+    """Regroupe les conflits de gymnase : par gymnase et dans l’ordre chronologique, un
+    événement commençant au plus 2 h après la fin du groupe en cours le rejoint. Le groupe
+    prend l’identifiant de son premier événement ; les autres conflits restent seuls."""
+    by_gym: dict[str, list[EventConflictView]] = {}
+    for item in items:
+        if item.event.gymnasium_id and GYM_PROBLEMS & {problem.code for problem in item.problems}:
+            by_gym.setdefault(item.event.gymnasium_id, []).append(item)
+    for members in by_gym.values():
+        members.sort(key=lambda item: (item.event.starts_at, item.event.id))
+        group = ""
+        end: datetime | None = None
+        for item in members:
+            if end is None or item.event.starts_at > end + GROUP_GAP:
+                group, end = item.event.id, item.event.ends_at
+            else:
+                end = max(end, item.event.ends_at)
+            item.group_id = group
 
 
 REFERENT_ROLES = {"coach", "admin"}

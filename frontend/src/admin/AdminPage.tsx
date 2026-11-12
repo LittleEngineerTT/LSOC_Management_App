@@ -6,7 +6,7 @@ import { UsersPanel } from './UsersPanel';
 import { SectionsTeamsPanel, GymnasiumsPanel, PositionsPanel } from './CatalogPanels';
 import { BlocksPanel } from './BlocksPanel';
 import { FFVBPanel } from './FFVBPanel';
-import { ConflictsPanel } from './ConflictsPanel';
+import { ConflictsPanel, openConflicts } from './ConflictsPanel';
 import { LicensesPanel } from './LicensesPanel';
 import { EmailsPanel, RequestsPanel } from './OperationsPanels';
 import './admin.css';
@@ -55,7 +55,7 @@ function Administration() {
   const conflicts = useLoad(conflictsLoader);
   const { refresh: refreshConflicts } = conflicts;
   useEffect(() => refreshConflicts(), [tab, refreshConflicts]);
-  const unresolved = (conflicts.data ?? []).filter((item) => !item.ignored).length;
+  const unresolved = openConflicts(conflicts.data ?? []);
   // Pastille rouge de l’onglet FFVB : sources activées en erreur (« indisponible ou
   // inexploitable », référent manquant…), relues avec le catalogue.
   const failing = admin

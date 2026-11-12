@@ -149,3 +149,30 @@ it('renvoie l’ancienne vue « Matchs importés » vers les conflits', async ()
   expect(await screen.findByRole('heading', { name: 'Conflits', level: 2 })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Matchs importés' })).not.toBeInTheDocument();
 });
+
+it('réunit en un seul conflit les événements d’un même gymnase et les ignore ensemble', async () => {
+  const grouped = [
+    { event: { ...base, id: 'g1', title: 'Entraînement A', gymnasium_id: 'g1' }, problems: [{ code: 'capacity_exceeded', message: 'Capacité du gymnase dépassée de 1 terrain' }], signature: 'sig-g1', group_id: 'g1' },
+    { event: { ...base, id: 'g2', title: 'Entraînement B', gymnasium_id: 'g1', starts_at: '2099-10-15T17:00:00Z', ends_at: '2099-10-15T19:00:00Z' }, problems: [{ code: 'capacity_exceeded', message: 'Capacité du gymnase dépassée de 1 terrain' }], signature: 'sig-g2', group_id: 'g1' },
+  ];
+  const posted: string[] = [];
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+    const path = new URL(String(input), 'http://localhost').pathname;
+    if (init?.method === 'POST') posted.push(path);
+    if (path.endsWith('/auth/me')) return reply(account);
+    if (path.endsWith('/gymnasiums')) return reply([{ id: 'g1', name: 'Ambroise Paré', capacity: 3 }]);
+    if (path.endsWith('/event-conflicts')) return reply(grouped);
+    return reply([]);
+  }));
+  render(<MemoryRouter initialEntries={['/app/administration?tab=conflicts']}><AuthApp /></MemoryRouter>);
+  const group = await screen.findByRole('article', { name: 'Conflit au gymnase Ambroise Paré' });
+  expect(within(group).getByText('2 événements', { exact: false })).toBeInTheDocument();
+  expect(within(group).getByRole('region', { name: 'Entraînement A' })).toBeInTheDocument();
+  expect(within(group).getByRole('region', { name: 'Entraînement B' })).toBeInTheDocument();
+  // Un seul conflit à traiter dans la pastille de l’onglet.
+  const tab = screen.getByRole('link', { name: /^Conflits/ });
+  await waitFor(() => expect(tab).toHaveAccessibleDescription('1 conflit à traiter'));
+  // Ignorer le conflit ignore ses deux événements.
+  await userEvent.click(within(group).getByRole('button', { name: 'Ignorer' }));
+  await waitFor(() => expect(posted.filter((path) => path.endsWith('/ignore'))).toEqual(['/api/v1/event-conflicts/g1/ignore', '/api/v1/event-conflicts/g2/ignore']));
+});

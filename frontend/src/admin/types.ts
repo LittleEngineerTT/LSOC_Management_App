@@ -319,4 +319,7 @@ export interface EventConflict {
   ignored?: boolean;
   ignorer_name?: string | null;
   ignored_at?: string | null;
+  /** Conflit regroupé (gymnase, événements à 2 h d’intervalle au plus) ; absent d’une API
+   * antérieure : chaque événement est seul. */
+  group_id?: string;
 }

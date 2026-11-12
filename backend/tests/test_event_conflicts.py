@@ -124,13 +124,47 @@ def test_an_ignored_conflict_stays_hidden_until_it_changes(admin: TestClient) ->
     shown = listing(include_ignored=True)[event['id']]
     assert (shown['ignored'], shown['ignorer_name']) == (True, 'Admin')
     # Un nouveau problème (dépassement de capacité) fait réapparaître le conflit.
-    admin.post('/api/v1/events?force=true', json=payload(section, gym, start=at(19), end=at(21)) | {'courts': 2})
+    rival = admin.post('/api/v1/events?force=true', json=payload(section, gym, start=at(19), end=at(21)) | {'courts': 2}).json()
     back = listing()[event['id']]
     assert back['ignored'] is False
     assert {problem['code'] for problem in back['problems']} == {'no_referent', 'capacity_exceeded'}
-    # Ignoré à nouveau puis rétabli.
+    # Le dépassement réunit les deux événements en un conflit : l’ignorer, c’est ignorer les deux.
+    assert back['group_id'] == listing()[rival['id']]['group_id']
     assert admin.post(f"/api/v1/event-conflicts/{event['id']}/ignore", json={'signature': back['signature']}).status_code == 200
+    assert event['id'] in listing()
+    assert admin.post(f"/api/v1/event-conflicts/{rival['id']}/ignore", json={'signature': listing()[rival['id']]['signature']}).status_code == 200
     assert event['id'] not in listing()
     assert admin.delete(f"/api/v1/event-conflicts/{event['id']}/ignore").status_code == 204
     assert listing()[event['id']]['ignored'] is False
     assert admin.post('/api/v1/event-conflicts/inconnu/ignore', json={'signature': signature}).status_code == 404
+
+
+def test_gym_conflicts_close_in_time_form_one_group(admin: TestClient) -> None:
+    section, gym = setup_planning(admin, capacity=3)
+    first = admin.post('/api/v1/events', json=payload(section, gym, start=at(18), end=at(20))).json()
+    second = admin.post('/api/v1/events?force=true', json=payload(section, gym, start=at(19), end=at(21))).json()
+    # Deux heures après la fin du groupe : encore le même conflit.
+    third = admin.post('/api/v1/events', json=payload(section, gym, courts=3, start=at(22, '2099-10-15'), end=at(23, '2099-10-15'))).json()
+    fourth = admin.post('/api/v1/events?force=true', json=payload(section, gym, courts=1, start=at(22, '2099-10-15'), end=at(23, '2099-10-15'))).json()
+    # Le lendemain : un autre conflit.
+    later = admin.post('/api/v1/events', json=payload(section, gym, courts=3, start=at(18, '2099-10-16'), end=at(20, '2099-10-16'))).json()
+    other = admin.post('/api/v1/events?force=true', json=payload(section, gym, courts=1, start=at(18, '2099-10-16'), end=at(20, '2099-10-16'))).json()
+    # Un problème propre à l’événement reste un conflit à part.
+    orphan = admin.post('/api/v1/events', json=payload(section, gym, courts=1, start=at(10, '2099-10-17'), end=at(12, '2099-10-17'))).json()
+    with SessionFactory.begin() as db:
+        db.get_one(Event, orphan['id']).referent_ids = []
+    groups = {item['event']['id']: item['group_id'] for item in admin.get('/api/v1/event-conflicts').json()}
+    assert groups[first['id']] == groups[second['id']] == groups[third['id']] == groups[fourth['id']] == first['id']
+    # Même heure de début : un seul groupe, distinct de celui de la veille.
+    assert groups[later['id']] == groups[other['id']] != groups[first['id']]
+    assert groups[orphan['id']] == orphan['id']
+    # Ignorer une partie du groupe ne suffit pas : il reste affiché en entier.
+    listed = {item['event']['id']: item for item in admin.get('/api/v1/event-conflicts').json()}
+    assert admin.post(f"/api/v1/event-conflicts/{later['id']}/ignore", json={'signature': listed[later['id']]['signature']}).status_code == 200
+    shown = {item['event']['id'] for item in admin.get('/api/v1/event-conflicts').json()}
+    assert {later['id'], other['id']} <= shown
+    # Tout le groupe ignoré : il disparaît.
+    assert admin.post(f"/api/v1/event-conflicts/{other['id']}/ignore", json={'signature': listed[other['id']]['signature']}).status_code == 200
+    shown = {item['event']['id'] for item in admin.get('/api/v1/event-conflicts').json()}
+    assert not {later['id'], other['id']} & shown
+    assert first['id'] in shown

@@ -1,3 +1,5 @@
+import { openConflicts } from '../admin/ConflictsPanel';
+import type { EventConflict } from '../admin/types';
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useLoad } from '../admin/data';
@@ -70,9 +72,10 @@ function AdminSummary() {
     async (signal: AbortSignal) => {
       const [requests, conflicts] = await Promise.all([
         api.list<unknown>('/change-requests', true, signal),
-        api.list<unknown>('/event-conflicts', false, signal),
+        api.list<EventConflict>('/event-conflicts', false, signal),
       ]);
-      return { requests: requests.length, conflicts: conflicts.length };
+      // Un conflit de gymnase regroupe ses événements : il compte une fois.
+      return { requests: requests.length, conflicts: openConflicts(conflicts) };
     },
     [api],
   );

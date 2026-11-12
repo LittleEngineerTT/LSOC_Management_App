@@ -41,6 +41,21 @@ type Pending =
   | { kind: 'reactivate'; conflict: EventConflict }
   | { kind: 'resolve'; conflict: EventConflict; divergence: Conflict; action: Resolution };
 
+/** Conflits regroupés par `group_id`, dans l’ordre de la liste : un conflit de gymnase couvre
+ * les événements qui s’y disputent les terrains ; sans groupe, chaque événement est seul. */
+export function groupConflicts(items: EventConflict[]): EventConflict[][] {
+  const groups = new Map<string, EventConflict[]>();
+  for (const item of items) {
+    const key = item.group_id || item.event.id;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return [...groups.values()];
+}
+/** Nombre de conflits à traiter : les groupes dont un événement au moins n’est pas ignoré. */
+export function openConflicts(items: EventConflict[]): number {
+  return groupConflicts(items).filter((group) => group.some((item) => !item.ignored)).length;
+}
+
 function has(conflict: EventConflict, ...codes: EventProblem['code'][]) {
   return conflict.problems.some((problem) => codes.includes(problem.code));
 }
@@ -74,18 +89,25 @@ export function ConflictsPanel({
     catalog.gymnasiums.find((gym) => gym.id === conflict.event.gymnasium_id)?.name ??
     (conflict.event.location || 'Lieu non renseigné');
 
-  async function toggleIgnore(conflict: EventConflict) {
+  // Ignorer un conflit regroupé vaut pour tous ses événements ; il réapparaît si l’un change.
+  async function toggleIgnore(group: EventConflict[]) {
+    const ignored = group.every((conflict) => conflict.ignored);
+    const name =
+      group.length > 1 ? `du gymnase ${place(group[0]!)}` : `de ${group[0]!.event.title}`;
     setNotice('');
     setError('');
     setBusy(true);
     try {
-      const path = `/event-conflicts/${encodeURIComponent(conflict.event.id)}/ignore`;
-      if (conflict.ignored) await api.request(path, 'DELETE');
-      else await api.request(path, 'POST', { signature: conflict.signature });
+      for (const conflict of group) {
+        const path = `/event-conflicts/${encodeURIComponent(conflict.event.id)}/ignore`;
+        if (ignored) await api.request(path, 'DELETE');
+        else if (!conflict.ignored)
+          await api.request(path, 'POST', { signature: conflict.signature });
+      }
       setNotice(
-        conflict.ignored
-          ? `Le conflit de ${conflict.event.title} est de nouveau suivi.`
-          : `Conflit de ${conflict.event.title} ignoré ; il réapparaîtra s’il change.`,
+        ignored
+          ? `Le conflit ${name} est de nouveau suivi.`
+          : `Conflit ${name} ignoré ; il réapparaîtra s’il change.`,
       );
       result.refresh();
     } catch (failure) {
@@ -94,6 +116,89 @@ export function ConflictsPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  // Titre, date, problèmes et divergences d’un événement ; `nested` : dans un conflit regroupé.
+  function details(conflict: EventConflict, nested: boolean) {
+    const Heading = nested ? 'h4' : 'h3';
+    return (
+      <>
+        <Heading>{conflict.event.title}</Heading>
+        <p>
+          {dateLabel(conflict.event.starts_at)} → {dateLabel(conflict.event.ends_at)}
+          {nested ? '' : ` · ${place(conflict)}`}
+        </p>
+        <ul className="admin-problems" aria-label={`Problèmes de ${conflict.event.title}`}>
+          {conflict.problems.map((problem) => (
+            <li key={problem.code}>
+              <Badge tone={tones[problem.code]}>{problem.message}</Badge>
+            </li>
+          ))}
+        </ul>
+        {(conflict.divergences ?? []).map((divergence) => (
+          <section
+            className="conflict-divergence"
+            key={divergence.id}
+            aria-label={`Divergence : ${fieldLabels[divergence.field] ?? divergence.field}`}
+          >
+            <h4>
+              Divergence FFVB : {fieldLabels[divergence.field] ?? divergence.field}
+              <span className="admin-hint"> · {dateLabel(divergence.created_at)}</span>
+            </h4>
+            <div className="conflict-values">
+              <div>
+                <h5>Valeur locale conservée</h5>
+                <Changes values={{ [divergence.field]: divergence.local_value }} />
+              </div>
+              <div>
+                <h5>Valeur officielle</h5>
+                <Changes values={{ [divergence.field]: divergence.official_value }} />
+              </div>
+            </div>
+            <div className="admin-actions">
+              {resolutions.map((action) => (
+                <button
+                  className="admin-button"
+                  key={action.id}
+                  disabled={busy}
+                  onClick={() => {
+                    setNotice('');
+                    setPending({ kind: 'resolve', conflict, divergence, action: action.id });
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </>
+    );
+  }
+  // Actions propres à un événement : l’ouvrir, réactiver sa vérification FFVB.
+  function eventActions(conflict: EventConflict) {
+    return (
+      <>
+        <Link
+          className="admin-button"
+          to={`/app/planning?semaine=${mondayOf(parisDay(conflict.event.starts_at))}&event=${encodeURIComponent(conflict.event.id)}`}
+        >
+          Ouvrir l’événement
+        </Link>
+        {conflict.event.ffvb_match_id && has(conflict, 'ffvb_disabled', 'ffvb_suspended') && (
+          <button
+            className="admin-button"
+            disabled={busy}
+            onClick={() => {
+              setNotice('');
+              setPending({ kind: 'reactivate', conflict });
+            }}
+          >
+            Réactiver la vérification FFVB
+          </button>
+        )}
+      </>
+    );
   }
 
   const items = result.data ?? [];
@@ -131,102 +236,73 @@ export function ConflictsPanel({
         <Empty>Aucun événement en conflit.</Empty>
       )}
       <div className="admin-list">
-        {items.map((conflict) => (
-          <article
-            className={`admin-row conflict-item${conflict.ignored ? ' ignored' : ''}`}
-            key={conflict.event.id}
-          >
-            <div className="admin-row-copy">
-              <h3>{conflict.event.title}</h3>
-              <p>
-                {dateLabel(conflict.event.starts_at)} → {dateLabel(conflict.event.ends_at)} ·{' '}
-                {place(conflict)}
-              </p>
-              {conflict.ignored && (
-                <p className="conflict-ignored">
-                  Ignoré par {conflict.ignorer_name ?? 'un administrateur'}
-                  {conflict.ignored_at && ` · ${dateLabel(conflict.ignored_at)}`}
+        {groupConflicts(items).map((group) => {
+          const first = group[0]!;
+          const ignored = group.every((conflict) => conflict.ignored);
+          const ignoreButton = (
+            <button
+              className="admin-button"
+              disabled={busy}
+              onClick={() => void toggleIgnore(group)}
+            >
+              {ignored ? 'Ne plus ignorer' : 'Ignorer'}
+            </button>
+          );
+          const ignoredLine = ignored && (
+            <p className="conflict-ignored">
+              Ignoré par {first.ignorer_name ?? 'un administrateur'}
+              {first.ignored_at && ` · ${dateLabel(first.ignored_at)}`}
+            </p>
+          );
+          if (group.length === 1)
+            return (
+              <article
+                className={`admin-row conflict-item${ignored ? ' ignored' : ''}`}
+                key={first.event.id}
+              >
+                <div className="admin-row-copy">
+                  {details(first, false)}
+                  {ignoredLine}
+                </div>
+                <div className="admin-actions">
+                  {eventActions(first)}
+                  {ignoreButton}
+                </div>
+              </article>
+            );
+          // Conflit de gymnase : un seul conflit pour les événements qui se disputent les terrains.
+          const start = group.map((conflict) => conflict.event.starts_at).sort()[0]!;
+          const end = group
+            .map((conflict) => conflict.event.ends_at)
+            .sort()
+            .at(-1)!;
+          return (
+            <article
+              className={`admin-row conflict-item conflict-group${ignored ? ' ignored' : ''}`}
+              key={first.group_id ?? first.event.id}
+              aria-label={`Conflit au gymnase ${place(first)}`}
+            >
+              <div className="admin-row-copy">
+                <h3>Conflit au gymnase {place(first)}</h3>
+                <p>
+                  {dateLabel(start)} → {dateLabel(end)} · {group.length} événements
                 </p>
-              )}
-              <ul className="admin-problems" aria-label={`Problèmes de ${conflict.event.title}`}>
-                {conflict.problems.map((problem) => (
-                  <li key={problem.code}>
-                    <Badge tone={tones[problem.code]}>{problem.message}</Badge>
-                  </li>
+                {ignoredLine}
+                {group.map((conflict) => (
+                  <section
+                    className="conflict-member"
+                    key={conflict.event.id}
+                    aria-label={conflict.event.title}
+                  >
+                    {details(conflict, true)}
+                    <div className="admin-actions">{eventActions(conflict)}</div>
+                  </section>
                 ))}
-              </ul>
-              {(conflict.divergences ?? []).map((divergence) => (
-                <section
-                  className="conflict-divergence"
-                  key={divergence.id}
-                  aria-label={`Divergence : ${fieldLabels[divergence.field] ?? divergence.field}`}
-                >
-                  <h4>
-                    Divergence FFVB : {fieldLabels[divergence.field] ?? divergence.field}
-                    <span className="admin-hint"> · {dateLabel(divergence.created_at)}</span>
-                  </h4>
-                  <div className="conflict-values">
-                    <div>
-                      <h5>Valeur locale conservée</h5>
-                      <Changes values={{ [divergence.field]: divergence.local_value }} />
-                    </div>
-                    <div>
-                      <h5>Valeur officielle</h5>
-                      <Changes values={{ [divergence.field]: divergence.official_value }} />
-                    </div>
-                  </div>
-                  <div className="admin-actions">
-                    {resolutions.map((action) => (
-                      <button
-                        className="admin-button"
-                        key={action.id}
-                        disabled={busy}
-                        onClick={() => {
-                          setNotice('');
-                          setPending({
-                            kind: 'resolve',
-                            conflict,
-                            divergence,
-                            action: action.id,
-                          });
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-            <div className="admin-actions">
-              <Link
-                className="admin-button"
-                to={`/app/planning?semaine=${mondayOf(parisDay(conflict.event.starts_at))}&event=${encodeURIComponent(conflict.event.id)}`}
-              >
-                Ouvrir l’événement
-              </Link>
-              {conflict.event.ffvb_match_id && has(conflict, 'ffvb_disabled', 'ffvb_suspended') && (
-                <button
-                  className="admin-button"
-                  disabled={busy}
-                  onClick={() => {
-                    setNotice('');
-                    setPending({ kind: 'reactivate', conflict });
-                  }}
-                >
-                  Réactiver la vérification FFVB
-                </button>
-              )}
-              <button
-                className="admin-button"
-                disabled={busy}
-                onClick={() => void toggleIgnore(conflict)}
-              >
-                {conflict.ignored ? 'Ne plus ignorer' : 'Ignorer'}
-              </button>
-            </div>
-          </article>
-        ))}
+              </div>
+              <div className="admin-actions">{ignoreButton}</div>
+            </article>
+          );
+        })}
       </div>
       {pending?.kind === 'reactivate' && (
         <Confirm
