@@ -35,6 +35,11 @@ export function nextJuly31(day: string = today()): string {
   const year = Number(day.slice(0, 4));
   return day <= `${year}-07-31` ? `${year}-07-31` : `${year + 1}-07-31`;
 }
+/** Prochain 31 août, compris : fin de la période exportée vers un agenda. */
+export function nextAugust31(day: string = today()): string {
+  const year = Number(day.slice(0, 4));
+  return day <= `${year}-08-31` ? `${year}-08-31` : `${year + 1}-08-31`;
+}
 export function horizonLabel(): string {
   return `31 août ${horizonEnd(today()).slice(0, 4)}`;
 }

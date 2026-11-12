@@ -165,25 +165,35 @@ export function GuestPlanning() {
   }
   const { mode, anchor, days } = useCalendarPeriod();
   const firstDay = days[0]!;
-  const loader = useCallback(
-    (signal: AbortSignal) =>
+  // Matchs publics d’une période : l’affichage et l’export s’en servent.
+  const fetchMatches = useCallback(
+    (first: string, count: number, signal: AbortSignal) =>
       api
-        .list<PublicEvent>(`/public/events?${rangeQuery(firstDay, days.length)}`, true, signal)
+        .list<PublicEvent>(`/public/events?${rangeQuery(first, count)}`, true, signal)
         .then((events) => events.map(asEvent)),
-    [api, firstDay, days.length],
+    [api],
+  );
+  const loader = useCallback(
+    (signal: AbortSignal) => fetchMatches(firstDay, days.length, signal),
+    [fetchMatches, firstDay, days.length],
   );
   const result = useLoad(loader);
-  // Matchs affichés, avec la période et les filtres : c’est aussi ce qui s’exporte.
-  const visible =
-    result.data?.filter(
-      (event) =>
-        (!gym || (gym === AWAY ? isAway(event) : event.gymnasium_id === gym)) &&
-        (!section || event.section_ids.includes(section)) &&
-        (!team || (event.team_ids ?? []).includes(team)),
-    ) ?? null;
+  // Filtres du planning, appliqués à l’affichage comme à l’export.
+  const shown = (event: Event) =>
+    (!gym || (gym === AWAY ? isAway(event) : event.gymnasium_id === gym)) &&
+    (!section || event.section_ids.includes(section)) &&
+    (!team || (event.team_ids ?? []).includes(team));
+  const visible = result.data?.filter(shown) ?? null;
   // « Exporter » : dans l’en-tête sur ordinateur, à droite des vues du calendrier sur téléphone.
   const wide = useWideScreen();
-  const exporter = <ExportCalendar events={visible ?? []} />;
+  // L’export reprend les mêmes filtres, d’aujourd’hui au prochain 31 août.
+  const exporter = (
+    <ExportCalendar
+      load={async (first, count, signal) =>
+        (await fetchMatches(first, count, signal)).filter(shown)
+      }
+    />
+  );
   return (
     <>
       <PanelHeading

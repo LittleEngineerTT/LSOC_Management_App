@@ -81,7 +81,7 @@ export const release: Release = {
     {
       kind: 'feature',
       title: 'Planning dans votre agenda',
-      text: '« Exporter » copie les événements affichés dans un fichier à ouvrir sur votre téléphone ou à importer dans votre agenda. La copie n’est pas tenue à jour : exportez de nouveau après un changement.',
+      text: '« Exporter » copie les événements de vos filtres, jusqu’au 31 août, dans un fichier à ouvrir sur votre téléphone ou à importer dans votre agenda. La copie n’est pas tenue à jour : exportez de nouveau après un changement.',
       link: { to: '/app/planning', label: 'Exporter le planning' },
     },
     {

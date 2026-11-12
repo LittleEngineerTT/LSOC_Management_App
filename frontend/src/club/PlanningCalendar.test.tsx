@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { AuthApp } from '../auth/AuthApp';
-import { today, dayLabel, addDays } from './calendar';
+import { today, dayLabel, addDays, daysBetween, nextAugust31, range } from './calendar';
 
 const account = { id: 'm', username: 'camille', first_name: 'Camille', active: true, roles: ['member'], email: null };
 const base = { section_ids: [], team_ids: [] as string[], gymnasium_id: null, location: 'Paré', courts: 1, referent_ids: ['m'], registration_section_ids: [], registration_limit: null, registration_count: 0, starts_at: '2026-10-14T16:00:00Z', ends_at: '2026-10-14T18:00:00Z', cancelled: false, conflict: false, conflict_note: '' };
@@ -106,11 +106,11 @@ it('filtre le planning sur les événements à l’extérieur', async () => {
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('gymnasium_id=exterieur'))).toBe(false);
 });
 
-it('exporte les événements affichés en fichier agenda, après avoir prévenu qu’ils ne seront pas tenus à jour', async () => {
+it('exporte jusqu’au prochain 31 août avec les filtres en cours, après avoir prévenu que la copie ne sera pas tenue à jour', async () => {
   const created = vi.fn<(blob: Blob) => string>(() => 'blob:agenda');
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() }));
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-  open();
+  const fetchMock = open('/app/planning?semaine=2026-10-12&section=s');
   const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
   await within(calendar).findByRole('link', { name: /Entraînement local/ });
   // Écran large : dans l’en-tête du planning, pas dans la navigation du calendrier.
@@ -120,6 +120,7 @@ it('exporte les événements affichés en fichier agenda, après avoir prévenu 
   await userEvent.click(screen.getByRole('button', { name: 'Exporter' }));
   const dialog = screen.getByRole('dialog', { name: 'Exporter vers votre agenda' });
   expect(dialog).toHaveTextContent('Les événements exportés ne seront pas tenus à jour.');
+  expect(dialog).toHaveTextContent(`d’aujourd’hui au 31 août ${nextAugust31().slice(0, 4)}`);
   expect(created).not.toHaveBeenCalled();
   await userEvent.click(within(dialog).getByRole('button', { name: 'Télécharger le fichier' }));
   await waitFor(() => expect(click).toHaveBeenCalled());
@@ -131,6 +132,11 @@ it('exporte les événements affichés en fichier agenda, après avoir prévenu 
   });
   expect(content).toContain('BEGIN:VCALENDAR');
   expect(content).toContain('SUMMARY:Entraînement local');
+  // La requête de l’export couvre d’aujourd’hui au 31 août compris, avec le filtre de section.
+  const { starts_at, ends_at } = range(today(), daysBetween(today(), nextAugust31()) + 1);
+  const exported = fetchMock.mock.calls.map(([input]) => new URL(String(input), 'http://localhost')).find((url) => url.searchParams.get('starts_at') === starts_at);
+  expect(exported?.searchParams.get('ends_at')).toBe(ends_at);
+  expect(exported?.searchParams.get('section_id')).toBe('s');
   click.mockRestore();
 });
 

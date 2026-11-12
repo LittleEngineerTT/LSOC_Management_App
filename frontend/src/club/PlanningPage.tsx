@@ -97,17 +97,22 @@ export function PlanningPage() {
   }
   const [requestRevision, setRequestRevision] = useState(0);
   const [notice, setNotice] = useState('');
-  const loader = useCallback(
-    (signal: AbortSignal) => {
+  // Événements d’une période avec les filtres du serveur : l’affichage et l’export s’en servent.
+  const fetchEvents = useCallback(
+    (first: string, count: number, signal: AbortSignal) => {
       const filters = [
-        rangeQuery(firstDay, days.length),
+        rangeQuery(first, count),
         section && `section_id=${encodeURIComponent(section)}`,
         gym === AWAY ? 'away=true' : gym && `gymnasium_id=${encodeURIComponent(gym)}`,
         cancelled && 'include_cancelled=true',
       ].filter(Boolean);
       return api.list<Event>(`/events?${filters.join('&')}`, true, signal);
     },
-    [api, firstDay, days.length, section, gym, cancelled],
+    [api, section, gym, cancelled],
+  );
+  const loader = useCallback(
+    (signal: AbortSignal) => fetchEvents(firstDay, days.length, signal),
+    [fetchEvents, firstDay, days.length],
   );
   const result = useLoad(loader);
   const registrationsLoader = useCallback(
@@ -137,16 +142,17 @@ export function PlanningPage() {
     event.referent_ids.includes(account.id) ||
     myTeams.some((item) => concernsTeam(event, item));
   // Événements affichés : période, filtres et « Mon planning » ; c’est aussi ce qui s’exporte.
-  const visible =
-    result.data && (!mine || registrations.data)
-      ? result.data.filter(
-          (event) =>
-            (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam)),
-        )
-      : null;
+  const shown = (event: Event) =>
+    (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam));
+  const visible = result.data && (!mine || registrations.data) ? result.data.filter(shown) : null;
   // « Exporter » : dans l’en-tête sur ordinateur, à droite des vues du calendrier sur téléphone.
   const wide = useWideScreen();
-  const exporter = <ExportCalendar events={visible ?? []} />;
+  // L’export reprend les mêmes filtres, d’aujourd’hui au prochain 31 août.
+  const exporter = (
+    <ExportCalendar
+      load={async (first, count, signal) => (await fetchEvents(first, count, signal)).filter(shown)}
+    />
+  );
   function filter(name: string, value: string) {
     setSearch((previous) => {
       const next = new URLSearchParams(previous);
