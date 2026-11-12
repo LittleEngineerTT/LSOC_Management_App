@@ -80,6 +80,12 @@ export const release: Release = {
     },
     {
       kind: 'feature',
+      title: 'Planning dans votre agenda',
+      text: '« Exporter » copie les événements affichés dans un fichier à ouvrir sur votre téléphone ou à importer dans votre agenda. La copie n’est pas tenue à jour : exportez de nouveau après un changement.',
+      link: { to: '/app/planning', label: 'Exporter le planning' },
+    },
+    {
+      kind: 'feature',
       title: 'Événements à l’extérieur',
       text: 'Le filtre Gymnase du planning propose « À l’extérieur » : seuls les événements hors des gymnases du club s’affichent.',
       link: { to: '/app/planning?gymnase=exterieur', label: 'Voir les événements à l’extérieur' },

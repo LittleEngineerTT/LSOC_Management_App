@@ -16,6 +16,7 @@ import {
 } from './calendar';
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarLegend, CalendarView } from './CalendarView';
+import { ExportCalendar } from './ExportCalendar';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
@@ -171,12 +172,21 @@ export function GuestPlanning() {
     [api, firstDay, days.length],
   );
   const result = useLoad(loader);
+  // Matchs affichés, avec la période et les filtres : c’est aussi ce qui s’exporte.
+  const visible =
+    result.data?.filter(
+      (event) =>
+        (!gym || (gym === AWAY ? isAway(event) : event.gymnasium_id === gym)) &&
+        (!section || event.section_ids.includes(section)) &&
+        (!team || (event.team_ids ?? []).includes(team)),
+    ) ?? null;
   return (
     <>
       <PanelHeading
         title="Matchs FFVB du club"
         description="Les matchs officiels des équipes du club. Les entraînements et autres activités sont réservés aux adhérents connectés."
       >
+        <ExportCalendar events={visible ?? []} />
         <Link className="admin-button primary" to="/login">
           Se connecter
         </Link>
@@ -226,14 +236,9 @@ export function GuestPlanning() {
       <CalendarLegend />
       <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
-      {result.data && (
+      {visible && (
         <CalendarView
-          events={result.data.filter(
-            (event) =>
-              (!gym || (gym === AWAY ? isAway(event) : event.gymnasium_id === gym)) &&
-              (!section || event.section_ids.includes(section)) &&
-              (!team || (event.team_ids ?? []).includes(team)),
-          )}
+          events={visible}
           days={days}
           mode={mode}
           anchor={anchor}

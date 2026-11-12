@@ -8,6 +8,7 @@ import { isFollowed, useClub } from './context';
 import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
+import { ExportCalendar } from './ExportCalendar';
 import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
 import { AWAY, concernsTeam } from './events';
@@ -134,6 +135,14 @@ export function PlanningPage() {
     isFollowed(follows, event) ||
     event.referent_ids.includes(account.id) ||
     myTeams.some((item) => concernsTeam(event, item));
+  // Événements affichés : période, filtres et « Mon planning » ; c’est aussi ce qui s’exporte.
+  const visible =
+    result.data && (!mine || registrations.data)
+      ? result.data.filter(
+          (event) =>
+            (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam)),
+        )
+      : null;
   function filter(name: string, value: string) {
     setSearch((previous) => {
       const next = new URLSearchParams(previous);
@@ -146,8 +155,9 @@ export function PlanningPage() {
     <>
       <PanelHeading
         title="Planning du club"
-        description="Entraînements, matchs et activités des sections en calendrier. Les horaires sont ceux de Paris."
+        description="Entraînements, matchs et activités des sections en calendrier."
       >
+        <ExportCalendar events={visible ?? []} />
         {admin && (
           <button
             className="admin-button primary"
@@ -267,12 +277,9 @@ export function PlanningPage() {
       <CalendarNavigation mode={mode} anchor={anchor} />
       <LoadState result={result} />
       {mine && <LoadState result={registrations} />}
-      {result.data && (!mine || registrations.data) && (
+      {visible && (
         <CalendarView
-          events={result.data.filter(
-            (event) =>
-              (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam)),
-          )}
+          events={visible}
           days={days}
           mode={mode}
           anchor={anchor}

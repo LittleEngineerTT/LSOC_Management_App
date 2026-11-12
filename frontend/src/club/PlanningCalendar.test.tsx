@@ -106,6 +106,30 @@ it('filtre le planning sur les événements à l’extérieur', async () => {
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes('gymnasium_id=exterieur'))).toBe(false);
 });
 
+it('exporte les événements affichés en fichier agenda, après avoir prévenu qu’ils ne seront pas tenus à jour', async () => {
+  const created = vi.fn<(blob: Blob) => string>(() => 'blob:agenda');
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: created, revokeObjectURL: vi.fn() }));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  open();
+  const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
+  await within(calendar).findByRole('link', { name: /Entraînement local/ });
+  await userEvent.click(screen.getByRole('button', { name: 'Exporter' }));
+  const dialog = screen.getByRole('dialog', { name: 'Exporter vers votre agenda' });
+  expect(dialog).toHaveTextContent('Les événements exportés ne seront pas tenus à jour.');
+  expect(created).not.toHaveBeenCalled();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Télécharger le fichier' }));
+  await waitFor(() => expect(click).toHaveBeenCalled());
+  // Le Blob de jsdom n’a pas text() : lecture par FileReader.
+  const content = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsText(created.mock.calls[0]![0]);
+  });
+  expect(content).toContain('BEGIN:VCALENDAR');
+  expect(content).toContain('SUMMARY:Entraînement local');
+  click.mockRestore();
+});
+
 it('change le jour sélectionné de la semaine en cliquant sur un jour', async () => {
   open();
   const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
