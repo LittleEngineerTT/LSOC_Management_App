@@ -10,6 +10,13 @@
 .calendar-navigation .admin-subtabs {
   margin-bottom: 0;
 }
+/* Vues Semaine et Mois, puis les actions (Exporter) tout à droite. */
+.calendar-navigation-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 .calendar-legend {
   display: flex;
   flex-wrap: wrap;
@@ -463,6 +470,11 @@
 @media (max-width: 600px) {
   .calendar-navigation-text {
     display: none;
+  }
+  /* Sur téléphone, la ligne entière : les vues à gauche, Exporter tout à droite. */
+  .calendar-navigation-end {
+    flex: 1 1 100%;
+    justify-content: space-between;
   }
   .calendar-navigation .club-week {
     gap: 6px;

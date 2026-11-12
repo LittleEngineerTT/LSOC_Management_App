@@ -9,6 +9,7 @@ import { DetailHost } from './EventDetail';
 import { EventEditor } from './EventEditor';
 import { CalendarLegend, CalendarView } from './CalendarView';
 import { ExportCalendar } from './ExportCalendar';
+import { useWideScreen } from './useWideScreen';
 import { CalendarNavigation, useCalendarPeriod, useSelectedDay } from './CalendarNavigation';
 import { CoachEventRequests } from './CoachEventRequests';
 import { AWAY, concernsTeam } from './events';
@@ -143,6 +144,9 @@ export function PlanningPage() {
             (!mine || isMine(event)) && (!selectedTeam || concernsTeam(event, selectedTeam)),
         )
       : null;
+  // « Exporter » : dans l’en-tête sur ordinateur, à droite des vues du calendrier sur téléphone.
+  const wide = useWideScreen();
+  const exporter = <ExportCalendar events={visible ?? []} />;
   function filter(name: string, value: string) {
     setSearch((previous) => {
       const next = new URLSearchParams(previous);
@@ -157,7 +161,7 @@ export function PlanningPage() {
         title="Planning du club"
         description="Entraînements, matchs et activités des sections en calendrier."
       >
-        <ExportCalendar events={visible ?? []} />
+        {wide && exporter}
         {admin && (
           <button
             className="admin-button primary"
@@ -274,7 +278,7 @@ export function PlanningPage() {
         </label>
       </div>
       <CalendarLegend />
-      <CalendarNavigation mode={mode} anchor={anchor} />
+      <CalendarNavigation mode={mode} anchor={anchor} actions={!wide && exporter} />
       <LoadState result={result} />
       {mine && <LoadState result={registrations} />}
       {visible && (

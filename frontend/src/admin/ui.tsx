@@ -540,7 +540,8 @@ export function PanelHeading({
         <h2>{title}</h2>
         <p>{description}</p>
       </div>
-      {children}
+      {/* Les actions restent groupées à droite, côte à côte. */}
+      {children && <div className="admin-panel-actions">{children}</div>}
     </div>
   );
 }

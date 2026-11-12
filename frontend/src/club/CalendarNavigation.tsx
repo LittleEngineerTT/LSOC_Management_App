@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { addDays, mondayOf, today, validDay, weekLabel } from './calendar';
 import { monthDays, shiftMonth } from './calendarLayout';
@@ -42,7 +43,16 @@ const monthFormat = new Intl.DateTimeFormat('fr-FR', {
   month: 'long',
   year: 'numeric',
 });
-export function CalendarNavigation({ mode, anchor }: { mode: CalendarMode; anchor: string }) {
+/** Navigation du calendrier ; `actions` (Exporter…) se placent tout à droite, après les vues. */
+export function CalendarNavigation({
+  mode,
+  anchor,
+  actions,
+}: {
+  mode: CalendarMode;
+  anchor: string;
+  actions?: ReactNode;
+}) {
   const [, setSearch] = useSearchParams();
   function change(values: Record<string, string>) {
     setSearch((previous) => {
@@ -82,21 +92,24 @@ export function CalendarNavigation({ mode, anchor }: { mode: CalendarMode; ancho
           <span aria-hidden="true">→</span>
         </button>
       </div>
-      <div className="admin-subtabs" role="group" aria-label="Vue du calendrier">
-        <button
-          className={`admin-button${mode === 'week' ? ' selected' : ''}`}
-          aria-pressed={mode === 'week'}
-          onClick={() => change({ vue: 'semaine' })}
-        >
-          Semaine
-        </button>
-        <button
-          className={`admin-button${mode === 'month' ? ' selected' : ''}`}
-          aria-pressed={mode === 'month'}
-          onClick={() => change({ vue: 'mois' })}
-        >
-          Mois
-        </button>
+      <div className="calendar-navigation-end">
+        <div className="admin-subtabs" role="group" aria-label="Vue du calendrier">
+          <button
+            className={`admin-button${mode === 'week' ? ' selected' : ''}`}
+            aria-pressed={mode === 'week'}
+            onClick={() => change({ vue: 'semaine' })}
+          >
+            Semaine
+          </button>
+          <button
+            className={`admin-button${mode === 'month' ? ' selected' : ''}`}
+            aria-pressed={mode === 'month'}
+            onClick={() => change({ vue: 'mois' })}
+          >
+            Mois
+          </button>
+        </div>
+        {actions}
       </div>
     </div>
   );

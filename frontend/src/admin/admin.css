@@ -84,6 +84,14 @@
   max-width: 740px;
   margin: 9px 0 0;
 }
+.admin-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .admin-button {
   display: inline-flex;
   align-items: center;
@@ -628,6 +636,13 @@
     align-items: stretch;
     flex-direction: column;
     gap: 16px;
+  }
+  /* Sur téléphone, les actions de l’en-tête occupent toute la largeur. */
+  .admin-panel-actions {
+    justify-content: stretch;
+  }
+  .admin-panel-actions > * {
+    flex: 1 1 auto;
   }
   .admin-panel-heading h2 {
     font-size: 22px;

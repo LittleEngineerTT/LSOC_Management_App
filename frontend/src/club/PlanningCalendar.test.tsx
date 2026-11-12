@@ -113,6 +113,10 @@ it('exporte les événements affichés en fichier agenda, après avoir prévenu 
   open();
   const calendar = await screen.findByRole('region', { name: 'Calendrier de la semaine' });
   await within(calendar).findByRole('link', { name: /Entraînement local/ });
+  // Écran large : dans l’en-tête du planning, pas dans la navigation du calendrier.
+  const views = screen.getByRole('group', { name: 'Vue du calendrier' });
+  expect(views.nextElementSibling).toBeNull();
+  expect(screen.getByRole('button', { name: 'Exporter' }).closest('.admin-panel-heading')).not.toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Exporter' }));
   const dialog = screen.getByRole('dialog', { name: 'Exporter vers votre agenda' });
   expect(dialog).toHaveTextContent('Les événements exportés ne seront pas tenus à jour.');
@@ -128,6 +132,14 @@ it('exporte les événements affichés en fichier agenda, après avoir prévenu 
   expect(content).toContain('BEGIN:VCALENDAR');
   expect(content).toContain('SUMMARY:Entraînement local');
   click.mockRestore();
+});
+
+it('sur téléphone, place Exporter tout à droite, après les vues Semaine et Mois', async () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }));
+  open();
+  const views = await screen.findByRole('group', { name: 'Vue du calendrier' });
+  expect(views.nextElementSibling).toBe(screen.getByRole('button', { name: 'Exporter' }));
+  expect(screen.getAllByRole('button', { name: 'Exporter' })).toHaveLength(1);
 });
 
 it('change le jour sélectionné de la semaine en cliquant sur un jour', async () => {

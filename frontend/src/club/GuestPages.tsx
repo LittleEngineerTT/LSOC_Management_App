@@ -17,6 +17,7 @@ import {
 import { CalendarNavigation, useCalendarPeriod } from './CalendarNavigation';
 import { CalendarLegend, CalendarView } from './CalendarView';
 import { ExportCalendar } from './ExportCalendar';
+import { useWideScreen } from './useWideScreen';
 import { ReleaseNotes } from './ReleaseNotes';
 import { RecentResults } from './RecentResults';
 import { useClub } from './context';
@@ -180,13 +181,16 @@ export function GuestPlanning() {
         (!section || event.section_ids.includes(section)) &&
         (!team || (event.team_ids ?? []).includes(team)),
     ) ?? null;
+  // « Exporter » : dans l’en-tête sur ordinateur, à droite des vues du calendrier sur téléphone.
+  const wide = useWideScreen();
+  const exporter = <ExportCalendar events={visible ?? []} />;
   return (
     <>
       <PanelHeading
         title="Matchs FFVB du club"
         description="Les matchs officiels des équipes du club. Les entraînements et autres activités sont réservés aux adhérents connectés."
       >
-        <ExportCalendar events={visible ?? []} />
+        {wide && exporter}
         <Link className="admin-button primary" to="/login">
           Se connecter
         </Link>
@@ -234,7 +238,7 @@ export function GuestPlanning() {
         </label>
       </div>
       <CalendarLegend />
-      <CalendarNavigation mode={mode} anchor={anchor} />
+      <CalendarNavigation mode={mode} anchor={anchor} actions={!wide && exporter} />
       <LoadState result={result} />
       {visible && (
         <CalendarView

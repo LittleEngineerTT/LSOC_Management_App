@@ -313,6 +313,13 @@ it('une notification lue se remet en non lue depuis la cloche', async () => {
   expect(await within(screen.getByRole('button', { name: 'Notifications' })).findByLabelText('1 notification non lue')).toBeInTheDocument();
 });
 
+it('sur ordinateur, Exporter se place à gauche de Nouvel événement', async () => {
+  account = admin;
+  open('/app/planning');
+  const create = await screen.findByRole('button', { name: 'Nouvel événement' });
+  expect(create.previousElementSibling).toBe(screen.getByRole('button', { name: 'Exporter' }));
+});
+
 it('un administrateur crée un entraînement les mardis et jeudis jusqu’à la date choisie', async () => {
   account = admin;
   mutation = () => reply([training], 201);
