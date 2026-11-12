@@ -26,14 +26,14 @@ export function scheduleFields(): FormField[] {
     },
     {
       name: 'starts_at',
-      label: 'Début (Europe/Paris)',
+      label: 'Début',
       type: 'datetime-fr',
       required: true,
       hiddenWhen: 'repeat',
     },
     {
       name: 'ends_at',
-      label: 'Fin (Europe/Paris)',
+      label: 'Fin',
       type: 'datetime-fr',
       required: true,
       after: { name: 'starts_at', minutes: 120 },

@@ -127,7 +127,7 @@ export function EventEditor({
         ? [
             {
               name: 'kickoff_at',
-              label: 'Coup d’envoi (Europe/Paris)',
+              label: 'Coup d’envoi',
               type: 'datetime-fr' as const,
               required: true,
             },
@@ -151,13 +151,13 @@ export function EventEditor({
         ? [
             {
               name: 'starts_at',
-              label: 'Début (Europe/Paris)',
+              label: 'Début',
               type: 'datetime-fr' as const,
               required: true,
             },
             {
               name: 'ends_at',
-              label: 'Fin (Europe/Paris)',
+              label: 'Fin',
               type: 'datetime-fr' as const,
               required: true,
               after: { name: 'starts_at', minutes: 120 },

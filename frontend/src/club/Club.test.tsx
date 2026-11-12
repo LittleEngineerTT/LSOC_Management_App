@@ -100,7 +100,7 @@ it('un administrateur crée une série et peut forcer explicitement un dépassem
   expect(screen.queryByLabelText('Fin de la récurrence')).not.toBeInTheDocument();
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
   // Récurrence cochée : les dates laissent place aux jours et aux heures.
-  expect(screen.queryByLabelText('Début (Europe/Paris)')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Début', { exact: true })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Fin de la récurrence')).toHaveValue(nextJuly31().split('-').reverse().join('/'));
   const weekday = (new Date(`${today()}T12:00:00Z`).getUTCDay() + 6) % 7;
   await userEvent.click(within(screen.getByRole('group', { name: 'Jours de répétition' })).getAllByRole('checkbox')[weekday]!);

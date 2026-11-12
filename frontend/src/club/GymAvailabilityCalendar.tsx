@@ -47,22 +47,13 @@ export function GymCalendarLegend({ mode }: { mode: CalendarMode }) {
           <i className="calendar-dot" />
           Capacité dépassée
         </span>
-        <span className="origin-ffvb">
-          <i className="calendar-dot" />
-          FFVB
-        </span>
-        <span className="origin-local">
-          <i className="calendar-dot" />
-          Local
-        </span>
         <span className="gym-block">
           <i className="calendar-dot" />
           Indisponibilité
         </span>
       </div>
       <p className="gym-calendar-help">
-        Horaires de Paris · nombre de terrains libres par créneau. Sélectionnez un jour pour tous
-        ses détails.{' '}
+        Nombre de terrains libres par créneau. Sélectionnez un jour pour tous ses détails.{' '}
         {mode === 'month' && 'La vue mois indique le minimum de terrains libres dans la journée.'}
       </p>
     </>

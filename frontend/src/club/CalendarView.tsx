@@ -20,15 +20,7 @@ import './calendar.css';
 export function CalendarLegend() {
   return (
     <div className="calendar-legend" aria-label="Légende du calendrier">
-      <span className="origin-ffvb">
-        <span className="calendar-dot" />
-        Événement FFVB
-      </span>
-      <span className="origin-local">
-        <span className="calendar-dot" />
-        Événement local
-      </span>
-      <span>Horaires de Paris · cliquez sur un événement pour le consulter</span>
+      <span>Cliquez sur un événement pour le consulter.</span>
     </div>
   );
 }

@@ -458,7 +458,7 @@ it('un coach propose un entraînement récurrent par jours et heures', async () 
   await userEvent.type(screen.getByLabelText('Titre'), 'Entraînement jeunes');
   await userEvent.type(screen.getByLabelText('Lieu extérieur'), 'Parc');
   await userEvent.click(screen.getByLabelText('Répéter chaque semaine'));
-  expect(screen.queryByText('Début (Europe/Paris)')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Début', { exact: true })).not.toBeInTheDocument();
   const days = screen.getByRole('group', { name: 'Jours de répétition' });
   await userEvent.click(within(days).getByLabelText('Mardi'));
   await userEvent.click(within(days).getByLabelText('Jeudi'));
